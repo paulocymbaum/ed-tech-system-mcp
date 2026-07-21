@@ -1,0 +1,20 @@
+title = "ed-tech-system-mcp gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlisted paths and patterns"
+paths = [
+  '''\.env\.example$''',
+  '''ENVIRONMENT_SETUP\.md$''',
+  '''ARCHITECTURE\.md$''',
+  '''package-lock\.json$''',
+]
+regexes = [
+  '''SUPABASE_URL=\s*$''',
+  '''SUPABASE_SERVICE_ROLE_KEY=\s*$''',
+  '''YOUTUBE_API_KEY=\s*$''',
+  '''\$\{\{ secrets\.[A-Z0-9_]+ \}\}''',
+  '''\$\{env:[A-Z0-9_]+\}''',
+]

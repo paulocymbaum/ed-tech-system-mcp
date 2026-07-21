@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/common.sh"
+
+bash scripts/hooks/pre-commit.sh
