@@ -1,0 +1,84 @@
+---
+alwaysApply: false
+---
+# Changelog & Agent Long-Term Memory
+
+The `changelog/` directory is the **persistent memory** for Cursor agents on this project. All non-trivial work must be recorded here before and during implementation.
+
+## Folder layout
+
+```text
+changelog/
+└── {DATESLUG}/              # YYYY-MM-DD (work date)
+    └── {LAYERNAME}/         # primary architectural layer
+        ├── INVESTIGATION{N}.md
+        ├── IMPLEMENTATION{N}.md
+        └── CODE_REVIEW{N}.md
+```
+
+**Example:** `changelog/2026-07-21/domain/INVESTIGATION1.md`
+
+## Naming conventions
+
+| Token | Format | Values |
+| :--- | :--- | :--- |
+| `{DATESLUG}` | `YYYY-MM-DD` | ISO date of the work session |
+| `{LAYERNAME}` | lowercase | `domain`, `application`, `interface`, `infrastructure`, `entrypoint` |
+| `{N}` | integer, no zero-pad | `1`, `2`, `3` … monotonic **per layer folder** |
+| File prefix | UPPERCASE | `INVESTIGATION`, `IMPLEMENTATION`, `CODE_REVIEW` |
+
+**Pairing rule:** `IMPLEMENTATION{N}.md` must reference and implement the matching `INVESTIGATION{N}.md` in the same folder.
+
+**Review rule:** `CODE_REVIEW{N}.md` should reference the matching `INVESTIGATION{N}.md` and `IMPLEMENTATION{N}.md` when reviewing that increment. `{N}` is monotonic per layer folder, same as investigation/implementation numbering.
+
+**Multi-layer work:** use one folder per layer (e.g. `changelog/2026-07-21/domain/` and `changelog/2026-07-21/infrastructure/`).
+
+## Agent memory protocol
+
+### Before starting work
+
+1. Scan `changelog/**/` for existing `INVESTIGATION*.md`, `IMPLEMENTATION*.md`, and `CODE_REVIEW*.md` related to the request (same layer, feature, or date).
+2. Read open items: `Status: draft`, `planned`, or `in_progress`.
+3. Prefer continuing an existing pair over creating duplicates.
+4. When creating new files, list the folder and pick the next `{N}` — never overwrite without explicit user approval.
+
+### During work
+
+- **Investigate first** → write `INVESTIGATION{N}.md` (gap analysis, minimal increment, scope in/out).
+- **Plan second** → write `IMPLEMENTATION{N}.md` with an ordered checklist.
+- **Execute third** → check off tasks (`- [x]`), update `Status` fields.
+- Note deviations from the investigation inside the implementation file.
+
+### After completing work
+
+- Set `IMPLEMENTATION{N}.md` → `Status: done`; set investigation → `approved` when accurate.
+- Summarize outcomes in the implementation file if scope changed.
+- Deferrals go in investigation **Scope (out)** — do not lose them in chat.
+
+### What agents must not do
+
+- Skip changelog files for feature, refactor, or scaffold work.
+- Store decisions only in chat (chat is ephemeral; `changelog/` is memory).
+- Commit secrets or `.env` content in changelog files.
+
+## File roles
+
+| File | Purpose | Written when |
+| :--- | :--- | :--- |
+| `INVESTIGATION{N}.md` | Architecture alignment, gaps, minimal increment | Before code |
+| `IMPLEMENTATION{N}.md` | Checklist, task order, completion criteria | Before code; updated during execution |
+| `CODE_REVIEW{N}.md` | Branch/code review vs changelog plans and architecture | After implementation; before merge |
+
+Canonical templates: investigation/implementation workflow in `.cursor/agents/incremental-layer-builder.md`; code review workflow in `.cursor/agents/changelog-code-reviewer.md`. Architecture constraints: `ARCHITECTURE.md`. Environment commands: `ENVIRONMENT_SETUP.md`.
+
+## Task ordering in IMPLEMENTATION checklists
+
+`domain` → `application` → `infrastructure` → `interface` → `entrypoint` → tests → `uv run ruff` → `uv run mypy` → `uv run pytest`
+
+## Status values
+
+| File | Allowed `Status` |
+| :--- | :--- |
+| INVESTIGATION | `draft`, `approved` |
+| IMPLEMENTATION | `planned`, `in_progress`, `done` |
+| CODE_REVIEW | `draft`, `final` |
