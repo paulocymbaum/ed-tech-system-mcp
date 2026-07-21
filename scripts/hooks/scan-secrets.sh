@@ -27,7 +27,13 @@ scan_with_gitleaks() {
 scan_with_secretlint() {
   if [[ -x node_modules/.bin/secretlint ]]; then
     echo "→ Scanning staged files with secretlint"
-    printf '%s\0' "${staged_files[@]}" | xargs -0 node_modules/.bin/secretlint --secretlintrc .secretlintrc.json
+    local file
+    for file in "${staged_files[@]}"; do
+      if ! node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "$file"; then
+        echo "ERROR: secretlint detected potential secrets in staged files." >&2
+        return 1
+      fi
+    done
     echo "✓ secretlint passed"
     return 0
   fi
@@ -42,6 +48,6 @@ if scan_with_secretlint; then
   exit 0
 fi
 
-echo "ERROR: No secret scanner available." >&2
+echo "ERROR: Secret scan failed or no scanner is available." >&2
 echo "Run 'npm install' in the repo root, or install gitleaks: https://github.com/gitleaks/gitleaks" >&2
 exit 1
