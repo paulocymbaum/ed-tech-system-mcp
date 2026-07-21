@@ -11,7 +11,7 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  if [[ "$base" == .env* ]] || [[ "$base" == *.pem ]] || [[ "$base" == *.key ]]; then
+  if [[ "$base" == .env* ]] || [[ "$base" == *.env ]] || [[ "$base" == *.env.* ]] || [[ "$base" == *.pem ]] || [[ "$base" == *.key ]]; then
     blocked+=("$file")
   fi
 done < <(git diff --cached --name-only -z --diff-filter=ACMR)
