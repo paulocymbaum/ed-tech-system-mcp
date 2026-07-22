@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -25,11 +26,19 @@ from mcp_server.application.llm import (
     create_chat_model,
     get_chat_model,
     register_groq_model_builder,
+    register_llm_router,
     reset_chat_model,
     reset_groq_model_builder,
+    reset_llm_router,
     set_chat_model,
 )
-from mcp_server.application.llm_models import resolve_language_model
+from mcp_server.application.llm_models import (
+    register_groq_language_models,
+    reset_groq_language_models,
+    resolve_language_model,
+)
+from mcp_server.application.llm_router import LLMRouter, is_token_limit_error
+from mcp_server.application.routing_chat_model import RoutingChatModel
 from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
     reset_workflow_execution_config,
@@ -42,13 +51,27 @@ from mcp_server.application.workflow_runtime import (
 )
 from mcp_server.application.workflows import DocumentVideoWorkflow
 from mcp_server.domain.cache import CacheOperationType, CacheRule, CacheRuleSet, ICacheStore
+from mcp_server.domain.llm_routing import (
+    GroqModelCatalogEntry,
+    GroqModelPricing,
+    GroqModelRecord,
+    IGroqModelCatalogClient,
+    IGroqModelRegistry,
+    ILLMDebounceGate,
+    LLMComplexity,
+    is_developer_plan_groq_model,
+    is_free_groq_model_pricing,
+    token_limit_deactivation_until,
+)
 from mcp_server.domain.schemas import DocumentHit, VideoResult
 from mcp_server.infrastructure.cached_llm import CachedChatModel
+from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.settings import load_settings
 from mcp_server.wiring import (
     build_chat_model,
     build_document_video_workflow,
     initialize_application_runtime,
+    reset_wired_llm_router,
 )
 
 
@@ -98,10 +121,90 @@ class StubChatModel(BaseChatModel):
 @pytest.fixture(autouse=True)
 def _reset_llm_runtime() -> None:
     reset_groq_model_builder()
+    reset_llm_router()
+    reset_wired_llm_router()
+    reset_groq_language_models()
     reset_chat_model()
     reset_workflow_execution_config()
     reset_document_video_workflow()
     StubChatModel.calls = 0
+
+
+def _chat_catalog_entry(
+    model_id: str,
+    *,
+    pricing: GroqModelPricing | None | object = ...,
+    display_name: str | None = None,
+) -> GroqModelCatalogEntry:
+    resolved_pricing: GroqModelPricing | None
+    if pricing is ...:
+        resolved_pricing = GroqModelPricing()
+    else:
+        resolved_pricing = pricing  # type: ignore[assignment]
+    return GroqModelCatalogEntry(
+        model_id=model_id,
+        display_name=display_name or model_id,
+        input_modalities=("text",),
+        output_modalities=("text",),
+        pricing=resolved_pricing,
+    )
+
+
+class StaticGroqModelCatalog(IGroqModelCatalogClient):
+    def __init__(self, entries: list[GroqModelCatalogEntry]) -> None:
+        self._entries = entries
+
+    def fetch_models(self) -> list[GroqModelCatalogEntry]:
+        return list(self._entries)
+
+
+class InMemoryGroqModelRegistry(IGroqModelRegistry):
+    def __init__(self, model_ids: list[str], *, free: bool = True) -> None:
+        self._records = {
+            model_id: GroqModelRecord(
+                model_id=model_id,
+                display_name=model_id,
+                active=free,
+                is_free=free,
+                is_developer_plan=is_developer_plan_groq_model(model_id),
+                is_routable=True,
+            )
+            for model_id in model_ids
+        }
+
+    def refresh_from_catalog(self) -> None:
+        return
+
+    def list_records(self) -> list[GroqModelRecord]:
+        return list(self._records.values())
+
+    def get_active_model_ids(self) -> list[str]:
+        return [record.model_id for record in self._records.values() if record.active]
+
+    def deactivate_until(self, model_id: str, until: datetime) -> None:
+        record = self._records.get(model_id)
+        if record is None:
+            return
+        self._records[model_id] = GroqModelRecord(
+            model_id=model_id,
+            display_name=record.display_name,
+            active=False,
+            is_free=record.is_free,
+            is_developer_plan=record.is_developer_plan,
+            is_routable=record.is_routable,
+            deactivated_until=until,
+        )
+
+    def is_known_model(self, model_id: str) -> bool:
+        return model_id in self._records
+
+
+class NoOpDebounceGate(ILLMDebounceGate):
+    def acquire_sync(self) -> None:
+        return
+
+    async def acquire(self) -> None:
+        return
 
 
 def _stub_groq_builder(api_key: SecretStr, model_id: str, temperature: float) -> BaseChatModel:
@@ -109,10 +212,69 @@ def _stub_groq_builder(api_key: SecretStr, model_id: str, temperature: float) ->
     return StubChatModel()
 
 
+def _register_test_router(
+    model_ids: list[str],
+    *,
+    api_key: SecretStr | None = None,
+) -> LLMRouter:
+    key = api_key or SecretStr("groq-test-key")
+    register_groq_model_builder(_stub_groq_builder)
+    register_groq_language_models(
+        [
+            GroqModelRecord(
+                model_id=model_id,
+                display_name=model_id,
+                active=True,
+                is_free=True,
+                is_developer_plan=is_developer_plan_groq_model(model_id),
+                is_routable=True,
+            )
+            for model_id in model_ids
+        ]
+    )
+    registry = InMemoryGroqModelRegistry(model_ids)
+    router = LLMRouter(
+        api_key=key,
+        temperature=0.0,
+        registry=registry,
+        debounce_gate=NoOpDebounceGate(),
+        model_builder=_stub_groq_builder,
+        default_complexity=LLMComplexity.MEDIUM,
+    )
+    register_llm_router(router)
+    return router
+
+
+def _patch_groq_catalog_for_wiring(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    from mcp_server.infrastructure.groq_model_catalog_cache import FileGroqModelCatalogCache
+
+    cache_path = Path(".cache") / "test_groq_model_catalog.json"
+    monkeypatch.setenv("GROQ_MODEL_CATALOG_CACHE_PATH", str(cache_path))
+    FileGroqModelCatalogCache(cache_path).clear()
+
+    entries = [
+        _chat_catalog_entry("llama-3.1-8b-instant"),
+        _chat_catalog_entry("llama-3.3-70b-versatile"),
+        _chat_catalog_entry("mixtral-8x7b-32768"),
+    ]
+
+    def _fake_fetch(self: object) -> list[GroqModelCatalogEntry]:
+        _ = self
+        return entries
+
+    monkeypatch.setattr(
+        "mcp_server.infrastructure.groq_model_catalog.GroqModelCatalogClient.fetch_models",
+        _fake_fetch,
+    )
+
+
 def test_llm01_create_chat_model_requires_groq_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
-    register_groq_model_builder(_stub_groq_builder)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    _register_test_router(["llama-3.3-70b-versatile"])
     settings = load_settings()
 
     with pytest.raises(ValueError, match="GROQ_API_KEY"):
@@ -125,16 +287,29 @@ def test_llm02_create_chat_model_uses_registered_groq_builder(
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
-    register_groq_model_builder(_stub_groq_builder)
+    _register_test_router(["llama-3.1-8b-instant", "llama-3.3-70b-versatile"])
     settings = load_settings()
 
     model = create_chat_model(settings, model_id="llama-3.1-8b-instant", temperature=0.5)
 
-    assert isinstance(model, StubChatModel)
+    assert isinstance(model, RoutingChatModel)
+    assert model._router._temperature == 0.5  # noqa: SLF001
 
 
 def test_llm03_resolve_language_model_returns_groq_spec() -> None:
-    spec = resolve_language_model("mixtral-8x7b-32768")
+    register_groq_language_models(
+        [
+            GroqModelRecord(
+                model_id="allam-2-7b",
+                display_name="Allam 2 7B",
+                active=True,
+                is_free=True,
+                is_developer_plan=False,
+                is_routable=True,
+            )
+        ]
+    )
+    spec = resolve_language_model("allam-2-7b")
     assert spec["provider"] == "groq"
 
 
@@ -298,6 +473,7 @@ def test_llm06_initialize_application_runtime_defers_chat_model_until_access(
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
     monkeypatch.setenv("CACHE_ENABLED", "false")
+    _patch_groq_catalog_for_wiring(monkeypatch)
 
     operational = OperationalConfig(
         node_retries=1,
@@ -425,6 +601,7 @@ def test_llm07_build_chat_model_wraps_with_cache_when_enabled(
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
     monkeypatch.setenv("CACHE_ENABLED", "true")
+    _patch_groq_catalog_for_wiring(monkeypatch)
 
     settings = load_settings()
     model = build_chat_model(settings, InMemoryCacheStore())
@@ -439,6 +616,7 @@ def test_llm07b_build_chat_model_requires_cache_store_when_enabled(
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
     monkeypatch.setenv("CACHE_ENABLED", "true")
+    _patch_groq_catalog_for_wiring(monkeypatch)
 
     settings = load_settings()
     with pytest.raises(ValueError, match="cache store is required"):
@@ -462,7 +640,7 @@ def test_llm10_create_chat_model_unsupported_provider_raises(
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
-    register_groq_model_builder(_stub_groq_builder)
+    _register_test_router(["llama-3.3-70b-versatile"])
     settings = load_settings()
 
     with pytest.raises(ValueError, match="Unsupported language model provider"):
@@ -475,6 +653,18 @@ def test_llm11_create_chat_model_unregistered_builder_raises(
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
+    register_groq_language_models(
+        [
+            GroqModelRecord(
+                model_id="llama-3.3-70b-versatile",
+                display_name="Llama 3.3 70B Versatile",
+                active=True,
+                is_free=True,
+                is_developer_plan=True,
+                is_routable=True,
+            )
+        ]
+    )
     settings = load_settings()
 
     with pytest.raises(RuntimeError, match="Groq model builder has not been registered"):
@@ -493,3 +683,196 @@ def test_llm12_default_workflow_execution_config_matches_config_json() -> None:
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.node_retries == raw["node_retries"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.workflow_timeout_seconds == raw["workflow_timeout"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.agent_node_timeout_seconds == raw["agent_node_timeout"]
+
+
+def test_llm13_router_maps_complexity_to_model_tiers() -> None:
+    router = _register_test_router(
+        ["llama-3.1-8b-instant", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
+    )
+
+    low = router.candidate_model_ids(LLMComplexity.LOW)
+    medium = router.candidate_model_ids(LLMComplexity.MEDIUM)
+    high = router.candidate_model_ids(LLMComplexity.HIGH)
+
+    assert low[0] == "llama-3.1-8b-instant"
+    assert medium[0] == "mixtral-8x7b-32768"
+    assert high[0] == "llama-3.3-70b-versatile"
+
+
+def test_llm14_router_falls_back_on_provider_failure() -> None:
+    class FailingThenOkModel(BaseChatModel):
+        model_id: str
+        fail: bool = False
+
+        @property
+        def _llm_type(self) -> str:
+            return "failing-stub"
+
+        def _generate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            if self.fail:
+                raise RuntimeError("provider unavailable")
+            return ChatResult(
+                generations=[ChatGeneration(message=AIMessage(content=self.model_id))]
+            )
+
+        async def _agenerate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    def builder(api_key: SecretStr, model_id: str, temperature: float) -> BaseChatModel:
+        _ = api_key, temperature
+        return FailingThenOkModel(model_id=model_id, fail=model_id == "llama-3.1-8b-instant")
+
+    register_groq_model_builder(builder)
+    registry = InMemoryGroqModelRegistry(["llama-3.1-8b-instant", "llama-3.3-70b-versatile"])
+    router = LLMRouter(
+        api_key=SecretStr("test"),
+        temperature=0.0,
+        registry=registry,
+        debounce_gate=NoOpDebounceGate(),
+        model_builder=builder,
+        default_complexity=LLMComplexity.LOW,
+    )
+
+    result = router.generate([HumanMessage(content="hello")])
+
+    assert result.generations[0].message.content == "llama-3.3-70b-versatile"
+
+
+def test_llm15_token_limit_error_deactivates_model_for_three_hours() -> None:
+    registry = InMemoryGroqModelRegistry(["llama-3.3-70b-versatile"])
+    until = datetime.now(tz=UTC) + timedelta(hours=3)
+
+    class TokenLimitModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "token-limit-stub"
+
+        def _generate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            raise RuntimeError("context_length_exceeded")
+
+        async def _agenerate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    def builder(api_key: SecretStr, model_id: str, temperature: float) -> BaseChatModel:
+        _ = api_key, model_id, temperature
+        return TokenLimitModel()
+
+    router = LLMRouter(
+        api_key=SecretStr("test"),
+        temperature=0.0,
+        registry=registry,
+        debounce_gate=NoOpDebounceGate(),
+        model_builder=builder,
+        default_complexity=LLMComplexity.MEDIUM,
+    )
+
+    with pytest.raises(RuntimeError, match="context_length"):
+        router.generate([HumanMessage(content="hello")])
+
+    record = registry.list_records()[0]
+    assert record.active is False
+    assert record.deactivated_until is not None
+    assert record.deactivated_until >= until - timedelta(seconds=5)
+
+
+def test_llm16_is_token_limit_error_detects_context_length() -> None:
+    assert is_token_limit_error(RuntimeError("context_length_exceeded"))
+    assert not is_token_limit_error(RuntimeError("network timeout"))
+
+
+async def test_llm17_debounce_gate_spaces_async_calls() -> None:
+    gate = IntervalLLMDebounceGate(0.05)
+    start = asyncio.get_event_loop().time()
+    await gate.acquire()
+    await gate.acquire()
+    elapsed = asyncio.get_event_loop().time() - start
+    assert elapsed >= 0.04
+
+
+def test_llm17b_debounce_gate_spaces_sync_calls() -> None:
+    import time
+
+    gate = IntervalLLMDebounceGate(0.05)
+    start = time.monotonic()
+    gate.acquire_sync()
+    gate.acquire_sync()
+    elapsed = time.monotonic() - start
+    assert elapsed >= 0.04
+
+
+def test_llm18_groq_registry_marks_free_and_developer_plan_models_active() -> None:
+    from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
+
+    catalog = StaticGroqModelCatalog(
+        [
+            _chat_catalog_entry("allam-2-7b", pricing=None),
+            _chat_catalog_entry(
+                "llama-3.1-8b-instant",
+                pricing=GroqModelPricing(prompt=5e-8, completion=8e-8),
+            ),
+            _chat_catalog_entry(
+                "qwen/qwen3.6-27b",
+                pricing=GroqModelPricing(prompt=6e-7, completion=3e-6),
+            ),
+        ]
+    )
+    registry = GroqModelRegistry(catalog)
+    registry.refresh_from_catalog()
+    records = {record.model_id: record for record in registry.list_records()}
+
+    assert records["allam-2-7b"].is_free is True
+    assert records["allam-2-7b"].active is True
+    assert records["llama-3.1-8b-instant"].is_free is False
+    assert records["llama-3.1-8b-instant"].is_developer_plan is True
+    assert records["llama-3.1-8b-instant"].active is True
+    assert records["qwen/qwen3.6-27b"].is_developer_plan is False
+    assert records["qwen/qwen3.6-27b"].active is False
+
+
+def test_llm18b_is_free_groq_model_pricing_requires_zero_rates() -> None:
+    assert is_free_groq_model_pricing(GroqModelPricing()) is True
+    assert is_free_groq_model_pricing(None) is True
+    assert is_free_groq_model_pricing(GroqModelPricing(prompt=5e-8)) is False
+
+
+def test_llm19_token_limit_deactivation_until_is_three_hours() -> None:
+    now = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
+    until = token_limit_deactivation_until(now=now)
+    assert until == now + timedelta(hours=3)
+
+
+def test_llm20_build_chat_model_returns_routing_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
+    monkeypatch.setenv("CACHE_ENABLED", "false")
+    _patch_groq_catalog_for_wiring(monkeypatch)
+
+    settings = load_settings()
+    model = build_chat_model(settings)
+
+    assert isinstance(model, RoutingChatModel)
