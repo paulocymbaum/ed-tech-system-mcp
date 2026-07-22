@@ -38,21 +38,29 @@ Contains the implementations (Adapters) of the interfaces defined in the Domain 
 ## File Structure
 
 ```text
+config.json                         # Operational tuning (non-secret): retries, workflow timeouts
 src/
 └── mcp_server/
     ├── __init__.py
     ├── domain/                     # Pure Business Logic
     │   ├── __init__.py
     │   ├── exceptions.py           # Domain exceptions (e.g., ResourceNotFound)
+    │   ├── invariants.py           # Pure guard helpers (empty query, positive limits, credentials)
     │   ├── interfaces.py           # Abstract base classes (Ports) for DB/Search/Video
     │   └── schemas.py              # Core entity definitions
     ├── application/                # LangChain & Orchestration
     │   ├── __init__.py
     │   ├── agent.py                # LangChain agent/graph definitions
+    │   ├── workflow_config.py      # WorkflowExecutionConfig runtime view (set by wiring)
+    │   ├── workflow_runtime.py     # DocumentVideoWorkflow runtime accessor (set by wiring)
+    │   ├── mcp_tool_cache_runtime.py  # McpToolCachePort accessor for interface tools
+    │   ├── llm.py                  # create_chat_model() factory; Groq builder injection
+    │   ├── llm_models.py           # AVAILABLE_LANGUAGE_MODELS registry for LLM factory
     │   └── workflows.py            # Use-case orchestrators tying tools together (incl. document + video discovery)
     ├── interface/                  # MCP Adapter & Strict Validation
     │   ├── __init__.py
     │   ├── mcp_server.py           # MCP Server instantiation & tool routing
+    │   ├── error_mapping.py        # DomainError → MCP protocol error translation
     │   ├── validation.py           # Pydantic validation layer for incoming/outgoing data
     │   └── custom_tools.py         # MCP tool wrappers around application workflows
     ├── infrastructure/             # External Integrations (Adapters)
@@ -60,7 +68,13 @@ src/
     │   ├── supabase_client.py      # Supabase repository implementation
     │   ├── search_client.py        # Open-source web search implementation (e.g., DuckDuckGo)
     │   ├── youtube_client.py       # YouTube Data API adapter for educational video search
-    │   └── external_apis.py        # Other customized 3rd-party integrations
+    │   ├── groq_adapter.py         # Groq ChatGroq adapter for LLM completions
+    │   ├── cached_llm.py           # Cache-aside wrapper for LangChain chat models (async _agenerate only)
+    │   ├── cache_envelope.py       # Pydantic envelope for typed MCP tool cache serialization
+    │   └── cache_observability.py  # Cache hit/miss debug logging and in-process counters
+    ├── settings.py                 # Typed secrets/config from environment (Pydantic Settings)
+    ├── operational_config.py       # Pydantic loader for repo-root config.json
+    ├── wiring.py                   # Composition root — ApplicationContext, shared cache wiring
     └── main.py                     # Entrypoint (Transport initialization: Stdio/SSE)
 ```
 

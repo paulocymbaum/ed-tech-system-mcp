@@ -1,0 +1,5 @@
+{
+  "node_retries": 3,
+  "workflow_timeout": 300,
+  "agent_node_timeout": 60
+}

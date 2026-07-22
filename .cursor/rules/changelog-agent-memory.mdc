@@ -13,7 +13,10 @@ changelog/
     └── {LAYERNAME}/         # primary architectural layer
         ├── INVESTIGATION{N}.md
         ├── IMPLEMENTATION{N}.md
-        └── CODE_REVIEW{N}.md
+        ├── CODE_REVIEW{N}.md
+        ├── PERFORMANCE_AUDIT{N}.md   # optional; often under performance/ folder
+        ├── CODE_HEALTH_AUDIT{N}.md   # optional; often under code-health/ folder
+        └── REFACTOR{N}.md            # optional; often under refactor/ folder
 ```
 
 **Example:** `changelog/2026-07-21/domain/INVESTIGATION1.md`
@@ -23,9 +26,9 @@ changelog/
 | Token | Format | Values |
 | :--- | :--- | :--- |
 | `{DATESLUG}` | `YYYY-MM-DD` | ISO date of the work session |
-| `{LAYERNAME}` | lowercase | `domain`, `application`, `interface`, `infrastructure`, `entrypoint` |
+| `{LAYERNAME}` | lowercase | `domain`, `application`, `interface`, `infrastructure`, `entrypoint`, `performance`, `code-health`, `refactor`, `tests` |
 | `{N}` | integer, no zero-pad | `1`, `2`, `3` … monotonic **per layer folder** |
-| File prefix | UPPERCASE | `INVESTIGATION`, `IMPLEMENTATION`, `CODE_REVIEW` |
+| File prefix | UPPERCASE | `INVESTIGATION`, `IMPLEMENTATION`, `CODE_REVIEW`, `PERFORMANCE_AUDIT`, `CODE_HEALTH_AUDIT`, `REFACTOR` |
 
 **Pairing rule:** `IMPLEMENTATION{N}.md` must reference and implement the matching `INVESTIGATION{N}.md` in the same folder.
 
@@ -37,7 +40,7 @@ changelog/
 
 ### Before starting work
 
-1. Scan `changelog/**/` for existing `INVESTIGATION*.md`, `IMPLEMENTATION*.md`, and `CODE_REVIEW*.md` related to the request (same layer, feature, or date).
+1. Scan `changelog/**/` for existing `INVESTIGATION*.md`, `IMPLEMENTATION*.md`, `CODE_REVIEW*.md`, `PERFORMANCE_AUDIT*.md`, `CODE_HEALTH_AUDIT*.md`, and `REFACTOR*.md` related to the request (same layer, feature, or date).
 2. Read open items: `Status: draft`, `planned`, or `in_progress`.
 3. Prefer continuing an existing pair over creating duplicates.
 4. When creating new files, list the folder and pick the next `{N}` — never overwrite without explicit user approval.
@@ -68,8 +71,11 @@ changelog/
 | `INVESTIGATION{N}.md` | Architecture alignment, gaps, minimal increment | Before code |
 | `IMPLEMENTATION{N}.md` | Checklist, task order, completion criteria | Before code; updated during execution |
 | `CODE_REVIEW{N}.md` | Branch/code review vs changelog plans and architecture | After implementation; before merge |
+| `PERFORMANCE_AUDIT{N}.md` | Evidence-based bottleneck findings vs `reference.md` rubric | Performance audit; before hardening or when latency is a concern |
+| `CODE_HEALTH_AUDIT{N}.md` | Dead/duplicate/redundant/AI-smell findings vs `reference.md` rubric | Code health audit; before refactors or cleanup sprints |
+| `REFACTOR{N}.md` | Merged change/remove/wire/consolidate actions from performance + code-health audits | Refactor planning (refactor-planner agent); before cleanup implementation |
 
-Canonical templates: investigation/implementation workflow in `.cursor/agents/incremental-layer-builder.md`; code review workflow in `.cursor/agents/changelog-code-reviewer.md`. Architecture constraints: `ARCHITECTURE.md`. Environment commands: `ENVIRONMENT_SETUP.md`.
+Canonical templates: investigation/implementation workflow in `.cursor/agents/incremental-layer-builder.md`; code review workflow in `.cursor/agents/changelog-code-reviewer.md`; performance audit workflow in `.cursor/agents/performance-auditor.md` (rubric: `.cursor/agents/performance-auditor/reference.md`); code health audit workflow in `.cursor/agents/code-health-auditor.md` (rubric: `.cursor/agents/code-health-auditor/reference.md`); refactor synthesis workflow in `.cursor/agents/refactor-planner.md`. Architecture constraints: `ARCHITECTURE.md`. Environment commands: `ENVIRONMENT_SETUP.md`.
 
 ## Task ordering in IMPLEMENTATION checklists
 
@@ -82,3 +88,6 @@ Canonical templates: investigation/implementation workflow in `.cursor/agents/in
 | INVESTIGATION | `draft`, `approved` |
 | IMPLEMENTATION | `planned`, `in_progress`, `done` |
 | CODE_REVIEW | `draft`, `final` |
+| PERFORMANCE_AUDIT | `draft`, `final` |
+| CODE_HEALTH_AUDIT | `draft`, `final` |
+| REFACTOR | `draft`, `final` |

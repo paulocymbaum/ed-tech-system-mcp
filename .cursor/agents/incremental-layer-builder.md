@@ -11,6 +11,7 @@ You are the **Incremental Layer Builder** for the ed-tech MCP server. You delive
 
 Before any investigation or code change, read and apply:
 
+- `.cursor/rules/documentation-matrix.mdc` — which docs to read/write per task (load minimum set only)
 - `ARCHITECTURE.md` — layer boundaries, ports & adapters, anti-patterns, file layout under `src/mcp_server/`
 - `ENVIRONMENT_SETUP.md` — `uv` workflow, secrets routing, CI checks, dependency groups
 
@@ -47,7 +48,7 @@ Do not skip Phase 1 to write code. Do not skip Phase 2 to jump into implementati
 **Steps:**
 
 1. Parse the user request — scope, acceptance criteria, implicit constraints.
-2. Explore the codebase: layer layout, existing ports/adapters, tests, `pyproject.toml`, `.env.example`.
+2. Explore the codebase: layer layout, existing ports/adapters, tests, `pyproject.toml`, `ENVIRONMENT_SETUP.md`.
 3. Map the request to layer(s) and patterns from `ARCHITECTURE.md` (validation layer, repository, video search, DI, etc.).
 4. Identify gaps, risks, anti-patterns to avoid, and dependencies (`uv add` only when justified).
 5. Propose a **minimal increment** — the least code that delivers observable value and respects layer boundaries.
@@ -199,7 +200,7 @@ Use the **same `{N}`** as the investigation it implements.
    - Infrastructure: implement ports; receive `Settings` via constructor
    - Entrypoint: sole `load_dotenv()` caller; validate `Settings` before server start
 6. **Environment:** use `uv add` / `uv sync` — never raw `pip install` in this repo.
-7. **Secrets:** never commit `.env`; use `.env.example` templates only.
+7. **Secrets:** never commit any env files (`.env`, `*.env`); use Doppler or a local gitignored `.env` only.
 8. If a task is blocked, document the blocker in IMPLEMENTATION file and stop — do not guess.
 
 **On completion**, reply with:

@@ -18,10 +18,13 @@ dependencies = [
     "google-api-python-client",
     "python-dotenv",
     "pydantic-settings",
+    "redis",
+    "langchain-groq>=1.1.3",
 ]
 
 [project.scripts]
 mcp-server = "mcp_server.main:main"
+workflow-ui = "mcp_server.local_ui_main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_server"]
@@ -33,6 +36,76 @@ dev = [
     "ruff",
     "mypy",
     "httpx",
+    "fastapi",
+    "uvicorn[standard]",
+    "import-linter",
+]
+
+[tool.importlinter]
+root_package = "mcp_server"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "domain-isolation"
+name = "Domain must not depend on outer layers or frameworks"
+type = "forbidden"
+source_modules = ["mcp_server.domain"]
+forbidden_modules = [
+    "mcp_server.application",
+    "mcp_server.interface",
+    "mcp_server.infrastructure",
+    "mcp_server.settings",
+    "mcp_server.wiring",
+    "mcp_server.main",
+    "langchain",
+    "langgraph",
+    "fastmcp",
+    "supabase",
+    "googleapiclient",
+    "duckduckgo_search",
+]
+
+[[tool.importlinter.contracts]]
+id = "application-no-infra"
+name = "Application must not import infrastructure"
+type = "forbidden"
+source_modules = ["mcp_server.application"]
+forbidden_modules = ["mcp_server.infrastructure"]
+
+[[tool.importlinter.contracts]]
+id = "interface-no-infra"
+name = "Interface must not import infrastructure"
+type = "forbidden"
+source_modules = ["mcp_server.interface"]
+forbidden_modules = ["mcp_server.infrastructure"]
+allow_indirect_imports = false
+ignore_imports = [
+    "mcp_server.interface.local_ui.api -> mcp_server.main",
+]
+
+[[tool.importlinter.contracts]]
+id = "infra-no-upper-layers"
+name = "Infrastructure may only reach domain"
+type = "forbidden"
+source_modules = ["mcp_server.infrastructure"]
+forbidden_modules = [
+    "mcp_server.application",
+    "mcp_server.interface",
+]
+
+[[tool.importlinter.contracts]]
+id = "inner-no-settings"
+name = "Inner layers must not import settings"
+type = "forbidden"
+source_modules = [
+    "mcp_server.domain",
+    "mcp_server.application",
+    "mcp_server.interface",
+]
+forbidden_modules = ["mcp_server.settings"]
+allow_indirect_imports = false
+ignore_imports = [
+    "mcp_server.interface.local_ui.api -> mcp_server.main",
 ]
 
 [tool.ruff]

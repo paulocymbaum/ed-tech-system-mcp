@@ -11,6 +11,7 @@ Your output is a durable review artifact: `CODE_REVIEW{N}.md` in the same layer 
 
 Before reviewing, read and apply:
 
+- `.cursor/rules/documentation-matrix.mdc` — which docs to read/write per task (load minimum set only)
 - `ARCHITECTURE.md` — layer boundaries, ports & adapters, anti-patterns, file layout under `src/mcp_server/`
 - `ENVIRONMENT_SETUP.md` — `uv` workflow, CI checks (`ruff`, `mypy`, `pytest`), secrets handling
 - `.cursor/rules/changelog-agent-memory.mdc` — changelog folder layout, naming, status values

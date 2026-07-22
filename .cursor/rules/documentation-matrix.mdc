@@ -1,0 +1,62 @@
+---
+description: Which documentation file to read or write for each task
+alwaysApply: false
+---
+# Documentation Matrix
+
+Read the **minimum** doc set for the task. Do not load everything.
+
+## Canonical docs (repo root)
+
+| File | Read when |
+| :--- | :--- |
+| `ARCHITECTURE.md` | Any code change — layers, ports/adapters, deps per layer, file layout, anti-patterns |
+| `AGENTIC_ARCHITECTURE.md` | LangGraph/LangChain agents, LLM wiring, tool taxonomy, DB/web/video flows |
+| `ENVIRONMENT_SETUP.md` | `uv`, lockfile, deps, env vars, `ruff`/`mypy`/`pytest`, CI commands |
+
+**Conflict:** `ARCHITECTURE.md` wins on layer boundaries; `AGENTIC_ARCHITECTURE.md` wins on orchestration semantics.
+
+## Changelog memory (`changelog/{DATE}/{LAYER}/`)
+
+| File | Read | Write |
+| :--- | :--- | :--- |
+| `INVESTIGATION{N}.md` | Before coding — gaps, scope, minimal increment | Start of feature/refactor/scaffold work |
+| `IMPLEMENTATION{N}.md` | During execution — checklist, status | After investigation; update while coding |
+| `CODE_REVIEW{N}.md` | Before merge — review findings | After implementation (code reviewer agent) |
+| `TEST{N}.md` | Before writing tests — behavior catalog | Start of test/homologation work (`tests/` layer) |
+| `HOMOLOGATION.md` | Verify coverage verdict | After tests pass (test-homologator agent) |
+| `PERFORMANCE_AUDIT{N}.md` | Before perf work — bottleneck findings | Performance audit (performance-auditor agent) |
+| `CODE_HEALTH_AUDIT{N}.md` | Before refactors/cleanup — dead/dup/redundant/AI-smell findings | Code health audit (code-health-auditor agent) |
+| `REFACTOR{N}.md` | Before cleanup implementation — merged remove/change/wire actions from audits | Refactor planning (refactor-planner agent) |
+
+Pairing: `IMPLEMENTATION{N}` ↔ `INVESTIGATION{N}`; `CODE_REVIEW{N}` ↔ same `{N}`. `REFACTOR{N}` references matching `PERFORMANCE_AUDIT*` and `CODE_HEALTH_AUDIT*` from the same `{DATESLUG}`. Folder layout and status values: `.cursor/rules/changelog-agent-memory.mdc`.
+
+## Cursor rules & skills
+
+| File | Read when |
+| :--- | :--- |
+| `.cursor/rules/changelog-agent-memory.mdc` | Creating or continuing changelog files |
+| `.cursor/rules/secrets-env-safety.mdc` | `.env`, Doppler, secrets, `settings.py` env loading |
+| `.cursor/skills/doppler-env-setup/SKILL.md` | First-time or broken Doppler / local secret bootstrap |
+
+## Which agent to invoke
+
+| Task | Agent |
+| :--- | :--- |
+| Feature, refactor, scaffold | `incremental-layer-builder` |
+| Post-implementation review | `changelog-code-reviewer` |
+| Test inventory, pytest, homologation | `test-homologator` |
+| Performance bottleneck audit | `performance-auditor` |
+| Dead code, duplication, maintainability audit | `code-health-auditor` |
+| Audit synthesis → change/remove refactor plan | `refactor-planner` |
+| Full build → review → test cycle | `master` |
+
+## Quick routing
+
+```
+Code in a layer?        → ARCHITECTURE.md (+ AGENTIC_ARCHITECTURE.md if agents/tools/LLM)
+Environment / CI?       → ENVIRONMENT_SETUP.md
+Secrets / Doppler?    → secrets-env-safety.mdc → doppler-env-setup skill
+New work?               → changelog INVESTIGATION → IMPLEMENTATION → code → CODE_REVIEW
+Tests / merge gate?     → changelog TEST → tests → HOMOLOGATION
+```

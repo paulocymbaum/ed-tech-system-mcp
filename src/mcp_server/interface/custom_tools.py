@@ -1,12 +1,178 @@
 """MCP tool wrappers around application workflows.
 
-Tool implementations deferred — register tools here once workflows are ready.
+Changelog: changelog/2026-07-21/interface/IMPLEMENTATION1.md (BL-006, BL-013, BL-011)
+Changelog: changelog/2026-07-21/infrastructure/IMPLEMENTATION3.md (BL-019)
+Changelog: changelog/2026-07-21/domain/IMPLEMENTATION1.md (BL-009)
 """
 
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Awaitable, Callable
+
+from mcp_server.application.agent import run_document_video_graph
+from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
+from mcp_server.application.workflow_runtime import get_document_video_workflow
+from mcp_server.domain.exceptions import DomainError, ResourceNotFoundError
+from mcp_server.interface.error_mapping import raise_as_mcp_error
 from mcp_server.interface.mcp_server import mcp
+from mcp_server.interface.validation import (
+    DocumentQueryRequest,
+    DocumentQueryResponse,
+    VideoSearchRequest,
+    VideoSearchResponse,
+    WorkflowRunRequest,
+    WorkflowRunResponse,
+    document_hits_to_summaries,
+    workflow_state_to_run_response,
+)
+
+logger = logging.getLogger(__name__)
+
+
+async def _invoke_health_check() -> str:
+    return "ok"
+
+
+async def _invoke_search_youtube(request: VideoSearchRequest) -> VideoSearchResponse:
+    workflow = get_document_video_workflow()
+    if workflow is None:
+        raise ResourceNotFoundError("Document video workflow has not been initialized")
+    videos = await workflow.search_videos(
+        request.query,
+        request.max_results,
+        language=request.language,
+        safe_search=request.safe_search,
+    )
+    return VideoSearchResponse(videos=videos)
+
+
+async def _invoke_find_documents(request: DocumentQueryRequest) -> DocumentQueryResponse:
+    workflow = get_document_video_workflow()
+    if workflow is None:
+        raise ResourceNotFoundError("Document video workflow has not been initialized")
+    documents, videos = await workflow.retrieve_with_videos(
+        request.query,
+        document_limit=request.document_limit,
+        video_limit=request.video_limit,
+    )
+    return DocumentQueryResponse(
+        documents=document_hits_to_summaries(documents),
+        videos=videos,
+    )
+
+
+async def _invoke_run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
+    result = await run_document_video_graph(
+        request.query,
+        document_limit=request.document_limit,
+        video_limit=request.video_limit,
+    )
+    return workflow_state_to_run_response(result)
+
+
+async def _cached_tool_invoke[T](
+    tool_name: str,
+    args: dict[str, object],
+    invoker: Callable[[], Awaitable[T]],
+) -> T:
+    start = time.perf_counter()
+    try:
+        tool_cache = get_mcp_tool_cache()
+        if tool_cache is None:
+            result = await invoker()
+        else:
+            result = await tool_cache.get_or_invoke(tool_name, args, invoker)
+    except DomainError as exc:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "mcp tool tool=%s duration_ms=%.2f outcome=error",
+            tool_name,
+            duration_ms,
+        )
+        raise_as_mcp_error(exc)
+    except Exception:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "mcp tool tool=%s duration_ms=%.2f outcome=error",
+            tool_name,
+            duration_ms,
+        )
+        raise
+    else:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "mcp tool tool=%s duration_ms=%.2f outcome=success",
+            tool_name,
+            duration_ms,
+        )
+        return result
 
 
 @mcp.tool
-def health_check() -> str:
+async def health_check() -> str:
     """Verify the MCP server is running."""
-    return "ok"
+    return await _cached_tool_invoke("health_check", {}, _invoke_health_check)
+
+
+@mcp.tool
+async def search_youtube(
+    query: str,
+    max_results: int = 5,
+    language: str = "en",
+    safe_search: bool = True,
+) -> VideoSearchResponse:
+    """Search for educational YouTube videos matching a query."""
+    request = VideoSearchRequest(
+        query=query,
+        max_results=max_results,
+        language=language,
+        safe_search=safe_search,
+    )
+    args = request.model_dump()
+    return await _cached_tool_invoke(
+        "search_youtube",
+        args,
+        lambda: _invoke_search_youtube(request),
+    )
+
+
+@mcp.tool
+async def find_documents(
+    query: str,
+    document_limit: int = 10,
+    video_limit: int = 5,
+) -> DocumentQueryResponse:
+    """Retrieve educational documents enriched with complementary videos."""
+    request = DocumentQueryRequest(
+        query=query,
+        document_limit=document_limit,
+        video_limit=video_limit,
+    )
+    args = request.model_dump()
+    return await _cached_tool_invoke(
+        "find_documents",
+        args,
+        lambda: _invoke_find_documents(request),
+    )
+
+
+@mcp.tool
+async def run_workflow(
+    query: str,
+    document_limit: int = 10,
+    video_limit: int = 5,
+) -> WorkflowRunResponse:
+    """Execute the document + video discovery LangGraph workflow."""
+    request = WorkflowRunRequest(
+        query=query,
+        document_limit=document_limit,
+        video_limit=video_limit,
+    )
+    args = request.model_dump()
+    return await _cached_tool_invoke(
+        "run_workflow",
+        args,
+        lambda: _invoke_run_workflow(request),
+    )
