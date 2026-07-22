@@ -6,8 +6,12 @@ class DomainError(Exception):
 
 
 class ResourceNotFoundError(DomainError):
-    """Raised when a requested resource does not exist."""
+    """Raised when a requested resource does not exist or is not configured."""
 
 
-class ValidationError(DomainError):
-    """Raised when domain invariants are violated."""
+class DomainValidationError(DomainError):
+    """Raised when domain invariants are violated.
+
+    Named ``DomainValidationError`` to avoid collision with Pydantic and FastMCP
+    ``ValidationError`` types at the interface boundary.
+    """

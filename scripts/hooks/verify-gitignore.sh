@@ -7,7 +7,9 @@ cd "$repo_root"
 required_patterns=(
   ".env"
   ".env.*"
-  "!.env.example"
+  "*.env"
+  "*.env.*"
+  "scripts/doppler/*.env"
   ".venv/"
 )
 
@@ -29,26 +31,22 @@ if ((${#missing[@]} > 0)); then
   exit 1
 fi
 
-# Prove .env would be ignored if it existed.
-if ! git check-ignore -q .env 2>/dev/null; then
-  # git check-ignore returns 1 when the path is not ignored; create a temp probe.
-  probe=".env.__husky_probe__"
+check_ignored_probe() {
+  local probe="$1"
   touch "$probe"
-  trap 'rm -f "$probe"' EXIT
+  trap 'rm -f "$probe"' RETURN
 
   if git check-ignore -q "$probe"; then
-    echo "✓ .env pattern is active in .gitignore"
-  else
-    echo "ERROR: .env is not ignored by .gitignore." >&2
-    exit 1
+    echo "✓ $probe pattern is active in .gitignore"
+    return 0
   fi
-else
-  echo "✓ .env is ignored by .gitignore"
-fi
 
-if git check-ignore -q .env.example; then
-  echo "ERROR: .env.example must remain committable (not ignored)." >&2
-  exit 1
-fi
+  echo "ERROR: $probe is not ignored by .gitignore." >&2
+  return 1
+}
 
-echo "✓ .env.example is not ignored"
+check_ignored_probe ".env"
+check_ignored_probe "secrets.dev.env"
+check_ignored_probe "scripts/doppler/secrets.dev.env"
+
+echo "✓ All env file patterns are ignored"

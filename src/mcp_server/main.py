@@ -1,15 +1,22 @@
 """Entrypoint — transport initialization and environment bootstrap."""
 
+import logging
 import os
 import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from mcp_server.interface.custom_tools import health_check  # noqa: F401
+from mcp_server.interface.custom_tools import (  # noqa: F401
+    find_documents,
+    health_check,
+    run_workflow,
+    search_youtube,
+)
 from mcp_server.interface.mcp_server import create_mcp_server
+from mcp_server.operational_config import load_operational_config
+from mcp_server.settings import Settings, load_settings
+from mcp_server.wiring import initialize_application_runtime
 
 
 def bootstrap_environment() -> None:
@@ -21,30 +28,27 @@ def bootstrap_environment() -> None:
         load_dotenv(dotenv_path=env_path, override=False)
 
 
-class Settings(BaseSettings):
-    """Typed configuration validated at startup."""
-
-    model_config = SettingsConfigDict(
-        env_file=None,
-        extra="ignore",
-    )
-
-    app_env: str = Field(default="development", alias="APP_ENV")
-    supabase_url: str = Field(alias="SUPABASE_URL")
-    supabase_service_role_key: SecretStr = Field(alias="SUPABASE_SERVICE_ROLE_KEY")
-    youtube_api_key: SecretStr | None = Field(default=None, alias="YOUTUBE_API_KEY")
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+def configure_logging(settings: Settings) -> None:
+    """Apply root log level from validated settings."""
+    level_name = settings.log_level.upper()
+    level = getattr(logging, level_name, None)
+    if not isinstance(level, int):
+        level = logging.INFO
+    logging.basicConfig(level=level, force=True)
 
 
-def load_settings() -> Settings:
-    """Validate and return application settings."""
-    return Settings()  # type: ignore[call-arg]
+def bootstrap_application_runtime() -> None:
+    """Load settings, operational config, and wire the composition root."""
+    settings = load_settings()
+    configure_logging(settings)
+    operational_config = load_operational_config()
+    initialize_application_runtime(operational_config, settings)
 
 
 def main() -> None:
     """Bootstrap environment, validate settings, and start the MCP server."""
     bootstrap_environment()
-    _settings = load_settings()
+    bootstrap_application_runtime()
     server = create_mcp_server()
     server.run()
 
