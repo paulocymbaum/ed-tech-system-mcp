@@ -22,6 +22,11 @@ from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
     set_workflow_execution_config,
 )
+from mcp_server.application.integration_runtime import (
+    configure_lazy_integration_clients,
+    register_search_client_builder,
+    register_video_client_builder,
+)
 from mcp_server.application.workflow_runtime import (
     WorkflowSettings,
     configure_lazy_document_video_workflow,
@@ -50,6 +55,7 @@ from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
 from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
 from mcp_server.infrastructure.supabase_client import SupabaseRepository
+from mcp_server.infrastructure.tavily_search_client import TavilySearchClient
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
 from mcp_server.operational_config import OperationalConfig
 
@@ -115,13 +121,15 @@ def build_search_client(
     settings: Settings,
     cache: ICacheStore | None = None,
 ) -> ISearchClient:
-    """Build the web search client, optionally wrapped with cache-aside.
-
-    # deferred — web search: factory only; inject via ``langchain_tools.search_web``
-    when BL-022 adapter implementation and MCP ``search_web`` tool ship (see
-    AGENTIC_ARCHITECTURE.md § Web search wiring).
-    """
-    client: ISearchClient = DuckDuckGoSearchClient()
+    """Build the web search client, preferring Tavily when configured."""
+    api_key = (
+        settings.tavily_api_key.get_secret_value().strip()
+        if settings.tavily_api_key is not None
+        else ""
+    )
+    client: ISearchClient = (
+        TavilySearchClient(api_key) if api_key else DuckDuckGoSearchClient()
+    )
     if not settings.cache_enabled or cache is None:
         return client
     return CachedSearchClient(client, cache, build_cache_rule_set(settings))
@@ -272,6 +280,7 @@ def initialize_application_runtime(
         cache_store: ICacheStore = NoOpCacheStore()
         configure_lazy_chat_model(None)
         configure_lazy_document_video_workflow(None)
+        configure_lazy_integration_clients(None)
         set_mcp_tool_cache(None)
         return ApplicationContext(
             workflow_execution_config=config,
@@ -283,6 +292,7 @@ def initialize_application_runtime(
     cache_store = create_cache_store(settings)
     configure_lazy_chat_model(settings, cache_store)
     configure_lazy_document_video_workflow(settings, cache_store)
+    configure_lazy_integration_clients(settings, cache_store)
     tool_cache = build_mcp_tool_cache(settings, cache_store)
     set_mcp_tool_cache(tool_cache)
     return ApplicationContext(
@@ -307,5 +317,21 @@ def _lazy_build_document_video_workflow(
     return build_document_video_workflow(settings, cache)  # type: ignore[arg-type]
 
 
+def _lazy_build_search_client(
+    settings: WorkflowSettings,
+    cache: ICacheStore | None,
+) -> ISearchClient:
+    return build_search_client(settings, cache)  # type: ignore[arg-type]
+
+
+def _lazy_build_video_client(
+    settings: WorkflowSettings,
+    cache: ICacheStore | None,
+) -> IVideoSearchClient:
+    return build_video_client(settings, cache)  # type: ignore[arg-type]
+
+
 register_chat_model_builder(_lazy_build_chat_model)
 register_document_video_workflow_builder(_lazy_build_document_video_workflow)
+register_search_client_builder(_lazy_build_search_client)
+register_video_client_builder(_lazy_build_video_client)

@@ -14,6 +14,14 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     reset_content_generation_graph_cache,
 )
+from mcp_server.application.agents.tavily_search.graph import (
+    get_tavily_search_graph,
+    reset_tavily_search_graph_cache,
+)
+from mcp_server.application.agents.youtube_search.graph import (
+    get_youtube_search_graph,
+    reset_youtube_search_graph_cache,
+)
 from mcp_server.application.workflow_config import (
     DEFAULT_WORKFLOW_EXECUTION_CONFIG,
     WorkflowExecutionConfig,
@@ -242,13 +250,16 @@ _REGISTERED_WORKFLOWS: list[RegisteredWorkflow] | None = None
 def _build_registered_workflows() -> list[RegisteredWorkflow]:
     return [
         RegisteredWorkflow(
-            id="document-video-discovery",
-            name="Document + Video Discovery",
-            description=(
-                "Retrieve educational documents, derive search terms from metadata, "
-                "and discover complementary YouTube videos."
-            ),
-            graph=_get_compiled_graph(),
+            id="tavily-search",
+            name="Tavily Web Search",
+            description="Run a simple Tavily web search and return normalized result snippets.",
+            graph=get_tavily_search_graph(),
+        ),
+        RegisteredWorkflow(
+            id="youtube-search",
+            name="YouTube Video Search",
+            description="Search YouTube for educational videos matching a query.",
+            graph=get_youtube_search_graph(),
         ),
         RegisteredWorkflow(
             id="content-generation",
@@ -276,3 +287,5 @@ def reset_registered_workflows_cache() -> None:
     _REGISTERED_WORKFLOWS = None
     reset_compiled_graph_cache()
     reset_content_generation_graph_cache()
+    reset_tavily_search_graph_cache()
+    reset_youtube_search_graph_cache()

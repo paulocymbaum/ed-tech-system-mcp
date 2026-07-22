@@ -5,95 +5,65 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import mcp_server.application.agent as agent_module
 from mcp_server.application.agent import (
     list_registered_workflows,
-    reset_compiled_graph_cache,
     reset_registered_workflows_cache,
-    run_document_video_graph,
     workflow_timeout_seconds,
 )
+from mcp_server.application.integration_runtime import reset_integration_clients
 from mcp_server.application.workflow_config import reset_workflow_execution_config
 
 
-def test_list_registered_workflows_memoizes_compiled_graph(monkeypatch) -> None:
+def test_list_registered_workflows_memoizes_registered_list() -> None:
     reset_registered_workflows_cache()
-    build_count = 0
-    original_build = agent_module.build_document_video_graph
-
-    def counting_build():
-        nonlocal build_count
-        build_count += 1
-        return original_build()
-
-    monkeypatch.setattr(agent_module, "build_document_video_graph", counting_build)
-
     first = list_registered_workflows()
     second = list_registered_workflows()
 
-    assert build_count == 1
     assert first is second
     reset_registered_workflows_cache()
 
 
-def test_reset_registered_workflows_cache_rebuilds_on_next_call(monkeypatch) -> None:
+def test_reset_registered_workflows_cache_rebuilds_on_next_call() -> None:
     reset_registered_workflows_cache()
-    build_count = 0
-    original_build = agent_module.build_document_video_graph
-
-    def counting_build():
-        nonlocal build_count
-        build_count += 1
-        return original_build()
-
-    monkeypatch.setattr(agent_module, "build_document_video_graph", counting_build)
-
     first = list_registered_workflows()
     reset_registered_workflows_cache()
     second = list_registered_workflows()
 
-    assert build_count == 2
     assert first is not second
     reset_registered_workflows_cache()
 
 
 async def test_compiled_graph_shared_by_run_and_registry(monkeypatch) -> None:
     reset_registered_workflows_cache()
-    reset_compiled_graph_cache()
+    from mcp_server.application.agents.tavily_search.graph import (
+        build_tavily_search_graph,
+        reset_tavily_search_graph_cache,
+    )
+    from mcp_server.application.integration_runtime import set_search_client
+    from mcp_server.domain.interfaces import ISearchClient
+
+    reset_tavily_search_graph_cache()
     build_count = 0
-    original_build = agent_module.build_document_video_graph
+    original_build = build_tavily_search_graph
 
     def counting_build():
         nonlocal build_count
         build_count += 1
         return original_build()
 
-    monkeypatch.setattr(agent_module, "build_document_video_graph", counting_build)
+    monkeypatch.setattr(
+        "mcp_server.application.agents.tavily_search.graph.build_tavily_search_graph",
+        counting_build,
+    )
 
     from mcp_server.application.workflow_config import (
         WorkflowExecutionConfig,
         set_workflow_execution_config,
     )
-    from mcp_server.application.workflow_runtime import (
-        reset_document_video_workflow,
-        set_document_video_workflow,
-    )
-    from mcp_server.application.workflows import DocumentVideoWorkflow
-    from mcp_server.domain.schemas import DocumentHit, VideoResult
 
-    class _Repo:
-        async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
-            return [DocumentHit(id="1", title=query, content="body")]
-
-    class _Video:
-        async def search_videos(
-            self,
-            query: str,
-            max_results: int = 5,
-            language: str = "en",
-            safe_search: bool = True,
-        ) -> list[VideoResult]:
-            return [VideoResult(title="V", channel="C", url="https://example.com")]
+    class _SearchClient(ISearchClient):
+        async def search(self, query: str, max_results: int = 5) -> list[str]:
+            return [f"{query}:{max_results}"]
 
     set_workflow_execution_config(
         WorkflowExecutionConfig(
@@ -102,26 +72,36 @@ async def test_compiled_graph_shared_by_run_and_registry(monkeypatch) -> None:
             agent_node_timeout_seconds=5.0,
         )
     )
-    set_document_video_workflow(DocumentVideoWorkflow(_Repo(), _Video()))
+    set_search_client(_SearchClient())
 
     workflows = list_registered_workflows()
-    await run_document_video_graph("algebra")
+    tavily = next(workflow for workflow in workflows if workflow.id == "tavily-search")
+    from mcp_server.application.agents.tavily_search.graph import (
+        get_tavily_search_graph,
+        initial_tavily_search_state,
+    )
+
+    graph = get_tavily_search_graph()
+    await graph.ainvoke(initial_tavily_search_state("algebra", max_results=2))
 
     assert build_count == 1
-    assert workflows[0].graph is agent_module._get_compiled_graph()
+    assert tavily.graph is graph
     reset_registered_workflows_cache()
-    reset_document_video_workflow()
+    reset_integration_clients()
 
 
-def test_list_registered_workflows_returns_document_video_discovery_metadata() -> None:
+def test_list_registered_workflows_returns_search_workflow_metadata() -> None:
     reset_registered_workflows_cache()
     workflows = list_registered_workflows()
 
-    assert len(workflows) >= 2
-    workflow = workflows[0]
-    assert workflow.id == "document-video-discovery"
-    assert workflow.name == "Document + Video Discovery"
-    assert "educational documents" in workflow.description.lower()
+    assert len(workflows) >= 3
+    workflow_ids = {workflow.id for workflow in workflows}
+    assert "tavily-search" in workflow_ids
+    assert "youtube-search" in workflow_ids
+    tavily = next(workflow for workflow in workflows if workflow.id == "tavily-search")
+    youtube = next(workflow for workflow in workflows if workflow.id == "youtube-search")
+    assert tavily.name == "Tavily Web Search"
+    assert youtube.name == "YouTube Video Search"
     reset_registered_workflows_cache()
 
 
