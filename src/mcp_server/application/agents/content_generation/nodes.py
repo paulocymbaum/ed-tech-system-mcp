@@ -28,6 +28,7 @@ from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
     get_workflow_execution_config,
 )
+from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.exceptions import ResourceNotFoundError
@@ -87,6 +88,8 @@ async def _invoke_structured(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         raw_output=raw_text,
+        model_name=resolve_invoked_model_name(model),
+        llm_complexity=int(llm_complexity),
     )
     try:
         parsed = parse_structured_output(raw_text, model_type)

@@ -12,6 +12,7 @@ Read the **minimum** doc set for the task. Do not load everything.
 | :--- | :--- |
 | `ARCHITECTURE.md` | Any code change — layers, ports/adapters, deps per layer, file layout, anti-patterns |
 | `AGENTIC_ARCHITECTURE.md` | LangGraph/LangChain agents, LLM wiring, tool taxonomy, DB/web/video flows |
+| `OBSERVABILITY.md` | Local workflow UI, execution replay, trace/API debugging |
 | `ENVIRONMENT_SETUP.md` | `uv`, lockfile, deps, env vars, `ruff`/`mypy`/`pytest`, CI commands |
 
 **Conflict:** `ARCHITECTURE.md` wins on layer boundaries; `AGENTIC_ARCHITECTURE.md` wins on orchestration semantics.

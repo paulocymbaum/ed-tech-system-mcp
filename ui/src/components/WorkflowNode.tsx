@@ -3,7 +3,7 @@ import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 export type WorkflowNodeData = {
   label: string;
   kind: "start" | "end" | "node";
-  status: "idle" | "active" | "failed" | "retry";
+  status: "idle" | "active" | "failed" | "retry" | "visited" | "history-failed" | "history-retry";
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "workflow">;

@@ -127,5 +127,8 @@ async def test_invoke_graph_with_trace_records_retries_and_failures() -> None:
     assert any(step.retry_counts.get("lesson_retry_count") == 1 for step in retry_steps)
     assert trace[0].input_snapshot["topic"] == "fractions"
     assert trace[0].llm_io is not None
+    assert trace[0].llm_io["model_name"] == "scripted-content"
+    assert trace[0].input_snapshot["llm_request"]["model_name"] == "scripted-content"
+    assert trace[0].output_update["model_name"] == "scripted-content"
     assert "system_prompt" in trace[0].llm_io
     assert trace[0].output_update.get("lesson_validation_errors")
