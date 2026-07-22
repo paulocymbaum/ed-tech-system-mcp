@@ -23,12 +23,12 @@ from mcp_server.application.agents.content_generation.prompts import (
 )
 from mcp_server.application.agents.content_generation.state import ContentGenerationState
 from mcp_server.application.llm import get_chat_model
+from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.workflow_config import (
     DEFAULT_WORKFLOW_EXECUTION_CONFIG,
     WorkflowExecutionConfig,
     get_workflow_execution_config,
 )
-from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.exceptions import ResourceNotFoundError

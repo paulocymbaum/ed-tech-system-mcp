@@ -42,6 +42,15 @@ export function WorkflowStepInspector({ step }: WorkflowStepInspectorProps) {
             title="LLM complexity tier"
             value={step.llm_io.llm_complexity ?? step.output_update.llm_complexity}
           />
+          <JsonBlock
+            title="Token usage"
+            value={{
+              input_tokens: step.llm_io.input_tokens ?? step.output_update.input_tokens,
+              output_tokens: step.llm_io.output_tokens ?? step.output_update.output_tokens,
+              total_tokens: step.llm_io.total_tokens ?? step.output_update.total_tokens,
+              breakdown: step.llm_io.token_breakdown,
+            }}
+          />
           <JsonBlock title="LLM system prompt" value={step.llm_io.system_prompt} />
           <JsonBlock title="LLM user prompt" value={step.llm_io.user_prompt} />
           <JsonBlock title="LLM raw output" value={step.llm_io.raw_output} />

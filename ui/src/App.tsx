@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchWorkflows, type WorkflowGraph, type WorkflowTraceStep } from "./api/workflows";
 import { WorkflowGraphView } from "./components/WorkflowGraphView";
-import { WorkflowRunPanel, type WorkflowRunOutcome } from "./components/WorkflowRunPanel";
+import { RagBenchmarkDashboard } from "./components/RagBenchmarkDashboard";
+import { WorkflowRunPanel, type RagValidationRunMeta, type WorkflowRunOutcome } from "./components/WorkflowRunPanel";
 import { WorkflowRunSummary } from "./components/WorkflowRunSummary";
 import { WorkflowStepInspector } from "./components/WorkflowStepInspector";
 import { WorkflowTraceReplay } from "./components/WorkflowTraceReplay";
@@ -17,6 +18,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [trace, setTrace] = useState<WorkflowTraceStep[]>([]);
   const [runMeta, setRunMeta] = useState<ContentRunMeta | null>(null);
+  const [ragValidation, setRagValidation] = useState<RagValidationRunMeta | null>(null);
+  const [ragRun, setRagRun] = useState<WorkflowRunOutcome["ragRun"]>(null);
   const [activeStep, setActiveStep] = useState<WorkflowTraceStep | null>(null);
   const [activeNodeAttempts, setActiveNodeAttempts] = useState<Record<string, number>>({});
 
@@ -53,6 +56,8 @@ export default function App() {
   const handleRunComplete = useCallback((outcome: WorkflowRunOutcome) => {
     setTrace(outcome.trace);
     setRunMeta(outcome.runMeta);
+    setRagValidation(outcome.ragValidation);
+    setRagRun(outcome.ragRun);
   }, []);
 
   const handleActiveStepChange = useCallback(
@@ -91,6 +96,8 @@ export default function App() {
                     setSelectedId(workflow.id);
                     setTrace([]);
                     setRunMeta(null);
+                    setRagValidation(null);
+                    setRagRun(null);
                     setActiveStep(null);
                     setActiveNodeAttempts({});
                     setRunError(null);
@@ -118,14 +125,23 @@ export default function App() {
                 onError={setRunError}
               />
               {runError && <p className="error run-error">{runError}</p>}
-              <WorkflowRunSummary trace={trace} runMeta={runMeta} />
+              <RagBenchmarkDashboard
+                workflowId={selectedWorkflow.id}
+                trace={trace}
+                ragRun={ragRun}
+              />
+              <WorkflowRunSummary trace={trace} runMeta={runMeta} ragValidation={ragValidation} />
               <WorkflowGraphView
                 workflow={selectedWorkflow}
                 trace={trace}
                 activeStep={activeStep}
                 activeNodeAttempts={activeNodeAttempts}
               />
-              <WorkflowTraceReplay trace={trace} onActiveStepChange={handleActiveStepChange} />
+              <WorkflowTraceReplay
+                trace={trace}
+                nodeGroups={selectedWorkflow.node_groups ?? []}
+                onActiveStepChange={handleActiveStepChange}
+              />
               <WorkflowStepInspector step={activeStep} />
             </>
           ) : (

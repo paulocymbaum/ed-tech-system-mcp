@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mcp_server.application.token_counting_runtime import get_token_counter
+
 _pending_llm_io: dict[str, Any] | None = None
 
 
@@ -23,12 +25,26 @@ def record_llm_invocation(
 ) -> None:
     """Store LLM I/O for attachment to the next workflow trace step."""
     global _pending_llm_io
+    token_counts = get_token_counter().count_invocation(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        raw_output=raw_output,
+        model_name=model_name,
+    )
     _pending_llm_io = {
         "model_name": model_name,
         "llm_complexity": llm_complexity,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "raw_output": raw_output,
+        "input_tokens": token_counts.input_tokens,
+        "output_tokens": token_counts.output_tokens,
+        "total_tokens": token_counts.total_tokens,
+        "token_breakdown": {
+            "system_prompt_tokens": token_counts.system_prompt_tokens,
+            "user_prompt_tokens": token_counts.user_prompt_tokens,
+            "raw_output_tokens": token_counts.raw_output_tokens,
+        },
     }
 
 
