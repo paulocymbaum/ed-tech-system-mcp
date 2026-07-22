@@ -32,6 +32,5 @@ def parse_structured_output[TModel: BaseModel](text: str, model: type[TModel]) -
 def validation_error_messages(exc: ValidationError) -> list[str]:
     """Flatten Pydantic validation errors for retry feedback."""
     return [
-        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
-        for error in exc.errors()
+        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors()
     ]

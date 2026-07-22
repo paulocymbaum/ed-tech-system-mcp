@@ -201,6 +201,7 @@ MCP protocol adapter. The only layer that speaks JSON-RPC / FastMCP.
 | `search_youtube` | ✅ | `VideoSearchRequest` → `VideoSearchResponse` | `DocumentVideoWorkflow.search_videos` |
 | `run_workflow` | ✅ | `WorkflowRunRequest` → `WorkflowRunResponse` | `run_document_video_graph` (sequential LangGraph) |
 | `search_web` | 📋 planned | `WebSearchRequest` → `WebSearchResponse` | web search LangChain tool / workflow |
+| `rag_search` | 📋 planned | `RagSearchRequest` → `RagSearchResponse` | `rag_retrieval` LangGraph via `retrieval_runtime` |
 | `query_supabase_sql` | 📋 planned | `SqlAgentRequest` → `SqlAgentResponse` | SQL agent subgraph (read-only) |
 
 Every MCP tool follows the same template:
@@ -445,6 +446,26 @@ UI: POST /api/workflows/content-generation/run { topic, grade_level? }
 - **Validation retries:** configurable via `config.json` `node_retries`; failed Pydantic/JSON parses loop back to `generate_*` nodes.
 - **Trace:** each LLM node records `llm_io` (system/user prompts, raw output, `model_name`, `llm_complexity`) via `workflow_llm_trace`.
 
+### J. Semantic RAG retrieval (Phase A — shipped)
+
+See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for library selection, ports, and ingest pipeline.
+
+```text
+UI: POST /api/workflows/rag-retrieval/run { query, retrieval_mode?, course_id?, tags? }
+  → RagRetrievalRunRequest validation
+  → get_rag_retrieval_graph()
+      embed_query      → IEmbeddingProvider.embed_queries via retrieval_runtime
+      retrieve_chunks  → IVectorRetriever (hybrid default)
+      [rerank_chunks?] → IReranker (RERANK_ENABLED)
+      merge_context
+  → RagRetrievalRunResponse (chunks, merged_context, trace)
+```
+
+- **Embeddings:** local `fastembed` ONNX (`intfloat/multilingual-e5-small`); Groq has no embeddings API.
+- **Vector store:** Supabase pgvector + hybrid RPC; structured `IDataRepository` and semantic `IVectorRetriever` may run in parallel (BL-010 pattern).
+- **Rerank:** optional (`RERANK_ENABLED=false` MVP default); when enabled use `BAAI/bge-reranker-base` via fastembed — not Jina v2 (CC-BY-NC).
+- **Trace:** RAG nodes record `candidate_count`, `cache_hit`, `retrieval_mode`, `latency_ms` in `output_update` — not `llm_io`.
+
 ---
 
 ## Validation schema map
@@ -459,6 +480,7 @@ UI: POST /api/workflows/content-generation/run { topic, grade_level? }
 | `YouTubeSearchRunRequest` / `YouTubeSearchRunResponse` | `interface/validation.py` | Local UI `youtube-search` |
 | `ResearchArticleRunRequest` / `ResearchArticleRunResponse` | `interface/validation.py` | Local UI `research-article` |
 | `ContentGenerationRunRequest` / `ContentGenerationRunResponse` | `interface/validation.py` | Local UI `content-generation` |
+| `RagRetrievalRunRequest` / `RagRetrievalRunResponse` | `interface/validation.py` | Local UI `rag-retrieval` |
 | `WorkflowTraceStepView` | `interface/validation.py` | Trace replay in all UI workflow responses |
 | `WebSearchRequest` / `WebSearchResponse` *(planned)* | `interface/validation.py` | MCP `search_web` |
 | `SqlAgentRequest` / `SqlAgentResponse` *(planned)* | `interface/validation.py` | MCP `query_supabase_sql` |
@@ -479,6 +501,7 @@ UI: POST /api/workflows/content-generation/run { topic, grade_level? }
 | `youtube-search` | `agents/youtube_search/` | `search_videos` | `YOUTUBE_API_KEY` |
 | `research-article` | `agents/research_article/` | plan → **parallel tools** → merge → write | Tavily + YouTube + `GROQ_API_KEY` |
 | `content-generation` | `agents/content_generation/` | lesson/quiz/pbl with validation retries | `GROQ_API_KEY` |
+| `rag-retrieval` | `agents/rag_retrieval/` | embed → retrieve → [rerank?] → merge | `fastembed` + Supabase |
 
 MCP production tools (`find_documents`, `search_youtube`, `run_workflow`) still use `DocumentVideoWorkflow` and `run_document_video_graph` — they are **not** removed. The local UI favors focused integration-test workflows plus the full agentic paths above.
 
@@ -637,9 +660,9 @@ ed-tech-system-mcp/
         │
         ├── domain/                      # Pure contracts — no LangChain / MCP / SDKs
         │   ├── interfaces.py            # ✅ IDataRepository, ISearchClient, IVideoSearchClient
-        │   │                            # 📋 ISqlReadExecutor
+        │   │                            # 📋 ISqlReadExecutor, IEmbeddingProvider, IVectorRetriever, IReranker
         │   ├── schemas.py               # ✅ DocumentHit, VideoResult
-        │   │                            # 📋 SqlQueryProposal, SqlQueryResult
+        │   │                            # 📋 ChunkHit, TextChunk, SqlQueryProposal, SqlQueryResult
         │   ├── query_policies.py        # 📋 SQL allowlists, table/column caps, SELECT-only rules
         │   ├── cache.py                 # ✅ ICacheStore port
         │   ├── cache_keys.py            # ✅ Deterministic cache key builders
@@ -648,6 +671,7 @@ ed-tech-system-mcp/
         ├── application/                 # Agents, graphs, LangChain tools, orchestration
         │   ├── agent.py                 # ✅ Document-video graph + list_registered_workflows()
         │   ├── integration_runtime.py   # ✅ Lazy ISearchClient / IVideoSearchClient accessors
+        │   ├── retrieval_runtime.py     # ✅ Lazy IEmbeddingProvider / IVectorRetriever / IReranker accessors
         │   ├── workflow_trace.py        # ✅ Per-node execution trace collection
         │   ├── workflow_llm_trace.py    # ✅ LLM prompt/output capture per node
         │   ├── workflow_graph.py        # ✅ Graph introspection + UI layout (async edges)
@@ -674,7 +698,11 @@ ed-tech-system-mcp/
         │       │   └── graph.py
         │       ├── tavily_search/       #     Single-node Tavily integration test
         │       │   └── graph.py
-        │       └── youtube_search/      #     Single-node YouTube integration test
+        │       ├── youtube_search/      #     Single-node YouTube integration test
+        │       │   └── graph.py
+        │       └── rag_retrieval/       # ✅ Semantic RAG: embed → retrieve → [rerank?] → merge
+        │           ├── state.py
+        │           ├── nodes.py
         │           └── graph.py
         │
         ├── interface/                   # MCP protocol + local UI adapters
@@ -762,7 +790,7 @@ Do not confuse **Cursor build agents** (`.cursor/agents/`) with **runtime LangGr
 
 ## Settings and secrets (agentic extensions)
 
-Extend `Settings` in `settings.py` *(planned fields)*:
+Extend `Settings` in `settings.py` (RAG fields shipped in Phase A):
 
 | Variable | Used by |
 | :--- | :--- |
@@ -771,7 +799,9 @@ Extend `Settings` in `settings.py` *(planned fields)*:
 | `TAVILY_API_KEY` | `TavilySearchClient` via `build_search_client()` |
 | `YOUTUBE_API_KEY` | `YouTubeDataApiClient` via `build_video_client()` |
 | `CACHE_TTL_*`, `CACHE_KEY_PREFIX_*` | Cache-aside for ports, LLM, MCP tools |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Repository + SQL executor (planned) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Repository + vector index (Phase A) |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_WARM_ON_BOOT` | `IEmbeddingProvider` via `retrieval_runtime` |
+| `RETRIEVAL_MODE`, `RETRIEVE_LIMIT`, `RERANK_ENABLED`, `RERANKER_MODEL`, `RERANK_TOP_N` | RAG retrieval graph defaults |
 | `SQL_AGENT_ENABLED` | Gate SQL agent MCP tool and graph routes |
 | `SQL_AGENT_MAX_ROWS` | Domain query policy default |
 
@@ -802,6 +832,7 @@ See [Agent file structure](#agent-file-structure) for the full tree. Status snap
 | `application/agent.py` | ✅ | Document-video graph, `list_registered_workflows()` |
 | `application/agents/` | ✅ | `content_generation`, `research_article`, `tavily_search`, `youtube_search` |
 | `application/integration_runtime.py` | ✅ | Lazy Tavily/YouTube client accessors |
+| `application/retrieval_runtime.py` | ✅ | Lazy RAG port accessors |
 | `application/workflow_trace.py` | ✅ | UI execution trace collection |
 | `application/workflow_llm_trace.py` | ✅ | Per-node LLM I/O for observability |
 | `application/workflows.py` | ✅ | `DocumentVideoWorkflow`; BL-010 parallel I/O |
@@ -810,7 +841,7 @@ See [Agent file structure](#agent-file-structure) for the full tree. Status snap
 | `application/langchain_tools.py` | 📋 | LangChain `@tool` wrappers |
 | `interface/custom_tools.py` | ✅ | MCP: `health_check`, `find_documents`, `search_youtube`, `run_workflow` |
 | `interface/validation.py` | ✅ | MCP DTOs + all local UI run/trace models |
-| `interface/local_ui/` | ✅ | Workflow explorer API (4 UI workflows) |
+| `interface/local_ui/` | ✅ | Workflow explorer API (5 UI workflows) |
 | `infrastructure/tavily_search_client.py` | ✅ | Live Tavily integration |
 | `infrastructure/youtube_client.py` | ✅ | Live YouTube Data API v3 |
 | `infrastructure/search_client.py` | stub | DuckDuckGo fallback |
@@ -837,6 +868,7 @@ domain (ports + policies + entities)
 Within application layer, prefer this sequence:
 
 1. Structured Supabase path (`DocumentQueryRequest` + repository implementation)
+1.5. Semantic RAG path (domain ports → pgvector adapters → `rag_retrieval` graph) — see [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md)
 2. Web and YouTube LangChain tools (ports already defined)
 3. Parameter builders and conditional graph edges
 4. LLM factory and optional LLM-assisted parameter nodes
@@ -857,6 +889,7 @@ Within application layer, prefer this sequence:
 | Web search (Tavily) | Infrastructure → `ISearchClient` | `TavilySearchClient`; wired at bootstrap |
 | YouTube search | Infrastructure → `IVideoSearchClient` | `YouTubeDataApiClient`; wired at bootstrap |
 | Supabase structured read | Infrastructure → `IDataRepository` | Stub adapter; guards live |
+| Semantic RAG | Infrastructure → `IVectorRetriever` + `retrieval_runtime` | ✅ Phase A — pgvector + fastembed ONNX |
 | Workflow UI | Interface + `ui/` | Graph viz, trace replay, run summary |
 | Wiring | Entrypoint (`wiring.py`) | Single composition root for all dependencies |
 

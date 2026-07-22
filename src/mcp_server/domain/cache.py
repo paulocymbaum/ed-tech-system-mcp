@@ -19,6 +19,8 @@ class CacheOperationType(StrEnum):
     WEB_SEARCH = "web.search"
     MCP_TOOL = "mcp.tool"
     LLM_COMPLETION = "llm.completion"
+    EMBEDDING_QUERY = "embedding.query"
+    VECTOR_RETRIEVE = "vector.retrieve"
 
 
 class CacheRule(BaseModel):
@@ -70,6 +72,16 @@ DEFAULT_CACHE_RULES: dict[CacheOperationType, CacheRule] = {
         operation=CacheOperationType.LLM_COMPLETION,
         ttl_seconds=3600,
         key_prefix="llm",
+    ),
+    CacheOperationType.EMBEDDING_QUERY: CacheRule(
+        operation=CacheOperationType.EMBEDDING_QUERY,
+        ttl_seconds=3600,
+        key_prefix="embed",
+    ),
+    CacheOperationType.VECTOR_RETRIEVE: CacheRule(
+        operation=CacheOperationType.VECTOR_RETRIEVE,
+        ttl_seconds=600,
+        key_prefix="vector",
     ),
 }
 

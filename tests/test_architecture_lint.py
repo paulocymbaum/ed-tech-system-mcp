@@ -13,7 +13,9 @@ BOUNDARY_PATTERNS = REPO_ROOT / "scripts/lint/check-boundary-patterns.sh"
 ARCHITECTURE_LINT = REPO_ROOT / "scripts/lint/architecture.sh"
 
 
-def _run_script(script: Path, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _run_script(
+    script: Path, *, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
@@ -62,7 +64,10 @@ def test_boundary_patterns_detects_infra_in_interface(tmp_path: Path) -> None:
     fixture_root = tmp_path / "mcp_server"
     bad_file = fixture_root / "interface" / "bad.py"
     bad_file.parent.mkdir(parents=True)
-    bad_file.write_text("from mcp_server.infrastructure.supabase_client import SupabaseRepository\n", encoding="utf-8")
+    bad_file.write_text(
+        "from mcp_server.infrastructure.supabase_client import SupabaseRepository\n",
+        encoding="utf-8",
+    )
 
     result = _run_script(BOUNDARY_PATTERNS, env={"ARCHITECTURE_LINT_ROOT": str(fixture_root)})
     assert result.returncode == 1

@@ -113,6 +113,9 @@ async def invoke_graph_with_trace(
                     "llm_request": {
                         "model_name": llm_io.get("model_name"),
                         "llm_complexity": llm_io.get("llm_complexity"),
+                        "input_tokens": llm_io.get("input_tokens"),
+                        "output_tokens": llm_io.get("output_tokens"),
+                        "total_tokens": llm_io.get("total_tokens"),
                     },
                 }
             if update:
@@ -123,6 +126,9 @@ async def invoke_graph_with_trace(
                     **output_update,
                     "model_name": llm_io.get("model_name"),
                     "llm_complexity": llm_io.get("llm_complexity"),
+                    "input_tokens": llm_io.get("input_tokens"),
+                    "output_tokens": llm_io.get("output_tokens"),
+                    "total_tokens": llm_io.get("total_tokens"),
                 }
             steps.append(
                 WorkflowTraceStep(

@@ -98,7 +98,9 @@ def test_h03_supabase_credentials_accepted(settings: Settings) -> None:
             "Check the project is active and SUPABASE_URL is correct in Doppler."
         )
     assert response.status_code != 401, "Supabase rejected the service role key"
-    assert response.status_code in {200, 404}, f"Unexpected Supabase response: {response.status_code}"
+    assert response.status_code in {200, 404}, (
+        f"Unexpected Supabase response: {response.status_code}"
+    )
 
 
 def test_h04_youtube_api_key_accepted(settings: Settings) -> None:

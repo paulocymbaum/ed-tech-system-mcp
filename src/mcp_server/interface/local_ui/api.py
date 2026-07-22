@@ -21,6 +21,14 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     initial_content_generation_state,
 )
+from mcp_server.application.agents.rag_retrieval.graph import (
+    get_rag_retrieval_graph,
+    initial_rag_retrieval_state,
+)
+from mcp_server.application.agents.rag_validation.graph import (
+    get_rag_validation_graph,
+    initial_rag_validation_state,
+)
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     initial_research_article_state,
@@ -40,6 +48,11 @@ from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
+    RagRetrievalRunRequest,
+    RagRetrievalRunResponse,
+    RagValidationDocumentDefaults,
+    RagValidationRunRequest,
+    RagValidationRunResponse,
     ResearchArticleRunRequest,
     ResearchArticleRunResponse,
     TavilySearchRunRequest,
@@ -47,6 +60,8 @@ from mcp_server.interface.validation import (
     YouTubeSearchRunRequest,
     YouTubeSearchRunResponse,
     content_generation_state_to_run_response,
+    rag_retrieval_state_to_run_response,
+    rag_validation_state_to_run_response,
     research_article_state_to_run_response,
     tavily_search_state_to_run_response,
     youtube_search_state_to_run_response,
@@ -72,6 +87,169 @@ def assert_local_development() -> None:
 
 def _workflow_index() -> dict[str, WorkflowGraphView]:
     return {workflow.id: workflow_graph_view(workflow) for workflow in list_registered_workflows()}
+
+
+async def _run_tavily_workflow(body: dict[str, object]) -> TavilySearchRunResponse:
+    request = TavilySearchRunRequest.model_validate(body)
+    try:
+        graph = get_tavily_search_graph()
+        state = initial_tavily_search_state(
+            request.query,
+            max_results=request.max_results,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return tavily_search_state_to_run_response(result, trace=trace)
+
+
+async def _run_youtube_workflow(body: dict[str, object]) -> YouTubeSearchRunResponse:
+    request = YouTubeSearchRunRequest.model_validate(body)
+    try:
+        graph = get_youtube_search_graph()
+        state = initial_youtube_search_state(
+            request.query,
+            max_results=request.max_results,
+            language=request.language,
+            safe_search=request.safe_search,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return youtube_search_state_to_run_response(result, trace=trace)
+
+
+async def _run_research_article_workflow(body: dict[str, object]) -> ResearchArticleRunResponse:
+    request = ResearchArticleRunRequest.model_validate(body)
+    try:
+        graph = get_research_article_graph()
+        state = initial_research_article_state(
+            request.query,
+            max_web_results=request.max_web_results,
+            max_video_results=request.max_video_results,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return research_article_state_to_run_response(result, trace=trace)
+
+
+async def _run_content_generation_workflow(
+    body: dict[str, object],
+) -> ContentGenerationRunResponse:
+    request = ContentGenerationRunRequest.model_validate(body)
+    try:
+        graph = get_content_generation_graph()
+        state = initial_content_generation_state(
+            request.topic,
+            grade_level=request.grade_level,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return content_generation_state_to_run_response(result, trace=trace)
+
+
+async def _run_rag_retrieval_workflow(body: dict[str, object]) -> RagRetrievalRunResponse:
+    request = RagRetrievalRunRequest.model_validate(body)
+    try:
+        graph = get_rag_retrieval_graph()
+        state = initial_rag_retrieval_state(
+            request.query,
+            retrieval_mode=request.retrieval_mode,
+            retrieve_limit=request.retrieve_limit,
+            rerank_top_n=request.rerank_top_n,
+            rerank_enabled=request.rerank_enabled,
+            course_id=request.course_id,
+            tags=request.tags,
+            language=request.language,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return rag_retrieval_state_to_run_response(result, trace=trace)
+
+
+async def _run_rag_validation_workflow(body: dict[str, object]) -> RagValidationRunResponse:
+    request = RagValidationRunRequest.model_validate(body)
+    try:
+        graph = get_rag_validation_graph()
+        state = initial_rag_validation_state(
+            request.query,
+            fixture_path=request.fixture_path,
+            document_text=request.document_text,
+            document_title=request.document_title,
+            expected_phrases=request.expected_phrases,
+            retrieval_mode=request.retrieval_mode,
+            retrieve_limit=request.retrieve_limit,
+            rerank_top_n=request.rerank_top_n,
+            rerank_enabled=request.rerank_enabled,
+            course_id=request.course_id,
+            tags=request.tags,
+            language=request.language,
+        )
+        result, trace = await invoke_graph_with_trace(
+            graph,
+            state,
+            timeout_seconds=workflow_timeout_seconds(),
+        )
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Workflow execution timed out.",
+        ) from exc
+    return rag_validation_state_to_run_response(result, trace=trace)
 
 
 @asynccontextmanager
@@ -127,6 +305,16 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
         return workflow
 
+    @app.get(
+        "/api/workflows/rag-validation/document-defaults",
+        response_model=RagValidationDocumentDefaults,
+    )
+    def get_rag_validation_document_defaults() -> RagValidationDocumentDefaults:
+        from mcp_server.application.agents.rag_validation.fixture import default_document_defaults
+
+        payload = default_document_defaults()
+        return RagValidationDocumentDefaults.model_validate(payload)
+
     @app.post("/api/workflows/{workflow_id}/run")
     async def run_workflow(
         workflow_id: str,
@@ -136,98 +324,21 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
         | YouTubeSearchRunResponse
         | ResearchArticleRunResponse
         | ContentGenerationRunResponse
+        | RagRetrievalRunResponse
+        | RagValidationRunResponse
     ):
         if workflow_id == "tavily-search":
-            request = TavilySearchRunRequest.model_validate(body)
-            try:
-                graph = get_tavily_search_graph()
-                state = initial_tavily_search_state(
-                    request.query,
-                    max_results=request.max_results,
-                )
-                result, trace = await invoke_graph_with_trace(
-                    graph,
-                    state,
-                    timeout_seconds=workflow_timeout_seconds(),
-                )
-            except ResourceNotFoundError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            except TimeoutError as exc:
-                raise HTTPException(
-                    status_code=504,
-                    detail="Workflow execution timed out.",
-                ) from exc
-            return tavily_search_state_to_run_response(result, trace=trace)
-
+            return await _run_tavily_workflow(body)
         if workflow_id == "youtube-search":
-            request = YouTubeSearchRunRequest.model_validate(body)
-            try:
-                graph = get_youtube_search_graph()
-                state = initial_youtube_search_state(
-                    request.query,
-                    max_results=request.max_results,
-                    language=request.language,
-                    safe_search=request.safe_search,
-                )
-                result, trace = await invoke_graph_with_trace(
-                    graph,
-                    state,
-                    timeout_seconds=workflow_timeout_seconds(),
-                )
-            except ResourceNotFoundError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            except TimeoutError as exc:
-                raise HTTPException(
-                    status_code=504,
-                    detail="Workflow execution timed out.",
-                ) from exc
-            return youtube_search_state_to_run_response(result, trace=trace)
-
+            return await _run_youtube_workflow(body)
         if workflow_id == "research-article":
-            request = ResearchArticleRunRequest.model_validate(body)
-            try:
-                graph = get_research_article_graph()
-                state = initial_research_article_state(
-                    request.query,
-                    max_web_results=request.max_web_results,
-                    max_video_results=request.max_video_results,
-                )
-                result, trace = await invoke_graph_with_trace(
-                    graph,
-                    state,
-                    timeout_seconds=workflow_timeout_seconds(),
-                )
-            except ResourceNotFoundError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            except TimeoutError as exc:
-                raise HTTPException(
-                    status_code=504,
-                    detail="Workflow execution timed out.",
-                ) from exc
-            return research_article_state_to_run_response(result, trace=trace)
-
+            return await _run_research_article_workflow(body)
         if workflow_id == "content-generation":
-            request = ContentGenerationRunRequest.model_validate(body)
-            try:
-                graph = get_content_generation_graph()
-                state = initial_content_generation_state(
-                    request.topic,
-                    grade_level=request.grade_level,
-                )
-                result, trace = await invoke_graph_with_trace(
-                    graph,
-                    state,
-                    timeout_seconds=workflow_timeout_seconds(),
-                )
-            except ResourceNotFoundError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            except TimeoutError as exc:
-                raise HTTPException(
-                    status_code=504,
-                    detail="Workflow execution timed out.",
-                ) from exc
-            return content_generation_state_to_run_response(result, trace=trace)
-
+            return await _run_content_generation_workflow(body)
+        if workflow_id == "rag-retrieval":
+            return await _run_rag_retrieval_workflow(body)
+        if workflow_id == "rag-validation":
+            return await _run_rag_validation_workflow(body)
         raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
 
     static_dir = Path(__file__).resolve().parents[4] / "ui" / "dist"

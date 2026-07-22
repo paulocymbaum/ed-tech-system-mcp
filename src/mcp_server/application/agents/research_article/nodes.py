@@ -14,7 +14,10 @@ from mcp_server.application.agents.research_article.prompts import (
     orchestrator_system_prompt,
     orchestrator_user_prompt,
 )
-from mcp_server.application.agents.research_article.state import ResearchArticleState, ToolCallRecord
+from mcp_server.application.agents.research_article.state import (
+    ResearchArticleState,
+    ToolCallRecord,
+)
 from mcp_server.application.integration_runtime import get_search_client, get_video_client
 from mcp_server.application.llm import get_chat_model
 from mcp_server.application.llm_model_name import resolve_invoked_model_name
@@ -90,7 +93,10 @@ async def _call_search_tavily(query: str, max_results: int) -> tuple[list[str], 
     )
 
 
-async def _call_search_youtube(query: str, max_results: int) -> tuple[list[VideoResult], ToolCallRecord]:
+async def _call_search_youtube(
+    query: str,
+    max_results: int,
+) -> tuple[list[VideoResult], ToolCallRecord]:
     client = get_video_client()
     if client is None:
         raise ResourceNotFoundError("Video search client has not been initialized")
@@ -174,9 +180,7 @@ def _format_merged_context(
     videos: list[VideoResult],
 ) -> str:
     web_section = "\n".join(f"- {snippet}" for snippet in web_results) or "- (no web results)"
-    video_lines = [
-        f"- {video.title} ({video.channel}) — {video.url}" for video in videos
-    ]
+    video_lines = [f"- {video.title} ({video.channel}) — {video.url}" for video in videos]
     video_section = "\n".join(video_lines) or "- (no video results)"
     return (
         f"Query: {query}\n\n"

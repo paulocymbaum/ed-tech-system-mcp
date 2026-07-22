@@ -15,7 +15,9 @@ from mcp_server.application.agents.content_generation.graph import (
     initial_content_generation_state,
 )
 from mcp_server.application.llm import reset_chat_model, set_chat_model
+from mcp_server.application.token_counting_runtime import reset_token_counter, set_token_counter
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
+from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
 
 
 class ScriptedContentModel(BaseChatModel):
@@ -109,6 +111,8 @@ class ScriptedContentModel(BaseChatModel):
 @pytest.fixture(autouse=True)
 def _reset_runtime() -> None:
     reset_chat_model()
+    reset_token_counter()
+    set_token_counter(TiktokenTokenCounter())
 
 
 async def test_invoke_graph_with_trace_records_retries_and_failures() -> None:
@@ -131,4 +135,11 @@ async def test_invoke_graph_with_trace_records_retries_and_failures() -> None:
     assert trace[0].input_snapshot["llm_request"]["model_name"] == "scripted-content"
     assert trace[0].output_update["model_name"] == "scripted-content"
     assert "system_prompt" in trace[0].llm_io
+    assert trace[0].llm_io["input_tokens"] > 0
+    assert trace[0].llm_io["output_tokens"] > 0
+    assert trace[0].llm_io["total_tokens"] == (
+        trace[0].llm_io["input_tokens"] + trace[0].llm_io["output_tokens"]
+    )
+    assert trace[0].input_snapshot["llm_request"]["input_tokens"] > 0
+    assert trace[0].output_update["total_tokens"] > 0
     assert trace[0].output_update.get("lesson_validation_errors")
