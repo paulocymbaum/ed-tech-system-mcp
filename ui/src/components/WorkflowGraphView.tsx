@@ -87,6 +87,14 @@ function edgeStyle(kind: GraphEdge["kind"], emphasis: "idle" | "traversed" | "ac
       opacity: traversed || active ? 1 : 0.45,
     };
   }
+  if (kind === "async") {
+    return {
+      stroke: active ? "#a78bfa" : traversed ? "#8b5cf6" : "#5b21b6",
+      strokeDasharray: "8 4",
+      strokeWidth: active ? 3 : traversed ? 2.5 : 1.5,
+      opacity: traversed || active ? 1 : 0.45,
+    };
+  }
   return {
     stroke: active ? "#60a5fa" : traversed ? "#38bdf8" : "#64748b",
     strokeWidth: active ? 3 : traversed ? 2.5 : 2,
@@ -94,8 +102,14 @@ function edgeStyle(kind: GraphEdge["kind"], emphasis: "idle" | "traversed" | "ac
   };
 }
 
-function edgeHandles(kind: GraphEdge["kind"]): { sourceHandle?: string; targetHandle?: string } {
-  if (kind === "retry") {
+function edgeHandles(edge: GraphEdge): { sourceHandle?: string; targetHandle?: string } {
+  if (edge.kind === "retry") {
+    return { sourceHandle: "top-source", targetHandle: "top" };
+  }
+  if (edge.kind === "async" && edge.target.includes("youtube")) {
+    return { sourceHandle: "right", targetHandle: "left" };
+  }
+  if (edge.kind === "async") {
     return { sourceHandle: "top-source", targetHandle: "top" };
   }
   return { sourceHandle: "right", targetHandle: "left" };
@@ -156,9 +170,15 @@ export function WorkflowGraphView({
         const isActive = activeEdgeKey === edgeKey;
         const emphasis = isActive ? "active" : isTraversed ? "traversed" : "idle";
         const styles = edgeStyle(edge.kind, emphasis);
-        const handles = edgeHandles(edge.kind);
+        const handles = edgeHandles(edge);
         const label =
-          edge.kind === "retry" ? "retry" : edge.kind === "failure" ? "give up" : undefined;
+          edge.kind === "retry"
+            ? "retry"
+            : edge.kind === "failure"
+              ? "give up"
+              : edge.kind === "async"
+                ? "async"
+                : undefined;
         return {
           id: `${edge.source}-${edge.target}-${index}`,
           source: edge.source,
@@ -188,6 +208,7 @@ export function WorkflowGraphView({
       {trace.length > 0 && (
         <div className="graph-legend">
           <span className="graph-legend__item graph-legend__item--visited">visited path</span>
+          <span className="graph-legend__item graph-legend__item--async">parallel async tools</span>
           <span className="graph-legend__item graph-legend__item--retry">retry / re-run</span>
           <span className="graph-legend__item graph-legend__item--failed">validation failure</span>
         </div>

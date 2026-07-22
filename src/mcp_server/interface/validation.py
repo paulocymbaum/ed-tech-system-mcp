@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from mcp_server.application.agent import DocumentVideoState
 from mcp_server.application.agents.content_generation.state import ContentGenerationState
+from mcp_server.application.agents.research_article.state import ResearchArticleState
 from mcp_server.application.agents.tavily_search.graph import TavilySearchState
 from mcp_server.application.agents.youtube_search.graph import YouTubeSearchState
 from mcp_server.application.workflow_trace import WorkflowTraceStep
@@ -119,6 +120,30 @@ class YouTubeSearchRunResponse(BaseModel):
     trace: list[WorkflowTraceStepView] = Field(default_factory=list)
 
 
+class ResearchArticleRunRequest(BaseModel):
+    """Validated input for research-article workflow execution."""
+
+    query: str = Field(min_length=1)
+    max_web_results: int = Field(default=5, ge=1, le=25)
+    max_video_results: int = Field(default=3, ge=1, le=25)
+
+
+class ResearchArticleRunResponse(BaseModel):
+    """Validated output for research-article workflow execution."""
+
+    query: str
+    generation_complete: bool
+    research_brief: str = ""
+    web_result_count: int = Field(ge=0)
+    video_count: int = Field(ge=0)
+    web_results: list[str] = Field(default_factory=list)
+    videos: list[VideoResult] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    merged_context: str = ""
+    article: str = ""
+    trace: list[WorkflowTraceStepView] = Field(default_factory=list)
+
+
 class ContentGenerationRunRequest(BaseModel):
     """Validated input for lesson → quiz + PBL workflow execution."""
 
@@ -224,6 +249,29 @@ def youtube_search_state_to_run_response(
         query=state["query"],
         video_count=state.get("video_count", 0),
         videos=state.get("videos", []),
+        trace=trace_steps_to_views(trace or []),
+    )
+
+
+def research_article_state_to_run_response(
+    state: ResearchArticleState,
+    *,
+    trace: list[WorkflowTraceStep] | None = None,
+) -> ResearchArticleRunResponse:
+    """Map a research-article graph state to the local UI workflow response."""
+    web_results = state.get("web_results", [])
+    videos = state.get("videos", [])
+    return ResearchArticleRunResponse(
+        query=state["query"],
+        generation_complete=state.get("generation_complete", False),
+        research_brief=state.get("research_brief", ""),
+        web_result_count=len(web_results),
+        video_count=len(videos),
+        web_results=web_results,
+        videos=videos,
+        tool_calls=list(state.get("tool_calls", [])),
+        merged_context=state.get("merged_context", ""),
+        article=state.get("article", ""),
         trace=trace_steps_to_views(trace or []),
     )
 

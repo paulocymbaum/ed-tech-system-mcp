@@ -31,6 +31,8 @@ function contentRunMeta(result: ContentGenerationRunResult): ContentRunMeta {
 export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowRunPanelProps) {
   const [query, setQuery] = useState("fractions");
   const [maxResults, setMaxResults] = useState(5);
+  const [maxWebResults, setMaxWebResults] = useState(5);
+  const [maxVideoResults, setMaxVideoResults] = useState(3);
   const [topic, setTopic] = useState("fractions");
   const [gradeLevel, setGradeLevel] = useState("6th grade");
   const [running, setRunning] = useState(false);
@@ -42,9 +44,15 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
       const body: Record<string, string | number | boolean> =
         workflow.id === "content-generation"
           ? { topic, grade_level: gradeLevel }
-          : workflow.id === "youtube-search"
-            ? { query, max_results: maxResults, language: "en", safe_search: true }
-            : { query, max_results: maxResults };
+          : workflow.id === "research-article"
+            ? {
+                query,
+                max_web_results: maxWebResults,
+                max_video_results: maxVideoResults,
+              }
+            : workflow.id === "youtube-search"
+              ? { query, max_results: maxResults, language: "en", safe_search: true }
+              : { query, max_results: maxResults };
       const result = await runWorkflow(workflow.id, body);
       onRunComplete({
         trace: result.trace ?? [],
@@ -70,6 +78,33 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
           <label>
             Grade level
             <input value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} />
+          </label>
+        </div>
+      ) : workflow.id === "research-article" ? (
+        <div className="run-form">
+          <label>
+            Query
+            <input value={query} onChange={(event) => setQuery(event.target.value)} />
+          </label>
+          <label>
+            Max web results
+            <input
+              type="number"
+              min={1}
+              max={25}
+              value={maxWebResults}
+              onChange={(event) => setMaxWebResults(Number(event.target.value))}
+            />
+          </label>
+          <label>
+            Max video results
+            <input
+              type="number"
+              min={1}
+              max={25}
+              value={maxVideoResults}
+              onChange={(event) => setMaxVideoResults(Number(event.target.value))}
+            />
           </label>
         </div>
       ) : (

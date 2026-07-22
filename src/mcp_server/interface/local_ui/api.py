@@ -21,6 +21,10 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     initial_content_generation_state,
 )
+from mcp_server.application.agents.research_article.graph import (
+    get_research_article_graph,
+    initial_research_article_state,
+)
 from mcp_server.application.agents.tavily_search.graph import (
     get_tavily_search_graph,
     initial_tavily_search_state,
@@ -36,11 +40,14 @@ from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
+    ResearchArticleRunRequest,
+    ResearchArticleRunResponse,
     TavilySearchRunRequest,
     TavilySearchRunResponse,
     YouTubeSearchRunRequest,
     YouTubeSearchRunResponse,
     content_generation_state_to_run_response,
+    research_article_state_to_run_response,
     tavily_search_state_to_run_response,
     youtube_search_state_to_run_response,
 )
@@ -127,6 +134,7 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     ) -> (
         TavilySearchRunResponse
         | YouTubeSearchRunResponse
+        | ResearchArticleRunResponse
         | ContentGenerationRunResponse
     ):
         if workflow_id == "tavily-search":
@@ -174,6 +182,29 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
                     detail="Workflow execution timed out.",
                 ) from exc
             return youtube_search_state_to_run_response(result, trace=trace)
+
+        if workflow_id == "research-article":
+            request = ResearchArticleRunRequest.model_validate(body)
+            try:
+                graph = get_research_article_graph()
+                state = initial_research_article_state(
+                    request.query,
+                    max_web_results=request.max_web_results,
+                    max_video_results=request.max_video_results,
+                )
+                result, trace = await invoke_graph_with_trace(
+                    graph,
+                    state,
+                    timeout_seconds=workflow_timeout_seconds(),
+                )
+            except ResourceNotFoundError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status_code=504,
+                    detail="Workflow execution timed out.",
+                ) from exc
+            return research_article_state_to_run_response(result, trace=trace)
 
         if workflow_id == "content-generation":
             request = ContentGenerationRunRequest.model_validate(body)

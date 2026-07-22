@@ -276,6 +276,11 @@ button {
   border-color: #38bdf8;
 }
 
+.graph-legend__item--async {
+  border-color: #8b5cf6;
+  color: #ddd6fe;
+}
+
 .graph-legend__item--retry {
   border-color: #f59e0b;
   color: #fde68a;
