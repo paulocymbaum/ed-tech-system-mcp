@@ -14,14 +14,20 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from mcp_server.application.agent import (
-    get_document_video_graph,
-    initial_document_video_state,
     list_registered_workflows,
     workflow_timeout_seconds,
 )
 from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     initial_content_generation_state,
+)
+from mcp_server.application.agents.tavily_search.graph import (
+    get_tavily_search_graph,
+    initial_tavily_search_state,
+)
+from mcp_server.application.agents.youtube_search.graph import (
+    get_youtube_search_graph,
+    initial_youtube_search_state,
 )
 from mcp_server.application.workflow_graph import WorkflowGraphView, workflow_graph_view
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
@@ -30,10 +36,13 @@ from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
-    WorkflowRunRequest,
-    WorkflowRunResponse,
+    TavilySearchRunRequest,
+    TavilySearchRunResponse,
+    YouTubeSearchRunRequest,
+    YouTubeSearchRunResponse,
     content_generation_state_to_run_response,
-    workflow_state_to_run_response,
+    tavily_search_state_to_run_response,
+    youtube_search_state_to_run_response,
 )
 from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
 
@@ -115,15 +124,18 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     async def run_workflow(
         workflow_id: str,
         body: dict[str, object],
-    ) -> WorkflowRunResponse | ContentGenerationRunResponse:
-        if workflow_id == "document-video-discovery":
-            request = WorkflowRunRequest.model_validate(body)
+    ) -> (
+        TavilySearchRunResponse
+        | YouTubeSearchRunResponse
+        | ContentGenerationRunResponse
+    ):
+        if workflow_id == "tavily-search":
+            request = TavilySearchRunRequest.model_validate(body)
             try:
-                graph = get_document_video_graph()
-                state = initial_document_video_state(
+                graph = get_tavily_search_graph()
+                state = initial_tavily_search_state(
                     request.query,
-                    document_limit=request.document_limit,
-                    video_limit=request.video_limit,
+                    max_results=request.max_results,
                 )
                 result, trace = await invoke_graph_with_trace(
                     graph,
@@ -137,7 +149,31 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
                     status_code=504,
                     detail="Workflow execution timed out.",
                 ) from exc
-            return workflow_state_to_run_response(result, trace=trace)
+            return tavily_search_state_to_run_response(result, trace=trace)
+
+        if workflow_id == "youtube-search":
+            request = YouTubeSearchRunRequest.model_validate(body)
+            try:
+                graph = get_youtube_search_graph()
+                state = initial_youtube_search_state(
+                    request.query,
+                    max_results=request.max_results,
+                    language=request.language,
+                    safe_search=request.safe_search,
+                )
+                result, trace = await invoke_graph_with_trace(
+                    graph,
+                    state,
+                    timeout_seconds=workflow_timeout_seconds(),
+                )
+            except ResourceNotFoundError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status_code=504,
+                    detail="Workflow execution timed out.",
+                ) from exc
+            return youtube_search_state_to_run_response(result, trace=trace)
 
         if workflow_id == "content-generation":
             request = ContentGenerationRunRequest.model_validate(body)

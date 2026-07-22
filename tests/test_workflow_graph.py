@@ -32,3 +32,25 @@ def test_content_generation_graph_layout_places_end_node_after_merge() -> None:
         (edge.source, edge.target) for edge in forward_edges
     }
     reset_registered_workflows_cache()
+
+
+def test_tavily_search_graph_layout_places_end_after_search() -> None:
+    reset_registered_workflows_cache()
+    workflow = next(item for item in list_registered_workflows() if item.id == "tavily-search")
+    view = workflow_graph_view(workflow)
+    positions = {node.id: node.x for node in view.nodes}
+
+    assert positions["__start__"] < positions["search_web"]
+    assert positions["search_web"] < positions["__end__"]
+    reset_registered_workflows_cache()
+
+
+def test_youtube_search_graph_layout_places_end_after_search() -> None:
+    reset_registered_workflows_cache()
+    workflow = next(item for item in list_registered_workflows() if item.id == "youtube-search")
+    view = workflow_graph_view(workflow)
+    positions = {node.id: node.x for node in view.nodes}
+
+    assert positions["__start__"] < positions["search_videos"]
+    assert positions["search_videos"] < positions["__end__"]
+    reset_registered_workflows_cache()

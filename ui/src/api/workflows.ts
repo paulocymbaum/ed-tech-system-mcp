@@ -39,6 +39,26 @@ export type WorkflowTraceStep = {
   } | null;
 };
 
+export type TavilySearchRunResult = {
+  query: string;
+  result_count: number;
+  results: string[];
+  trace: WorkflowTraceStep[];
+};
+
+export type YouTubeSearchRunResult = {
+  query: string;
+  video_count: number;
+  videos: Array<{
+    title: string;
+    channel: string;
+    url: string;
+    duration_seconds?: number | null;
+    relevance_score?: number;
+  }>;
+  trace: WorkflowTraceStep[];
+};
+
 export type DocumentVideoRunResult = {
   query: string;
   search_terms: string;
@@ -77,8 +97,10 @@ export async function fetchWorkflow(workflowId: string): Promise<WorkflowGraph> 
 
 export async function runWorkflow(
   workflowId: string,
-  body: Record<string, string | number>,
-): Promise<DocumentVideoRunResult | ContentGenerationRunResult> {
+  body: Record<string, string | number | boolean>,
+): Promise<
+  TavilySearchRunResult | YouTubeSearchRunResult | ContentGenerationRunResult
+> {
   const response = await fetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -88,5 +110,7 @@ export async function runWorkflow(
     const detail = await response.text();
     throw new Error(detail || `Workflow run failed (${response.status})`);
   }
-  return response.json() as Promise<DocumentVideoRunResult | ContentGenerationRunResult>;
+  return response.json() as Promise<
+    TavilySearchRunResult | YouTubeSearchRunResult | ContentGenerationRunResult
+  >;
 }
