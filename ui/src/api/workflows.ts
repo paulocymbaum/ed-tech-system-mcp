@@ -123,6 +123,8 @@ export type RagEvaluationContext = {
   chunk_size?: number | null;
   chunk_overlap?: number | null;
   indexed_chunk_count?: number | null;
+  hybrid_fts_active?: boolean;
+  rerank_applied?: boolean;
 };
 
 export type RagRetrievalRunResult = {

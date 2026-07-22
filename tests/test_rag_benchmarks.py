@@ -108,10 +108,38 @@ def test_partition_phrase_matches_returns_structured_lists() -> None:
 
 
 def test_resolve_score_kind_routing() -> None:
-    assert resolve_score_kind(reranked=True, retrieval_mode="vector") == "reranker"
-    assert resolve_score_kind(reranked=True, retrieval_mode="hybrid") == "reranker"
-    assert resolve_score_kind(reranked=False, retrieval_mode="hybrid") == "rrf"
-    assert resolve_score_kind(reranked=False, retrieval_mode="vector") == "cosine"
+    assert (
+        resolve_score_kind(
+            rerank_applied=True,
+            retrieval_mode="vector",
+            hybrid_fts_active=False,
+        )
+        == "reranker"
+    )
+    assert (
+        resolve_score_kind(
+            rerank_applied=False,
+            retrieval_mode="hybrid",
+            hybrid_fts_active=True,
+        )
+        == "rrf"
+    )
+    assert (
+        resolve_score_kind(
+            rerank_applied=False,
+            retrieval_mode="hybrid",
+            hybrid_fts_active=False,
+        )
+        == "cosine"
+    )
+    assert (
+        resolve_score_kind(
+            rerank_applied=False,
+            retrieval_mode="vector",
+            hybrid_fts_active=False,
+        )
+        == "cosine"
+    )
 
 
 def test_score_thresholds_for_kind_rrf_differs_from_cosine() -> None:

@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-from mcp_server.domain.interfaces import IChunkingStrategy, IEmbeddingProvider, IReranker, IVectorRetriever
+from mcp_server.domain.interfaces import (
+    IChunkingStrategy,
+    IEmbeddingProvider,
+    IVectorRetriever,
+)
 from mcp_server.domain.schemas import ChunkHit, ChunkRetrievalFilter, TextChunk
+from mcp_server.infrastructure.chunking.langchain_chunking_adapter import LangChainChunkingAdapter
 
 
 class FakeEmbeddingProvider(IEmbeddingProvider):
@@ -30,9 +35,14 @@ class FakeEmbeddingProvider(IEmbeddingProvider):
 
 
 class FakeVectorRetriever(IVectorRetriever):
-    def __init__(self) -> None:
+    def __init__(self, *, supports_hybrid_fts: bool = False) -> None:
         self.last_mode: str | None = None
         self.last_query_text: str | None = None
+        self._supports_hybrid_fts = supports_hybrid_fts
+
+    @property
+    def supports_hybrid_fts(self) -> bool:
+        return self._supports_hybrid_fts
 
     async def retrieve(
         self,
@@ -43,7 +53,7 @@ class FakeVectorRetriever(IVectorRetriever):
         mode: Literal["vector", "hybrid"],
         query_text: str | None = None,
     ) -> list[ChunkHit]:
-        _ = query_embedding, limit, filters
+        _ = query_embedding, filters
         self.last_mode = mode
         self.last_query_text = query_text
         return [
@@ -59,16 +69,18 @@ class FakeVectorRetriever(IVectorRetriever):
 
 class FakeChunkingStrategy(IChunkingStrategy):
     def __init__(self, *, chunk_size: int = 400, chunk_overlap: int = 50) -> None:
-        self._chunk_size = chunk_size
-        self._chunk_overlap = chunk_overlap
+        self._adapter = LangChainChunkingAdapter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
 
     @property
     def chunk_size(self) -> int:
-        return self._chunk_size
+        return self._adapter.chunk_size
 
     @property
     def chunk_overlap(self) -> int:
-        return self._chunk_overlap
+        return self._adapter.chunk_overlap
 
     def chunk(
         self,
@@ -78,15 +90,12 @@ class FakeChunkingStrategy(IChunkingStrategy):
         language: str | None = None,
         metadata: dict[str, str] | None = None,
     ) -> list[TextChunk]:
-        _ = language, metadata
-        return [
-            TextChunk(
-                document_id=document_id,
-                chunk_index=0,
-                content=text,
-                content_hash="fixture-hash",
-            )
-        ]
+        return self._adapter.chunk(
+            text,
+            document_id=document_id,
+            language=language,
+            metadata=metadata,
+        )
 
 
 class RecordingIndexWriter:
@@ -108,9 +117,17 @@ class RecordingIndexWriter:
         _ = document_id
 
 
+def _query_tokens(query_text: str | None) -> set[str]:
+    if not query_text:
+        return set()
+    return {token.lower() for token in query_text.split() if token.strip()}
+
+
 class FixtureAwareRetriever(FakeVectorRetriever):
+    """Return indexed chunks ranked by vector order; hybrid boosts keyword overlap."""
+
     def __init__(self, writer: RecordingIndexWriter) -> None:
-        super().__init__()
+        super().__init__(supports_hybrid_fts=True)
         self._writer = writer
 
     async def retrieve(
@@ -122,16 +139,33 @@ class FixtureAwareRetriever(FakeVectorRetriever):
         mode: Literal["vector", "hybrid"],
         query_text: str | None = None,
     ) -> list[ChunkHit]:
-        _ = query_embedding, limit, filters, mode, query_text
+        _ = query_embedding, filters
+        self.last_mode = mode
+        self.last_query_text = query_text
         if not self._writer.chunks:
             return []
-        chunk = self._writer.chunks[0]
-        return [
-            ChunkHit(
-                id="chunk-fixture-1",
-                document_id=chunk.document_id,
-                title="Photosynthesis fixture",
-                content=chunk.content,
-                score=0.95,
+
+        query_tokens = _query_tokens(query_text)
+        ranked: list[tuple[float, int, TextChunk]] = []
+        for index, chunk in enumerate(self._writer.chunks):
+            base_score = max(0.55, 0.95 - (index * 0.08))
+            keyword_boost = 0.0
+            if mode == "hybrid" and query_tokens:
+                content_lower = chunk.content.lower()
+                overlap = sum(1 for token in query_tokens if token in content_lower)
+                keyword_boost = min(0.25, overlap * 0.05)
+            ranked.append((base_score + keyword_boost, index, chunk))
+
+        ranked.sort(key=lambda item: (-item[0], item[1]))
+        hits: list[ChunkHit] = []
+        for score, index, chunk in ranked[:limit]:
+            hits.append(
+                ChunkHit(
+                    id=f"chunk-fixture-{index}",
+                    document_id=chunk.document_id,
+                    title=f"Fixture chunk {index + 1}",
+                    content=chunk.content,
+                    score=round(min(score, 0.99), 4),
+                )
             )
-        ]
+        return hits

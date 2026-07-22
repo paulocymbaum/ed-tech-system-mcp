@@ -32,6 +32,8 @@ class RagEvaluationContext:
     chunk_size: int | None = None
     chunk_overlap: int | None = None
     indexed_chunk_count: int | None = None
+    hybrid_fts_active: bool = False
+    rerank_applied: bool = False
 
     def as_dict(self) -> dict[str, str | int | bool | None]:
         return {
@@ -44,6 +46,8 @@ class RagEvaluationContext:
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
             "indexed_chunk_count": self.indexed_chunk_count,
+            "hybrid_fts_active": self.hybrid_fts_active,
+            "rerank_applied": self.rerank_applied,
         }
 
 
@@ -104,13 +108,14 @@ def score_thresholds_for_kind(score_kind: ScoreKind) -> ScoreThresholds:
 
 def resolve_score_kind(
     *,
-    reranked: bool,
+    rerank_applied: bool,
     retrieval_mode: RetrievalMode,
+    hybrid_fts_active: bool,
 ) -> ScoreKind:
     """Infer chunk score semantics from the retrieval path taken."""
-    if reranked:
+    if rerank_applied:
         return "reranker"
-    if retrieval_mode == "hybrid":
+    if retrieval_mode == "hybrid" and hybrid_fts_active:
         return "rrf"
     return "cosine"
 
@@ -220,7 +225,8 @@ def build_rag_evaluation_context(
     rerank_enabled: bool,
     rerank_top_n: int,
     chunks: list[ChunkHit],
-    reranked: bool,
+    rerank_applied: bool,
+    hybrid_fts_active: bool,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
     indexed_chunk_count: int | None = None,
@@ -232,10 +238,16 @@ def build_rag_evaluation_context(
         rerank_enabled=rerank_enabled,
         rerank_top_n=rerank_top_n,
         effective_k=len(chunks),
-        score_kind=resolve_score_kind(reranked=reranked, retrieval_mode=retrieval_mode),
+        score_kind=resolve_score_kind(
+            rerank_applied=rerank_applied,
+            retrieval_mode=retrieval_mode,
+            hybrid_fts_active=hybrid_fts_active,
+        ),
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         indexed_chunk_count=indexed_chunk_count,
+        hybrid_fts_active=hybrid_fts_active,
+        rerank_applied=rerank_applied,
     )
 
 

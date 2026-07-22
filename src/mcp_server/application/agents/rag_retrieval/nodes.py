@@ -91,11 +91,13 @@ async def retrieve_chunks(state: RagRetrievalState) -> dict[str, object]:
         query_text=state["query"] if mode == "hybrid" else None,
     )
     latency_ms = int((time.perf_counter() - started) * 1000)
+    hybrid_fts_active = mode == "hybrid" and retriever.supports_hybrid_fts
     update: dict[str, object] = {
         "retrieved_chunks": chunks,
         "candidate_count": len(chunks),
         "retrieval_mode": mode,
         "latency_ms": latency_ms,
+        "hybrid_fts_active": hybrid_fts_active,
     }
     cache_hit = consume_retrieval_cache_hit()
     if cache_hit is not None:
@@ -116,6 +118,7 @@ async def rerank_chunks(state: RagRetrievalState) -> dict[str, object]:
     latency_ms = int((time.perf_counter() - started) * 1000)
     return {
         "reranked_chunks": reranked,
+        "rerank_applied": not reranker.is_pass_through,
         "candidate_count": len(reranked),
         "latency_ms": latency_ms,
     }
@@ -131,6 +134,8 @@ def route_after_retrieve(state: RagRetrievalState) -> str:
 async def merge_context(state: RagRetrievalState) -> dict[str, object]:
     """Format top chunks into a single context block for downstream LLM use."""
     reranked = state.get("reranked_chunks") is not None
+    rerank_applied = reranked and bool(state.get("rerank_applied"))
+    hybrid_fts_active = bool(state.get("hybrid_fts_active"))
     chunks = state.get("reranked_chunks") or state.get("retrieved_chunks", [])
     lines = [
         (
@@ -141,8 +146,9 @@ async def merge_context(state: RagRetrievalState) -> dict[str, object]:
     ]
     merged = "\n\n".join(lines) if lines else "(no chunks retrieved)"
     score_kind = resolve_score_kind(
-        reranked=reranked,
+        rerank_applied=rerank_applied,
         retrieval_mode=state["retrieval_mode"],
+        hybrid_fts_active=hybrid_fts_active,
     )
     retrieval_metrics = compute_retrieval_proxy_metrics(
         chunks=chunks,
@@ -155,7 +161,8 @@ async def merge_context(state: RagRetrievalState) -> dict[str, object]:
         rerank_enabled=state["rerank_enabled"],
         rerank_top_n=state["rerank_top_n"],
         chunks=chunks,
-        reranked=reranked,
+        rerank_applied=rerank_applied,
+        hybrid_fts_active=hybrid_fts_active,
         chunk_size=state.get("chunk_size"),
         chunk_overlap=state.get("chunk_overlap"),
         indexed_chunk_count=state.get("indexed_chunk_count"),

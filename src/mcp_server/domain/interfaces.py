@@ -77,6 +77,11 @@ class IEmbeddingProvider(ABC):
 class IVectorRetriever(ABC):
     """Port for semantic chunk retrieval from a vector index."""
 
+    @property
+    def supports_hybrid_fts(self) -> bool:
+        """Whether ``hybrid`` mode runs true FTS+vector fusion (not vector-only fallback)."""
+        return False
+
     @abstractmethod
     async def retrieve(
         self,
@@ -108,6 +113,11 @@ class IVectorIndexWriter(ABC):
 
 class IReranker(ABC):
     """Port for cross-encoder re-ranking of retrieval candidates."""
+
+    @property
+    def is_pass_through(self) -> bool:
+        """True when rerank only truncates candidates without re-scoring."""
+        return False
 
     @abstractmethod
     async def rerank(

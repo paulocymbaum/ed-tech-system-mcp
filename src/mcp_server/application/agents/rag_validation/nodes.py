@@ -118,7 +118,6 @@ async def index_document(state: RagValidationState) -> dict[str, object]:
 async def validate_retrieval(state: RagValidationState) -> dict[str, object]:
     """Assert expected phrases appear in retrieved chunks."""
     expected = load_expected_phrases(state.get("expected_phrases"))
-    reranked = state.get("reranked_chunks") is not None
     chunks = state.get("reranked_chunks") or state.get("retrieved_chunks", [])
     merged = state.get("merged_context", "")
     benchmarks = compute_rag_benchmarks(
@@ -138,7 +137,8 @@ async def validate_retrieval(state: RagValidationState) -> dict[str, object]:
         rerank_enabled=state["rerank_enabled"],
         rerank_top_n=state["rerank_top_n"],
         chunks=chunks,
-        reranked=reranked,
+        rerank_applied=bool(state.get("rerank_applied")),
+        hybrid_fts_active=bool(state.get("hybrid_fts_active")),
         chunk_size=state.get("chunk_size"),
         chunk_overlap=state.get("chunk_overlap"),
         indexed_chunk_count=state.get("indexed_chunk_count"),

@@ -9,6 +9,10 @@ from mcp_server.domain.schemas import ChunkHit
 class NoOpReranker(IReranker):
     """Return candidates truncated to top_n without re-scoring."""
 
+    @property
+    def is_pass_through(self) -> bool:
+        return True
+
     async def rerank(
         self,
         query: str,
