@@ -150,11 +150,12 @@ def test_score_thresholds_for_kind_rrf_differs_from_cosine() -> None:
     assert rrf.warn == 0.01
 
 
-def test_score_thresholds_for_kind_reranker_matches_cosine() -> None:
-    cosine = score_thresholds_for_kind("cosine")
+def test_score_thresholds_for_kind_reranker_uses_sigmoid_cutoffs() -> None:
     reranker = score_thresholds_for_kind("reranker")
-    assert reranker.good == cosine.good
-    assert reranker.warn == cosine.warn
+    cosine = score_thresholds_for_kind("cosine")
+    assert reranker.good == 0.5
+    assert reranker.warn == 0.02
+    assert reranker.good < cosine.good
 
 
 def test_compute_retrieval_proxy_metrics_empty_chunks() -> None:

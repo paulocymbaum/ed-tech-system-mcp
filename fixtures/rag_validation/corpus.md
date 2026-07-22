@@ -1,4 +1,4 @@
-# RAG Validation Fixture — Photosynthesis (multi-chunk corpus)
+# RAG Validation Fixture — multi-chunk plant metabolism corpus
 
 This document exercises the full RAG pipeline with enough content to produce **multiple
 indexed chunks** (default chunk size 400 tokens). Expected phrases are spread across

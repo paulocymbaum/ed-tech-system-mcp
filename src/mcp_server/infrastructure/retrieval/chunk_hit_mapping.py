@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from mcp_server.domain.schemas import ChunkHit
@@ -14,6 +15,14 @@ def normalize_score(raw: float) -> float:
     if raw > 1.0:
         return 1.0
     return raw
+
+
+def rerank_logit_to_score(raw: float) -> float:
+    """Map cross-encoder logits to a bounded similarity score for metrics/UI."""
+    if raw >= 0.0:
+        return normalize_score(1.0 / (1.0 + math.exp(-raw)))
+    exp_raw = math.exp(raw)
+    return normalize_score(exp_raw / (1.0 + exp_raw))
 
 
 def row_to_chunk_hit(

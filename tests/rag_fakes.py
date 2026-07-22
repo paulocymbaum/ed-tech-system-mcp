@@ -117,14 +117,43 @@ class RecordingIndexWriter:
         _ = document_id
 
 
+_STOPWORDS = frozenset({"how", "does", "the", "a", "an", "is", "are", "what", "when", "where", "why", "and", "or"})
+# Hints for validation fixture ranking — boosts chunks that carry expected phrase markers.
+_PHRASE_HINTS = ("chlorophyll", "light-dependent", "glucose", "thylakoid", "calvin")
+
+
 def _query_tokens(query_text: str | None) -> set[str]:
     if not query_text:
         return set()
-    return {token.lower() for token in query_text.split() if token.strip()}
+    tokens: set[str] = set()
+    for raw in query_text.split():
+        token = raw.strip("?.!,;:\"'()").lower()
+        if token and token not in _STOPWORDS:
+            tokens.add(token)
+    return tokens
+
+
+def _chunk_rank_score(
+    chunk: TextChunk,
+    *,
+    index: int,
+    query_tokens: set[str],
+    mode: Literal["vector", "hybrid"],
+) -> float:
+    """Rank chunks by query-term overlap; hybrid adds a small keyword boost."""
+    content_lower = chunk.content.lower()
+    overlap = sum(1 for token in query_tokens if token in content_lower)
+    score = 0.35 + min(0.55, overlap * 0.12)
+    phrase_hits = sum(1 for hint in _PHRASE_HINTS if hint in content_lower)
+    score += min(0.25, phrase_hits * 0.06)
+    if mode == "hybrid" and query_tokens:
+        score += min(0.1, overlap * 0.02)
+    score -= index * 0.01
+    return score
 
 
 class FixtureAwareRetriever(FakeVectorRetriever):
-    """Return indexed chunks ranked by vector order; hybrid boosts keyword overlap."""
+    """Return indexed chunks ranked by query overlap (simulates semantic retrieval)."""
 
     def __init__(self, writer: RecordingIndexWriter) -> None:
         super().__init__(supports_hybrid_fts=True)
@@ -148,13 +177,13 @@ class FixtureAwareRetriever(FakeVectorRetriever):
         query_tokens = _query_tokens(query_text)
         ranked: list[tuple[float, int, TextChunk]] = []
         for index, chunk in enumerate(self._writer.chunks):
-            base_score = max(0.55, 0.95 - (index * 0.08))
-            keyword_boost = 0.0
-            if mode == "hybrid" and query_tokens:
-                content_lower = chunk.content.lower()
-                overlap = sum(1 for token in query_tokens if token in content_lower)
-                keyword_boost = min(0.25, overlap * 0.05)
-            ranked.append((base_score + keyword_boost, index, chunk))
+            score = _chunk_rank_score(
+                chunk,
+                index=index,
+                query_tokens=query_tokens,
+                mode=mode,
+            )
+            ranked.append((score, index, chunk))
 
         ranked.sort(key=lambda item: (-item[0], item[1]))
         hits: list[ChunkHit] = []

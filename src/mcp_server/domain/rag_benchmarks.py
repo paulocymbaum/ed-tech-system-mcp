@@ -102,7 +102,8 @@ def score_thresholds_for_kind(score_kind: ScoreKind) -> ScoreThresholds:
     if score_kind == "rrf":
         return ScoreThresholds(good=0.02, warn=0.01)
     if score_kind == "reranker":
-        return ScoreThresholds(good=0.75, warn=0.45)
+        # Cross-encoder logits are mapped through sigmoid before display.
+        return ScoreThresholds(good=0.5, warn=0.02)
     return ScoreThresholds(good=0.75, warn=0.45)
 
 
