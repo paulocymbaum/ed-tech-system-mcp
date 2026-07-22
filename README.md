@@ -2,6 +2,8 @@
 
 Domain-Driven MCP (Model Context Protocol) server for ed-tech workflows. The server exposes validated MCP tools backed by LangGraph agents, Supabase document retrieval, web search, and YouTube video discovery — all organized with Clean Architecture and DDD.
 
+![LangGraph Workflow Explorer — browse workflows, run traces, and inspect node I/O locally](docs/assets/workflow-ui-explorer.png)
+
 ## What this project does
 
 External clients (Cursor, other MCP hosts) call **MCP tools** that validate input with Pydantic, delegate to **application workflows** and **LangGraph agents**, and reach external systems through **domain ports** implemented in the infrastructure layer.
@@ -93,7 +95,7 @@ uv run mcp-server
 
 ### Run the workflow UI (optional)
 
-Local dev UI for inspecting workflow graphs:
+Local dev UI for inspecting workflow graphs, running test executions, and replaying traces:
 
 ```bash
 ./scripts/dev/run-workflow-ui.sh
@@ -101,7 +103,31 @@ Local dev UI for inspecting workflow graphs:
 
 API: `http://127.0.0.1:8877` (default) · React dev server: `http://127.0.0.1:4173`
 
+| View | What it shows |
+| :--- | :--- |
+| **Workflow explorer** | Sidebar of registered LangGraph workflows with run forms |
+| **Graph canvas** | Compiled nodes, forward/retry/failure edges, live replay highlighting |
+| **Execution replay** | Step-by-step trace with validation errors and retry decisions |
+| **Node I/O inspector** | Per-step state snapshots, LLM prompts, and raw model output |
+
+**Graph visualization** — retry loops and parallel branches are rendered on the canvas:
+
+| Content generation (validation retries) | Research article (parallel tool calls) |
+| :---: | :---: |
+| ![Content generation workflow graph with retry edges](docs/assets/workflow-graph-content-generation.png) | ![Research article workflow graph with parallel search nodes](docs/assets/workflow-graph-research-article.png) |
+
+**Trace replay & debugging** — after a run, scrub through each node, inspect failures, and read LLM I/O:
+
+![Workflow trace replay with run summary, graph highlighting, and node I/O inspector](docs/assets/workflow-trace-replay.png)
+
 See [OBSERVABILITY.md](./OBSERVABILITY.md) for graph replay, node I/O inspection, and trace API details.
+
+To refresh README screenshots after UI changes:
+
+```bash
+./scripts/dev/run-workflow-ui.sh   # in one terminal
+npx -p playwright node scripts/dev/capture-ui-screenshots.mjs   # in another
+```
 
 ## Development
 
@@ -154,6 +180,8 @@ Run quality-gate commands from the **repository root** (`ed-tech-system-mcp/`), 
 │   ├── doppler/             # Secret bootstrap and local setup
 │   ├── hooks/               # Husky pre-commit guards
 │   └── dev/                 # Dev tooling (workflow UI launcher)
+├── docs/
+│   └── assets/              # README screenshots (workflow UI)
 ├── changelog/               # Agent long-term memory (investigations, reviews, tests)
 ├── backlog/                 # RICE-ranked engineering backlog (BACKLOG.md, RICE.md)
 ├── .cursor/                 # Cursor agents, rules, and skills — see CURSOR.md
