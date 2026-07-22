@@ -40,7 +40,9 @@ htmlcov/
 # --- Secrets & environment (never commit) ---
 .env
 .env.*
-!.env.example
+*.env
+*.env.*
+scripts/doppler/*.env
 *.pem
 *.key
 *.p12
