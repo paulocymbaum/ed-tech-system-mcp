@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from mcp_server.application.agent import DocumentVideoState
 from mcp_server.application.agents.content_generation.state import ContentGenerationState
+from mcp_server.application.agents.tavily_search.graph import TavilySearchState
+from mcp_server.application.agents.youtube_search.graph import YouTubeSearchState
 from mcp_server.application.workflow_trace import WorkflowTraceStep
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.schemas import DocumentHit, VideoResult
@@ -79,6 +81,40 @@ class WorkflowRunResponse(BaseModel):
     document_count: int = Field(ge=0)
     video_count: int = Field(ge=0)
     documents: list[DocumentSummary]
+    videos: list[VideoResult]
+    trace: list[WorkflowTraceStepView] = Field(default_factory=list)
+
+
+class TavilySearchRunRequest(BaseModel):
+    """Validated input for Tavily search workflow execution."""
+
+    query: str = Field(min_length=1)
+    max_results: int = Field(default=5, ge=1, le=25)
+
+
+class TavilySearchRunResponse(BaseModel):
+    """Validated output for Tavily search workflow execution."""
+
+    query: str
+    result_count: int = Field(ge=0)
+    results: list[str]
+    trace: list[WorkflowTraceStepView] = Field(default_factory=list)
+
+
+class YouTubeSearchRunRequest(BaseModel):
+    """Validated input for YouTube search workflow execution."""
+
+    query: str = Field(min_length=1)
+    max_results: int = Field(default=5, ge=1, le=25)
+    language: str = Field(default="en", min_length=2, max_length=10)
+    safe_search: bool = True
+
+
+class YouTubeSearchRunResponse(BaseModel):
+    """Validated output for YouTube search workflow execution."""
+
+    query: str
+    video_count: int = Field(ge=0)
     videos: list[VideoResult]
     trace: list[WorkflowTraceStepView] = Field(default_factory=list)
 
@@ -160,6 +196,34 @@ def workflow_state_to_run_response(
         video_count=state["video_count"],
         documents=document_hits_to_summaries(documents),
         videos=videos,
+        trace=trace_steps_to_views(trace or []),
+    )
+
+
+def tavily_search_state_to_run_response(
+    state: TavilySearchState,
+    *,
+    trace: list[WorkflowTraceStep] | None = None,
+) -> TavilySearchRunResponse:
+    """Map a Tavily search graph state to the local UI workflow response."""
+    return TavilySearchRunResponse(
+        query=state["query"],
+        result_count=state.get("result_count", 0),
+        results=state.get("results", []),
+        trace=trace_steps_to_views(trace or []),
+    )
+
+
+def youtube_search_state_to_run_response(
+    state: YouTubeSearchState,
+    *,
+    trace: list[WorkflowTraceStep] | None = None,
+) -> YouTubeSearchRunResponse:
+    """Map a YouTube search graph state to the local UI workflow response."""
+    return YouTubeSearchRunResponse(
+        query=state["query"],
+        video_count=state.get("video_count", 0),
+        videos=state.get("videos", []),
         trace=trace_steps_to_views(trace or []),
     )
 

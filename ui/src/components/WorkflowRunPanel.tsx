@@ -30,6 +30,7 @@ function contentRunMeta(result: ContentGenerationRunResult): ContentRunMeta {
 
 export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowRunPanelProps) {
   const [query, setQuery] = useState("fractions");
+  const [maxResults, setMaxResults] = useState(5);
   const [topic, setTopic] = useState("fractions");
   const [gradeLevel, setGradeLevel] = useState("6th grade");
   const [running, setRunning] = useState(false);
@@ -38,10 +39,12 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
     setRunning(true);
     onError(null);
     try {
-      const body: Record<string, string | number> =
+      const body: Record<string, string | number | boolean> =
         workflow.id === "content-generation"
           ? { topic, grade_level: gradeLevel }
-          : { query, document_limit: 5, video_limit: 2 };
+          : workflow.id === "youtube-search"
+            ? { query, max_results: maxResults, language: "en", safe_search: true }
+            : { query, max_results: maxResults };
       const result = await runWorkflow(workflow.id, body);
       onRunComplete({
         trace: result.trace ?? [],
@@ -74,6 +77,16 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
           <label>
             Query
             <input value={query} onChange={(event) => setQuery(event.target.value)} />
+          </label>
+          <label>
+            Max results
+            <input
+              type="number"
+              min={1}
+              max={25}
+              value={maxResults}
+              onChange={(event) => setMaxResults(Number(event.target.value))}
+            />
           </label>
         </div>
       )}

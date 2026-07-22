@@ -3,6 +3,7 @@
 import pytest
 
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
+from mcp_server.domain.schemas import VideoResult
 from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
 from mcp_server.infrastructure.supabase_client import SupabaseRepository
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
@@ -38,10 +39,28 @@ async def test_t26e_supabase_find_documents_rejects_missing_service_role_key() -
         await repo.find_documents("query")
 
 
-async def test_t27_youtube_search_videos_not_implemented() -> None:
+async def test_t27_youtube_search_videos_maps_api_results(monkeypatch) -> None:
     client = YouTubeDataApiClient("api-key")
-    with pytest.raises(NotImplementedError):
-        await client.search_videos("query")
+
+    def fake_search(
+        query: str,
+        max_results: int,
+        language: str,
+        safe_search: bool,
+    ) -> list[VideoResult]:
+        return [
+            VideoResult(
+                title="Lesson video",
+                channel="Teacher",
+                url="https://www.youtube.com/watch?v=abc123",
+            )
+        ]
+
+    monkeypatch.setattr(client, "_search_videos_sync", fake_search)
+    videos = await client.search_videos("education", max_results=1)
+
+    assert len(videos) == 1
+    assert videos[0].url.endswith("abc123")
 
 
 async def test_t27b_youtube_search_videos_rejects_missing_api_key() -> None:

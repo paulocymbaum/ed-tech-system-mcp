@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     supabase_url: str = Field(alias="SUPABASE_URL")
     supabase_service_role_key: SecretStr = Field(alias="SUPABASE_SERVICE_ROLE_KEY")
     youtube_api_key: SecretStr | None = Field(default=None, alias="YOUTUBE_API_KEY")
+    tavily_api_key: SecretStr | None = Field(default=None, alias="TAVILY_API_KEY")
     groq_api_key: SecretStr | None = Field(default=None, alias="GROQ_API_KEY")
     llm_model: str = Field(default="llama-3.3-70b-versatile", alias="LLM_MODEL")
     llm_temperature: float = Field(default=0.0, alias="LLM_TEMPERATURE", ge=0.0, le=2.0)
