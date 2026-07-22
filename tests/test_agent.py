@@ -94,10 +94,11 @@ def test_list_registered_workflows_returns_search_workflow_metadata() -> None:
     reset_registered_workflows_cache()
     workflows = list_registered_workflows()
 
-    assert len(workflows) >= 3
+    assert len(workflows) >= 4
     workflow_ids = {workflow.id for workflow in workflows}
     assert "tavily-search" in workflow_ids
     assert "youtube-search" in workflow_ids
+    assert "research-article" in workflow_ids
     tavily = next(workflow for workflow in workflows if workflow.id == "tavily-search")
     youtube = next(workflow for workflow in workflows if workflow.id == "youtube-search")
     assert tavily.name == "Tavily Web Search"
