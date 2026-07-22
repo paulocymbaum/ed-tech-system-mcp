@@ -107,8 +107,23 @@ async def invoke_graph_with_trace(
             attempts[node_id] += 1
             input_snapshot = serialize_trace_value(dict(running_state))
             llm_io = consume_llm_trace()
+            if llm_io is not None:
+                input_snapshot = {
+                    **input_snapshot,
+                    "llm_request": {
+                        "model_name": llm_io.get("model_name"),
+                        "llm_complexity": llm_io.get("llm_complexity"),
+                    },
+                }
             if update:
                 running_state.update(update)
+            output_update = serialize_trace_value(update or {})
+            if llm_io is not None:
+                output_update = {
+                    **output_update,
+                    "model_name": llm_io.get("model_name"),
+                    "llm_complexity": llm_io.get("llm_complexity"),
+                }
             steps.append(
                 WorkflowTraceStep(
                     step=step_index,
@@ -118,7 +133,7 @@ async def invoke_graph_with_trace(
                     validation_errors=tuple(_validation_errors(update)),
                     retry_counts=_retry_counts(update),
                     input_snapshot=input_snapshot,
-                    output_update=serialize_trace_value(update or {}),
+                    output_update=output_update,
                     llm_io=llm_io,
                 )
             )

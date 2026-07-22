@@ -37,6 +37,11 @@ export function WorkflowStepInspector({ step }: WorkflowStepInspectorProps) {
       <JsonBlock title="Output update" value={step.output_update} />
       {step.llm_io ? (
         <>
+          <JsonBlock title="Model" value={step.llm_io.model_name ?? step.output_update.model_name} />
+          <JsonBlock
+            title="LLM complexity tier"
+            value={step.llm_io.llm_complexity ?? step.output_update.llm_complexity}
+          />
           <JsonBlock title="LLM system prompt" value={step.llm_io.system_prompt} />
           <JsonBlock title="LLM user prompt" value={step.llm_io.user_prompt} />
           <JsonBlock title="LLM raw output" value={step.llm_io.raw_output} />

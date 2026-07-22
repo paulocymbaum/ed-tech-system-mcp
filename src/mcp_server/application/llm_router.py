@@ -86,6 +86,12 @@ class LLMRouter:
         self._default_complexity = default_complexity
         self._token_limit_cooldown_seconds = token_limit_cooldown_seconds
         self._model_cache: dict[str, BaseChatModel] = {}
+        self._last_used_model_id: str | None = None
+
+    @property
+    def last_used_model_id(self) -> str | None:
+        """Return the Groq model id that served the most recent successful completion."""
+        return self._last_used_model_id
 
     def refresh_registry(self) -> None:
         self._registry.refresh_from_catalog()
@@ -152,12 +158,14 @@ class LLMRouter:
         ):
             try:
                 model = self._get_or_build_model(model_id)
-                return model._generate(
+                result = model._generate(
                     messages,
                     stop=stop,
                     run_manager=run_manager,
                     **kwargs,
                 )
+                self._last_used_model_id = model_id
+                return result
             except Exception as exc:  # noqa: BLE001 — fallback boundary
                 last_error = exc
                 if is_token_limit_error(exc):
@@ -192,12 +200,14 @@ class LLMRouter:
         ):
             try:
                 model = self._get_or_build_model(model_id)
-                return await model._agenerate(
+                result = await model._agenerate(
                     messages,
                     stop=stop,
                     run_manager=run_manager,
                     **kwargs,
                 )
+                self._last_used_model_id = model_id
+                return result
             except Exception as exc:  # noqa: BLE001 — fallback boundary
                 last_error = exc
                 if is_token_limit_error(exc):

@@ -33,6 +33,11 @@ class RoutingChatModel(BaseChatModel):
         self._preferred_model_id = preferred_model_id
 
     @property
+    def last_used_model_id(self) -> str | None:
+        """Return the Groq model id that served the most recent routed completion."""
+        return self._router.last_used_model_id
+
+    @property
     def _llm_type(self) -> str:
         return "routing-groq"
 
