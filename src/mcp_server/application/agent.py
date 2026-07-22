@@ -14,6 +14,10 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     reset_content_generation_graph_cache,
 )
+from mcp_server.application.agents.research_article.graph import (
+    get_research_article_graph,
+    reset_research_article_graph_cache,
+)
 from mcp_server.application.agents.tavily_search.graph import (
     get_tavily_search_graph,
     reset_tavily_search_graph_cache,
@@ -262,6 +266,15 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             graph=get_youtube_search_graph(),
         ),
         RegisteredWorkflow(
+            id="research-article",
+            name="Research → Journalistic Article",
+            description=(
+                "An agent plans research, orchestrates parallel Tavily and YouTube tool calls, "
+                "merges both contexts, and writes a journalistic article."
+            ),
+            graph=get_research_article_graph(),
+        ),
+        RegisteredWorkflow(
             id="content-generation",
             name="Lesson → Quiz + PBL",
             description=(
@@ -289,3 +302,4 @@ def reset_registered_workflows_cache() -> None:
     reset_content_generation_graph_cache()
     reset_tavily_search_graph_cache()
     reset_youtube_search_graph_cache()
+    reset_research_article_graph_cache()

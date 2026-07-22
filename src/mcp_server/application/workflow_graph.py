@@ -24,7 +24,17 @@ _FAILURE_EDGES = frozenset(
     }
 )
 
+_ASYNC_EDGES = frozenset(
+    {
+        ("agent_plan_research", "tool_search_tavily"),
+        ("agent_plan_research", "tool_search_youtube"),
+        ("tool_search_tavily", "merge_context"),
+        ("tool_search_youtube", "merge_context"),
+    }
+)
+
 _GENERATION_NODES = frozenset({"generate_lesson", "generate_quiz", "generate_pbl"})
+_PARALLEL_TOOL_NODES = frozenset({"tool_search_tavily", "tool_search_youtube"})
 _LAYOUT_X_GAP = 220
 _LAYOUT_MAIN_Y = 140
 _LAYOUT_RETRY_Y = 40
@@ -59,6 +69,27 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "search_videos",
         "__end__",
     ],
+    "research-article": [
+        "__start__",
+        "agent_plan_research",
+        "tool_search_tavily",
+        "tool_search_youtube",
+        "merge_context",
+        "write_article",
+        "__end__",
+    ],
+}
+
+_WORKFLOW_EDGES: dict[str, list[tuple[str, str]]] = {
+    "research-article": [
+        ("__start__", "agent_plan_research"),
+        ("agent_plan_research", "tool_search_tavily"),
+        ("agent_plan_research", "tool_search_youtube"),
+        ("tool_search_tavily", "merge_context"),
+        ("tool_search_youtube", "merge_context"),
+        ("merge_context", "write_article"),
+        ("write_article", "__end__"),
+    ],
 }
 
 
@@ -77,7 +108,7 @@ class GraphEdgeView(BaseModel):
 
     source: str
     target: str
-    kind: str = Field(default="forward", description="forward | retry | failure")
+    kind: str = Field(default="forward", description="forward | retry | failure | async")
 
 
 class WorkflowGraphView(BaseModel):
@@ -126,6 +157,8 @@ def _edge_kind(source: str, target: str) -> str:
         return "retry"
     if (source, target) in _FAILURE_EDGES:
         return "failure"
+    if (source, target) in _ASYNC_EDGES:
+        return "async"
     return "forward"
 
 
@@ -174,7 +207,10 @@ def _layout_positions(
     *,
     workflow_id: str,
 ) -> dict[str, tuple[int, int]]:
-    """Lay out nodes on a forward spine; generation nodes sit above for visible retry loops."""
+    """Lay out nodes on a forward spine; parallel tool nodes branch above/below."""
+    if workflow_id == "research-article":
+        return _research_article_positions(node_ids)
+
     order = _layout_order(node_ids, edges, workflow_id)
     positions: dict[str, tuple[int, int]] = {}
     for index, node_id in enumerate(order):
@@ -185,11 +221,28 @@ def _layout_positions(
     return positions
 
 
+def _research_article_positions(node_ids: list[str]) -> dict[str, tuple[int, int]]:
+    """Explicit layout so parallel async tool nodes are visible in the UI."""
+    preset: dict[str, tuple[int, int]] = {
+        "__start__": (0, _LAYOUT_MAIN_Y),
+        "agent_plan_research": (_LAYOUT_X_GAP, _LAYOUT_MAIN_Y),
+        "tool_search_tavily": (_LAYOUT_X_GAP * 2, _LAYOUT_RETRY_Y),
+        "tool_search_youtube": (_LAYOUT_X_GAP * 2, _LAYOUT_MAIN_Y + 100),
+        "merge_context": (_LAYOUT_X_GAP * 3, _LAYOUT_MAIN_Y),
+        "write_article": (_LAYOUT_X_GAP * 4, _LAYOUT_MAIN_Y),
+        "__end__": (_LAYOUT_X_GAP * 5, _LAYOUT_MAIN_Y),
+    }
+    positions: dict[str, tuple[int, int]] = {}
+    for node_id in node_ids:
+        positions[node_id] = preset.get(node_id, (len(preset) * _LAYOUT_X_GAP, _LAYOUT_MAIN_Y))
+    return positions
+
+
 def workflow_graph_view(workflow: RegisteredWorkflow) -> WorkflowGraphView:
     """Convert a compiled LangGraph into a UI-friendly graph view."""
     drawable = workflow.graph.get_graph()
     node_ids = list(drawable.nodes)
-    edge_pairs = [(edge.source, edge.target) for edge in drawable.edges]
+    edge_pairs = _workflow_edge_pairs(workflow.id, drawable)
     positions = _layout_positions(node_ids, edge_pairs, workflow_id=workflow.id)
     nodes = [
         GraphNodeView(
@@ -203,11 +256,11 @@ def workflow_graph_view(workflow: RegisteredWorkflow) -> WorkflowGraphView:
     ]
     edges = [
         GraphEdgeView(
-            source=edge.source,
-            target=edge.target,
-            kind=_edge_kind(edge.source, edge.target),
+            source=source,
+            target=target,
+            kind=_edge_kind(source, target),
         )
-        for edge in drawable.edges
+        for source, target in edge_pairs
     ]
     return WorkflowGraphView(
         id=workflow.id,
@@ -216,3 +269,16 @@ def workflow_graph_view(workflow: RegisteredWorkflow) -> WorkflowGraphView:
         nodes=nodes,
         edges=edges,
     )
+
+
+def _workflow_edge_pairs(workflow_id: str, drawable: Any) -> list[tuple[str, str]]:
+    """Return drawable edges, with workflow-specific overrides for Send-based fan-out."""
+    configured = _WORKFLOW_EDGES.get(workflow_id)
+    if configured is not None:
+        node_ids = set(drawable.nodes)
+        return [
+            (source, target)
+            for source, target in configured
+            if source in node_ids and target in node_ids
+        ]
+    return [(edge.source, edge.target) for edge in drawable.edges]

@@ -9,7 +9,7 @@ export type GraphNode = {
 export type GraphEdge = {
   source: string;
   target: string;
-  kind: "forward" | "retry" | "failure";
+  kind: "forward" | "retry" | "failure" | "async";
 };
 
 export type WorkflowGraph = {
@@ -37,6 +37,26 @@ export type WorkflowTraceStep = {
     user_prompt?: string;
     raw_output?: string;
   } | null;
+};
+
+export type ResearchArticleRunResult = {
+  query: string;
+  generation_complete: boolean;
+  research_brief: string;
+  web_result_count: number;
+  video_count: number;
+  web_results: string[];
+  videos: Array<{
+    title: string;
+    channel: string;
+    url: string;
+    duration_seconds?: number | null;
+    relevance_score?: number;
+  }>;
+  tool_calls: Array<Record<string, unknown>>;
+  merged_context: string;
+  article: string;
+  trace: WorkflowTraceStep[];
 };
 
 export type TavilySearchRunResult = {
@@ -99,7 +119,10 @@ export async function runWorkflow(
   workflowId: string,
   body: Record<string, string | number | boolean>,
 ): Promise<
-  TavilySearchRunResult | YouTubeSearchRunResult | ContentGenerationRunResult
+  | TavilySearchRunResult
+  | YouTubeSearchRunResult
+  | ResearchArticleRunResult
+  | ContentGenerationRunResult
 > {
   const response = await fetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
     method: "POST",
@@ -111,6 +134,9 @@ export async function runWorkflow(
     throw new Error(detail || `Workflow run failed (${response.status})`);
   }
   return response.json() as Promise<
-    TavilySearchRunResult | YouTubeSearchRunResult | ContentGenerationRunResult
+    | TavilySearchRunResult
+    | YouTubeSearchRunResult
+    | ResearchArticleRunResult
+    | ContentGenerationRunResult
   >;
 }
