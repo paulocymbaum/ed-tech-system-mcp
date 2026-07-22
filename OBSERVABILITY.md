@@ -34,11 +34,15 @@ The script kills stale processes on port `8877`, starts the API (with hot reload
 
 **Secrets:** Running LLM workflows requires `GROQ_API_KEY` (via Doppler or `.env`). Graph browsing works without credentials; execution returns `503` when the chat model is not wired.
 
+![Workflow explorer — sidebar, run form, and graph canvas](../docs/assets/workflow-ui-explorer.png)
+
 ### Registered workflows
 
 | Workflow ID | Description |
 | :--- | :--- |
-| `document-video-discovery` | Document retrieval → search terms → YouTube discovery |
+| `tavily-search` | Simple Tavily web search with normalized snippets |
+| `youtube-search` | YouTube video search for educational content |
+| `research-article` | Parallel Tavily + YouTube research → merged context → article |
 | `content-generation` | Lesson → quiz + PBL with Groq, validation retries, and model fallback |
 
 Select a workflow in the sidebar to load its graph structure.
@@ -56,6 +60,10 @@ The canvas shows the **compiled LangGraph** structure:
 Generation nodes (`generate_lesson`, `generate_quiz`, `generate_pbl`) are laid out **above** validation nodes so retry arcs remain visible.
 
 During replay, the active node is highlighted (blue = ok, amber = retry, red = failed). Repeated attempts show `(#2)`, `(#3)`, etc.
+
+| Content generation (retry edges) | Research article (parallel tool calls) |
+| :---: | :---: |
+| ![Content generation workflow graph](../docs/assets/workflow-graph-content-generation.png) | ![Research article workflow graph](../docs/assets/workflow-graph-research-article.png) |
 
 ---
 
@@ -114,6 +122,17 @@ The **Node I/O** panel (below replay) shows full JSON for the selected step:
 - **Input state** — topic, grade level, prior artifacts, `llm_request` (model + complexity)
 - **Output update** — parsed `lesson` / `quiz` / `pbl`, or `*_validation_errors`, plus `model_name`
 - **LLM system / user prompts** and **raw output** — exactly what was sent to and returned from Groq
+
+![Trace replay with run summary, step timeline, graph highlighting, and node I/O inspector](../docs/assets/workflow-trace-replay.png)
+
+### Refresh screenshots
+
+After UI changes, regenerate assets for the README and this doc:
+
+```bash
+./scripts/dev/run-workflow-ui.sh   # terminal 1
+npx -p playwright node scripts/dev/capture-ui-screenshots.mjs   # terminal 2
+```
 
 ---
 
