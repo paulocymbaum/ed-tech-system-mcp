@@ -107,6 +107,45 @@ async def test_rag_validation_graph_uses_inline_document_text() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rag_validation_retrieve_limit_changes_phrase_coverage() -> None:
+    from mcp_server.application.agents.rag_validation.fixture import load_default_document_text
+
+    writer = RecordingIndexWriter()
+    retriever = FixtureAwareRetriever(writer)
+    set_chunking_strategy(FakeChunkingStrategy())
+    set_embedding_provider(FakeEmbeddingProvider())
+    set_vector_index_writer(writer)
+    set_vector_retriever(retriever)
+    set_reranker(NoOpReranker())
+
+    document_text = load_default_document_text()
+    query = "How does photosynthesis convert light energy?"
+
+    state_low = await run_rag_validation_graph(
+        query,
+        document_text=document_text,
+        retrieval_mode="vector",
+        retrieve_limit=1,
+        rerank_enabled=False,
+    )
+    state_high = await run_rag_validation_graph(
+        query,
+        document_text=document_text,
+        retrieval_mode="vector",
+        retrieve_limit=4,
+        rerank_enabled=False,
+    )
+
+    low_coverage = state_low["rag_benchmarks"]["phrase_coverage"]
+    high_coverage = state_high["rag_benchmarks"]["phrase_coverage"]
+    assert state_low["indexed_chunk_count"] >= 3
+    assert low_coverage < high_coverage
+    assert high_coverage == 1.0
+    assert state_low["rag_evaluation_context"]["effective_k"] == 1
+    assert state_high["rag_evaluation_context"]["effective_k"] >= 3
+
+
+@pytest.mark.asyncio
 async def test_rag_validation_graph_end_to_end_with_mocked_ports() -> None:
     writer = RecordingIndexWriter()
     retriever = FixtureAwareRetriever(writer)

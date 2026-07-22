@@ -77,8 +77,7 @@ from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
 from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
-from mcp_server.infrastructure.rerank.fastembed_reranker import FastEmbedRerankerAdapter
-from mcp_server.infrastructure.rerank.noop_reranker import NoOpReranker
+from mcp_server.infrastructure.rerank.lazy_reranker import LazyFastEmbedReranker
 from mcp_server.infrastructure.retrieval.chroma_vector_index_writer import ChromaVectorIndexWriter
 from mcp_server.infrastructure.retrieval.chroma_vector_retriever import ChromaVectorRetriever
 from mcp_server.infrastructure.retrieval.supabase_vector_index_writer import (
@@ -207,11 +206,9 @@ def build_vector_index_writer(settings: Settings) -> IVectorIndexWriter:
 
 
 def build_reranker(settings: Settings) -> IReranker:
-    """Build reranker adapter (no-op when disabled)."""
-    if not settings.rerank_enabled:
-        return NoOpReranker()
+    """Build lazy cross-encoder reranker; graph ``rerank_enabled`` gates whether it runs."""
     _validate_reranker_model(settings.reranker_model)
-    return FastEmbedRerankerAdapter(
+    return LazyFastEmbedReranker(
         model_name=settings.reranker_model,
         cache_dir=settings.embedding_cache_dir,
     )

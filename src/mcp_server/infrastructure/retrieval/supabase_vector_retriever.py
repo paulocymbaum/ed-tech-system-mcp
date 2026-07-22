@@ -41,6 +41,10 @@ def _row_to_chunk_hit(row: dict[str, Any]) -> ChunkHit:
 class SupabasePgvectorRetriever(IVectorRetriever):
     """Retrieve chunks via Supabase ``match_chunks`` / ``hybrid_search_chunks`` RPCs."""
 
+    @property
+    def supports_hybrid_fts(self) -> bool:
+        return True
+
     def __init__(self, supabase_url: str, service_role_key: str) -> None:
         self._supabase_url = supabase_url
         self._service_role_key = service_role_key

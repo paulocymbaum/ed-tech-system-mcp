@@ -80,6 +80,7 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
   const [topic, setTopic] = useState("fractions");
   const [gradeLevel, setGradeLevel] = useState("6th grade");
   const [retrieveLimit, setRetrieveLimit] = useState(10);
+  const [rerankTopN, setRerankTopN] = useState(6);
   const [rerankEnabled, setRerankEnabled] = useState(false);
   const [retrievalMode, setRetrievalMode] = useState<"vector" | "hybrid">("vector");
   const [documentTitle, setDocumentTitle] = useState("RAG Validation Fixture — Photosynthesis");
@@ -152,6 +153,7 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
                     expected_phrases: parsedExpectedPhrases,
                     retrieval_mode: retrievalMode,
                     retrieve_limit: retrieveLimit,
+                    rerank_top_n: rerankTopN,
                     rerank_enabled: rerankEnabled,
                   }
               : workflow.id === "rag-retrieval"
@@ -159,6 +161,7 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
                     query,
                     retrieval_mode: retrievalMode,
                     retrieve_limit: retrieveLimit,
+                    rerank_top_n: rerankTopN,
                     rerank_enabled: rerankEnabled,
                   }
                 : { query, max_results: maxResults };
@@ -255,6 +258,17 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
               onChange={(event) => setRetrieveLimit(Number(event.target.value))}
             />
           </label>
+          <label>
+            Rerank top n
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={rerankTopN}
+              disabled={!rerankEnabled}
+              onChange={(event) => setRerankTopN(Number(event.target.value))}
+            />
+          </label>
           <label className="run-form-checkbox">
             <input
               type="checkbox"
@@ -263,6 +277,12 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
             />
             Enable rerank
           </label>
+          {rerankEnabled && (
+            <p className="muted run-form-note">
+              First rerank run downloads the cross-encoder model (~100MB) and can take 1–3 minutes.
+              Later runs use the cached model. Watch API logs for progress.
+            </p>
+          )}
         </div>
       ) : workflow.id === "rag-validation" ? (
         <div className="run-form run-form--document">
@@ -312,6 +332,17 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
               onChange={(event) => setRetrieveLimit(Number(event.target.value))}
             />
           </label>
+          <label>
+            Rerank top n
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={rerankTopN}
+              disabled={!rerankEnabled}
+              onChange={(event) => setRerankTopN(Number(event.target.value))}
+            />
+          </label>
           <label className="run-form-checkbox">
             <input
               type="checkbox"
@@ -320,6 +351,12 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
             />
             Enable rerank
           </label>
+          {rerankEnabled && (
+            <p className="muted run-form-note">
+              First rerank run downloads the cross-encoder model (~100MB) and can take 1–3 minutes.
+              Later runs use the cached model. Watch API logs for progress.
+            </p>
+          )}
         </div>
       ) : (
         <div className="run-form">

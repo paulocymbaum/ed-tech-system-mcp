@@ -134,6 +134,14 @@ function RunContextBanner({ context }: { context: RagEvaluationContext }) {
             <dd>{context.indexed_chunk_count}</dd>
           </div>
         )}
+        <div>
+          <dt>Hybrid FTS active</dt>
+          <dd>{context.hybrid_fts_active ? "yes" : "no (vector fallback)"}</dd>
+        </div>
+        <div>
+          <dt>Rerank applied</dt>
+          <dd>{context.rerank_applied ? "yes" : "no"}</dd>
+        </div>
       </dl>
       {context.score_kind !== "cosine" && (
         <p className="rag-context-banner__thresholds">
@@ -335,14 +343,18 @@ export function RagBenchmarkDashboard({ workflowId, trace, ragRun }: RagBenchmar
         <div className="rag-dashboard__section">
           <h4>Retrieval diagnostics</h4>
           <div className="rag-dashboard__grid">
-            {RETRIEVAL_METRICS.map((metric) => (
+            {RETRIEVAL_METRICS.map((metric) => {
+              const raw = data.retrieval[metric.key as keyof typeof data.retrieval];
+              const value = typeof raw === "number" ? raw : undefined;
+              return (
               <MetricBar
                 key={metric.key}
                 metric={metric}
-                value={data.retrieval[metric.key as keyof typeof data.retrieval]}
+                value={value}
                 scoreKind={metric.format === "score" ? scoreKind : undefined}
               />
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

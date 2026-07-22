@@ -60,9 +60,14 @@ class FakeEmbeddingProvider(IEmbeddingProvider):
 
 
 class FakeVectorRetriever(IVectorRetriever):
-    def __init__(self) -> None:
+    def __init__(self, *, supports_hybrid_fts: bool = False) -> None:
         self.last_mode: str | None = None
         self.last_query_text: str | None = None
+        self._supports_hybrid_fts = supports_hybrid_fts
+
+    @property
+    def supports_hybrid_fts(self) -> bool:
+        return self._supports_hybrid_fts
 
     async def retrieve(
         self,
@@ -225,13 +230,14 @@ async def test_rag_retrieval_graph_with_mocked_ports() -> None:
     assert metrics.get("effective_k", 0) >= 1
     context = state.get("rag_evaluation_context", {})
     assert context.get("score_kind") == "reranker"
+    assert context.get("rerank_applied") is True
     assert context.get("retrieval_mode") == "hybrid"
 
 
 @pytest.mark.asyncio
 async def test_rag_retrieval_graph_hybrid_without_rerank_uses_rrf_score_kind() -> None:
     embedder = FakeEmbeddingProvider()
-    retriever = FakeVectorRetriever()
+    retriever = FakeVectorRetriever(supports_hybrid_fts=True)
     set_embedding_provider(embedder)
     set_vector_retriever(retriever)
     set_reranker(NoOpReranker())
@@ -245,11 +251,32 @@ async def test_rag_retrieval_graph_hybrid_without_rerank_uses_rrf_score_kind() -
     assert state["retrieval_complete"] is True
     assert retriever.last_mode == "hybrid"
     assert retriever.last_query_text == "how does photosynthesis work?"
+    assert state.get("hybrid_fts_active") is True
     metrics = state.get("retrieval_metrics", {})
     assert metrics.get("score_kind") == "rrf"
     context = state.get("rag_evaluation_context", {})
     assert context.get("score_kind") == "rrf"
+    assert context.get("hybrid_fts_active") is True
     assert context.get("retrieval_mode") == "hybrid"
+
+
+@pytest.mark.asyncio
+async def test_rag_retrieval_graph_hybrid_on_chroma_fallback_uses_cosine_score_kind() -> None:
+    embedder = FakeEmbeddingProvider()
+    retriever = FakeVectorRetriever(supports_hybrid_fts=False)
+    set_embedding_provider(embedder)
+    set_vector_retriever(retriever)
+    set_reranker(NoOpReranker())
+
+    state = await run_rag_retrieval_graph(
+        "how does photosynthesis work?",
+        retrieval_mode="hybrid",
+        rerank_enabled=False,
+    )
+
+    assert state.get("hybrid_fts_active") is False
+    context = state.get("rag_evaluation_context", {})
+    assert context.get("score_kind") == "cosine"
 
 
 @pytest.mark.asyncio

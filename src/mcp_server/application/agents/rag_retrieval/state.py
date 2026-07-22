@@ -31,3 +31,5 @@ class RagRetrievalState(TypedDict):
     chunk_size: NotRequired[int]
     chunk_overlap: NotRequired[int]
     indexed_chunk_count: NotRequired[int]
+    hybrid_fts_active: NotRequired[bool]
+    rerank_applied: NotRequired[bool]

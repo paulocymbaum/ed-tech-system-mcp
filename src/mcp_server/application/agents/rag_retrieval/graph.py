@@ -40,6 +40,12 @@ def _node_timeout_seconds() -> float:
     return _workflow_runtime_config().agent_node_timeout_seconds
 
 
+def _rerank_node_timeout_seconds() -> float:
+    """Rerank may download ONNX weights on first run; allow extra time."""
+    base = _node_timeout_seconds()
+    return max(base * 3.0, 180.0)
+
+
 def build_rag_retrieval_graph() -> RagRetrievalGraph:
     """Build embed → retrieve → [rerank] → merge LangGraph."""
     graph: StateGraph[RagRetrievalState, RagRetrievalState, RagRetrievalState] = StateGraph(
@@ -58,8 +64,8 @@ def build_rag_retrieval_graph() -> RagRetrievalGraph:
     graph.add_node(
         "rerank_chunks",
         rerank_chunks,
-        retry_policy=read_retry_policy,
-        timeout=node_timeout,
+        retry_policy=RetryPolicy(max_attempts=1),
+        timeout=_rerank_node_timeout_seconds(),
     )
     graph.add_node(
         "merge_context",

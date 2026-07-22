@@ -196,6 +196,8 @@ class RagEvaluationContextView(BaseModel):
     chunk_size: int | None = Field(default=None, ge=1)
     chunk_overlap: int | None = Field(default=None, ge=0)
     indexed_chunk_count: int | None = Field(default=None, ge=0)
+    hybrid_fts_active: bool = False
+    rerank_applied: bool = False
 
 
 class RagRetrievalRunResponse(BaseModel):
