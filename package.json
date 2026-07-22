@@ -5,7 +5,9 @@
   "scripts": {
     "prepare": "husky",
     "hooks:install": "husky",
-    "hooks:test": "bash scripts/hooks/pre-commit.sh",
+    "hooks:test": "bash scripts/hooks/run-from-root.sh bash scripts/hooks/pre-commit.sh",
+    "lint:architecture": "bash scripts/hooks/run-from-root.sh bash scripts/lint/architecture.sh",
+    "lint:imports": "bash scripts/lint/lint-imports.sh",
     "secretlint": "secretlint \"**/*\" --secretlintrc .secretlintrc.json"
   },
   "devDependencies": {
