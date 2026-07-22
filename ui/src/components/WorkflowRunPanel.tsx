@@ -79,8 +79,8 @@ export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowR
   const [maxVideoResults, setMaxVideoResults] = useState(3);
   const [topic, setTopic] = useState("fractions");
   const [gradeLevel, setGradeLevel] = useState("6th grade");
-  const [retrieveLimit, setRetrieveLimit] = useState(10);
-  const [rerankTopN, setRerankTopN] = useState(6);
+  const [retrieveLimit, setRetrieveLimit] = useState(4);
+  const [rerankTopN, setRerankTopN] = useState(4);
   const [rerankEnabled, setRerankEnabled] = useState(false);
   const [retrievalMode, setRetrievalMode] = useState<"vector" | "hybrid">("vector");
   const [documentTitle, setDocumentTitle] = useState("RAG Validation Fixture — Photosynthesis");

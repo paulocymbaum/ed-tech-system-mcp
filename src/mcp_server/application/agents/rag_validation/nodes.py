@@ -131,6 +131,21 @@ async def validate_retrieval(state: RagValidationState) -> dict[str, object]:
         merged_context=merged,
     )
     passed = not missing
+    validation_errors = [f"Missing expected phrase: {phrase}" for phrase in missing]
+    if not chunks and state.get("index_complete"):
+        validation_errors = [
+            "Retrieval returned no chunks after indexing — check vector store wiring and embeddings.",
+            *validation_errors,
+        ]
+    elif missing and chunks:
+        validation_errors = [
+            *validation_errors,
+            (
+                f"Retrieved {len(chunks)} chunk(s) at effective k="
+                f"{state.get('rag_evaluation_context', {}).get('effective_k', len(chunks))} "
+                "but expected phrases were missing — try raising retrieve limit or rerank top n."
+            ),
+        ]
     evaluation_context = build_rag_evaluation_context(
         retrieval_mode=state["retrieval_mode"],
         retrieve_limit=state["retrieve_limit"],
@@ -145,7 +160,7 @@ async def validate_retrieval(state: RagValidationState) -> dict[str, object]:
     )
     return {
         "validation_passed": passed,
-        "validation_errors": [f"Missing expected phrase: {phrase}" for phrase in missing],
+        "validation_errors": validation_errors,
         "expected_phrases": expected,
         "matched_phrases": matched_phrases,
         "missing_phrases": missing,

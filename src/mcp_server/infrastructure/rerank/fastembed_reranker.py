@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from mcp_server.domain.interfaces import IReranker
 from mcp_server.domain.schemas import ChunkHit
+from mcp_server.infrastructure.retrieval.chunk_hit_mapping import rerank_logit_to_score
 
 if TYPE_CHECKING:
     from fastembed.rerank.cross_encoder import TextCrossEncoder
@@ -71,7 +72,7 @@ class FastEmbedRerankerAdapter(IReranker):
         for candidate, score in ranked[:top_n]:
             results.append(
                 candidate.model_copy(
-                    update={"score": min(max(float(score), 0.0), 1.0)},
+                    update={"score": rerank_logit_to_score(float(score))},
                 )
             )
         return results

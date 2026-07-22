@@ -244,6 +244,17 @@ export function RagBenchmarkDashboard({ workflowId, trace, ragRun }: RagBenchmar
   const statusBand =
     data.mode === "validation" ? (data.validationPassed ? "good" : "bad") : "good";
 
+  const retrievedCount =
+    data.quality.retrieved_chunk_count ?? data.retrieval.chunk_count ?? 0;
+  const zeroCoverageHint =
+    showValidation &&
+    (data.quality.phrase_coverage ?? 0) === 0 &&
+    (data.quality.expected_phrase_count ?? 0) > 0
+      ? retrievedCount === 0
+        ? "Retrieval returned no chunks — check vector store wiring, embeddings, and that indexing completed."
+        : `Retrieved ${retrievedCount} chunk(s) but none contained the expected phrases. Raise retrieve limit (try 4+) or rerank top n, or reload the fixture document if the textarea still has old content.`
+      : null;
+
   return (
     <section className="rag-dashboard" aria-labelledby="rag-dashboard-title">
       <header className="rag-dashboard__header">
@@ -264,6 +275,8 @@ export function RagBenchmarkDashboard({ workflowId, trace, ragRun }: RagBenchmar
       </header>
 
       {data.evaluationContext && <RunContextBanner context={data.evaluationContext} />}
+
+      {zeroCoverageHint ? <p className="rag-dashboard__alert">{zeroCoverageHint}</p> : null}
 
       <div className="rag-dashboard__hero">
         {showValidation ? (
