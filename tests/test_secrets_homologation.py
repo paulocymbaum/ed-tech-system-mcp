@@ -129,13 +129,15 @@ def test_h05_groq_api_key_accepted(settings: Settings) -> None:
     reason="TAVILY_API_KEY not set",
 )
 def test_h06_tavily_api_key_accepted(settings: Settings) -> None:
-    api_key = os.getenv("TAVILY_API_KEY", "").strip()
-    if not api_key:
+    api_key = settings.tavily_api_key
+    assert api_key is not None
+    key = api_key.get_secret_value().strip()
+    if not key:
         pytest.skip("TAVILY_API_KEY empty")
 
     response = httpx.post(
         "https://api.tavily.com/search",
-        json={"api_key": api_key, "query": "education", "max_results": 1},
+        json={"api_key": key, "query": "education", "max_results": 1},
         timeout=15.0,
     )
     assert response.status_code == 200, f"Tavily API key rejected: HTTP {response.status_code}"

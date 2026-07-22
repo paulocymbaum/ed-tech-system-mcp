@@ -49,6 +49,16 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "merge_results",
         "__end__",
     ],
+    "tavily-search": [
+        "__start__",
+        "search_web",
+        "__end__",
+    ],
+    "youtube-search": [
+        "__start__",
+        "search_videos",
+        "__end__",
+    ],
 }
 
 
