@@ -6,15 +6,13 @@ import sys
 
 import uvicorn
 
-from mcp_server.interface.local_ui.api import local_ui_host, local_ui_port
-from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
+from mcp_server.interface.local_ui.api import assert_local_development, local_ui_host, local_ui_port
 
 
 def main() -> None:
     """Start the local FastAPI workflow UI on loopback only."""
     try:
-        bootstrap_environment()
-        bootstrap_application_runtime()
+        assert_local_development()
         uvicorn.run(
             "mcp_server.interface.local_ui.api:app",
             host=local_ui_host(),

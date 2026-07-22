@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { fetchWorkflows, type WorkflowGraph } from "./api/workflows";
+import { fetchWorkflows, type WorkflowGraph, type WorkflowTraceStep } from "./api/workflows";
 import { WorkflowGraphView } from "./components/WorkflowGraphView";
+import { WorkflowRunPanel, type WorkflowRunOutcome } from "./components/WorkflowRunPanel";
+import { WorkflowRunSummary } from "./components/WorkflowRunSummary";
+import { WorkflowStepInspector } from "./components/WorkflowStepInspector";
+import { WorkflowTraceReplay } from "./components/WorkflowTraceReplay";
+import type { ContentRunMeta } from "./lib/traceAnalytics";
 import "./App.css";
 
 export default function App() {
   const [workflows, setWorkflows] = useState<WorkflowGraph[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trace, setTrace] = useState<WorkflowTraceStep[]>([]);
+  const [runMeta, setRunMeta] = useState<ContentRunMeta | null>(null);
+  const [activeStep, setActiveStep] = useState<WorkflowTraceStep | null>(null);
+  const [activeNodeAttempts, setActiveNodeAttempts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +50,19 @@ export default function App() {
 
   const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedId) ?? null;
 
+  const handleRunComplete = useCallback((outcome: WorkflowRunOutcome) => {
+    setTrace(outcome.trace);
+    setRunMeta(outcome.runMeta);
+  }, []);
+
+  const handleActiveStepChange = useCallback(
+    (step: WorkflowTraceStep | null, attempts: Record<string, number>) => {
+      setActiveStep(step);
+      setActiveNodeAttempts(attempts);
+    },
+    [],
+  );
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -47,7 +70,7 @@ export default function App() {
           <p className="eyebrow">Local development only</p>
           <h1>LangGraph Workflow Explorer</h1>
           <p className="subtitle">
-            Inspect LangChain / LangGraph orchestration graphs served from the MCP application layer.
+            Inspect graphs, run workflows, and replay node execution with validation retries.
           </p>
         </div>
         <div className="status-pill">127.0.0.1</div>
@@ -64,7 +87,14 @@ export default function App() {
                 <button
                   type="button"
                   className={workflow.id === selectedId ? "workflow-card active" : "workflow-card"}
-                  onClick={() => setSelectedId(workflow.id)}
+                  onClick={() => {
+                    setSelectedId(workflow.id);
+                    setTrace([]);
+                    setRunMeta(null);
+                    setActiveStep(null);
+                    setActiveNodeAttempts({});
+                    setRunError(null);
+                  }}
                 >
                   <span className="workflow-name">{workflow.name}</span>
                   <span className="workflow-meta">{workflow.framework}</span>
@@ -82,7 +112,21 @@ export default function App() {
                 <h2>{selectedWorkflow.name}</h2>
                 <p>{selectedWorkflow.description}</p>
               </div>
-              <WorkflowGraphView workflow={selectedWorkflow} />
+              <WorkflowRunPanel
+                workflow={selectedWorkflow}
+                onRunComplete={handleRunComplete}
+                onError={setRunError}
+              />
+              {runError && <p className="error run-error">{runError}</p>}
+              <WorkflowRunSummary trace={trace} runMeta={runMeta} />
+              <WorkflowGraphView
+                workflow={selectedWorkflow}
+                trace={trace}
+                activeStep={activeStep}
+                activeNodeAttempts={activeNodeAttempts}
+              />
+              <WorkflowTraceReplay trace={trace} onActiveStepChange={handleActiveStepChange} />
+              <WorkflowStepInspector step={activeStep} />
             </>
           ) : (
             <div className="empty-state">

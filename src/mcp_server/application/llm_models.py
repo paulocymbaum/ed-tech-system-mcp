@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TypedDict
 
+from mcp_server.domain.llm_routing import GroqModelRecord
+
 
 class LanguageModelSpec(TypedDict):
     """Metadata for a supported chat model."""
@@ -13,32 +15,7 @@ class LanguageModelSpec(TypedDict):
     display_name: str
 
 
-AVAILABLE_LANGUAGE_MODELS: list[LanguageModelSpec] = [
-    {
-        "id": "llama-3.3-70b-versatile",
-        "provider": "groq",
-        "display_name": "Llama 3.3 70B Versatile",
-    },
-    {
-        "id": "llama-3.1-8b-instant",
-        "provider": "groq",
-        "display_name": "Llama 3.1 8B Instant",
-    },
-    {
-        "id": "llama-3.1-70b-versatile",
-        "provider": "groq",
-        "display_name": "Llama 3.1 70B Versatile",
-    },
-    {
-        "id": "mixtral-8x7b-32768",
-        "provider": "groq",
-        "display_name": "Mixtral 8x7B",
-    },
-    {
-        "id": "gemma2-9b-it",
-        "provider": "groq",
-        "display_name": "Gemma 2 9B IT",
-    },
+_STATIC_LANGUAGE_MODELS: list[LanguageModelSpec] = [
     {
         "id": "gpt-4o",
         "provider": "openai",
@@ -71,10 +48,43 @@ AVAILABLE_LANGUAGE_MODELS: list[LanguageModelSpec] = [
     },
 ]
 
+_GROQ_LANGUAGE_MODELS: list[LanguageModelSpec] = []
+
+AVAILABLE_LANGUAGE_MODELS: list[LanguageModelSpec] = [
+    *_STATIC_LANGUAGE_MODELS,
+]
+
+
+def register_groq_language_models(records: list[GroqModelRecord]) -> None:
+    """Replace Groq entries with models from the live catalog registry."""
+    global _GROQ_LANGUAGE_MODELS, AVAILABLE_LANGUAGE_MODELS
+    _GROQ_LANGUAGE_MODELS = [
+        {
+            "id": record.model_id,
+            "provider": "groq",
+            "display_name": record.display_name or record.model_id,
+        }
+        for record in records
+        if record.is_routable
+    ]
+    AVAILABLE_LANGUAGE_MODELS = [*_GROQ_LANGUAGE_MODELS, *_STATIC_LANGUAGE_MODELS]
+
+
+def reset_groq_language_models() -> None:
+    """Clear dynamically registered Groq models (for tests)."""
+    global _GROQ_LANGUAGE_MODELS, AVAILABLE_LANGUAGE_MODELS
+    _GROQ_LANGUAGE_MODELS = []
+    AVAILABLE_LANGUAGE_MODELS = [*_STATIC_LANGUAGE_MODELS]
+
+
+def list_available_language_models() -> list[LanguageModelSpec]:
+    """Return static and Groq catalog-backed language model metadata."""
+    return list(AVAILABLE_LANGUAGE_MODELS)
+
 
 def resolve_language_model(model_id: str) -> LanguageModelSpec:
     """Return registry metadata for a model id."""
-    for model in AVAILABLE_LANGUAGE_MODELS:
+    for model in list_available_language_models():
         if model["id"] == model_id:
             return model
     msg = f"Unknown language model id: {model_id}"

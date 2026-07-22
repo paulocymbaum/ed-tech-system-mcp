@@ -3,13 +3,29 @@
 from __future__ import annotations
 
 import asyncio
-from typing import NotRequired, TypedDict, cast
+from typing import Any, NotRequired, TypedDict
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RetryPolicy
 
+from mcp_server.application.agents.content_generation.graph import (
+    get_content_generation_graph,
+    reset_content_generation_graph_cache,
+)
+from mcp_server.application.agents.research_article.graph import (
+    get_research_article_graph,
+    reset_research_article_graph_cache,
+)
+from mcp_server.application.agents.tavily_search.graph import (
+    get_tavily_search_graph,
+    reset_tavily_search_graph_cache,
+)
+from mcp_server.application.agents.youtube_search.graph import (
+    get_youtube_search_graph,
+    reset_youtube_search_graph_cache,
+)
 from mcp_server.application.workflow_config import (
     DEFAULT_WORKFLOW_EXECUTION_CONFIG,
     WorkflowExecutionConfig,
@@ -176,17 +192,17 @@ def workflow_timeout_seconds() -> float:
 
 
 async def ainvoke_with_workflow_timeout(
-    graph: DocumentVideoGraph,
-    state: DocumentVideoState,
+    graph: CompiledStateGraph[Any, Any, Any],
+    state: Any,
     *,
     config: RunnableConfig | None = None,
-) -> DocumentVideoState:
+) -> Any:
     """Invoke a compiled graph with the configured workflow timeout."""
     result = await asyncio.wait_for(
         graph.ainvoke(state, config=config),
         timeout=workflow_timeout_seconds(),
     )
-    return cast(DocumentVideoState, result)
+    return result
 
 
 def initial_document_video_state(
@@ -204,6 +220,11 @@ def initial_document_video_state(
         document_count=0,
         video_count=0,
     )
+
+
+def get_document_video_graph() -> DocumentVideoGraph:
+    """Return the memoized document-video graph."""
+    return _get_compiled_graph()
 
 
 async def run_document_video_graph(
@@ -233,13 +254,34 @@ _REGISTERED_WORKFLOWS: list[RegisteredWorkflow] | None = None
 def _build_registered_workflows() -> list[RegisteredWorkflow]:
     return [
         RegisteredWorkflow(
-            id="document-video-discovery",
-            name="Document + Video Discovery",
+            id="tavily-search",
+            name="Tavily Web Search",
+            description="Run a simple Tavily web search and return normalized result snippets.",
+            graph=get_tavily_search_graph(),
+        ),
+        RegisteredWorkflow(
+            id="youtube-search",
+            name="YouTube Video Search",
+            description="Search YouTube for educational videos matching a query.",
+            graph=get_youtube_search_graph(),
+        ),
+        RegisteredWorkflow(
+            id="research-article",
+            name="Research → Journalistic Article",
             description=(
-                "Retrieve educational documents, derive search terms from metadata, "
-                "and discover complementary YouTube videos."
+                "An agent plans research, orchestrates parallel Tavily and YouTube tool calls, "
+                "merges both contexts, and writes a journalistic article."
             ),
-            graph=_get_compiled_graph(),
+            graph=get_research_article_graph(),
+        ),
+        RegisteredWorkflow(
+            id="content-generation",
+            name="Lesson → Quiz + PBL",
+            description=(
+                "Generate a structured lesson with Groq, then derive a quiz and "
+                "problem-based learning project with validation retries and model fallback."
+            ),
+            graph=get_content_generation_graph(),
         ),
     ]
 
@@ -257,3 +299,7 @@ def reset_registered_workflows_cache() -> None:
     global _REGISTERED_WORKFLOWS
     _REGISTERED_WORKFLOWS = None
     reset_compiled_graph_cache()
+    reset_content_generation_graph_cache()
+    reset_tavily_search_graph_cache()
+    reset_youtube_search_graph_cache()
+    reset_research_article_graph_cache()
