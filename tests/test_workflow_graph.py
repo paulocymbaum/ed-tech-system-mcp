@@ -54,3 +54,21 @@ def test_youtube_search_graph_layout_places_end_after_search() -> None:
     assert positions["__start__"] < positions["search_videos"]
     assert positions["search_videos"] < positions["__end__"]
     reset_registered_workflows_cache()
+
+
+def test_research_article_graph_layout_orders_agent_tool_merge_write_nodes() -> None:
+    reset_registered_workflows_cache()
+    workflow = next(item for item in list_registered_workflows() if item.id == "research-article")
+    view = workflow_graph_view(workflow)
+    positions = {node.id: node.x for node in view.nodes}
+    async_edges = {(edge.source, edge.target) for edge in view.edges if edge.kind == "async"}
+
+    assert positions["__start__"] < positions["agent_plan_research"]
+    assert positions["agent_plan_research"] < positions["merge_context"]
+    assert positions["merge_context"] < positions["write_article"]
+    assert positions["write_article"] < positions["__end__"]
+    assert positions["tool_search_tavily"] == positions["tool_search_youtube"]
+    assert positions["tool_search_tavily"] < positions["merge_context"]
+    assert ("agent_plan_research", "tool_search_tavily") in async_edges
+    assert ("agent_plan_research", "tool_search_youtube") in async_edges
+    reset_registered_workflows_cache()
