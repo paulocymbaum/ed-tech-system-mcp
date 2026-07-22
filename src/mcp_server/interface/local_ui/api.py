@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,13 +13,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from mcp_server.application.agent import list_registered_workflows, run_document_video_graph
+from mcp_server.application.agent import (
+    get_document_video_graph,
+    initial_document_video_state,
+    list_registered_workflows,
+    workflow_timeout_seconds,
+)
+from mcp_server.application.agents.content_generation.graph import (
+    get_content_generation_graph,
+    initial_content_generation_state,
+)
 from mcp_server.application.workflow_graph import WorkflowGraphView, workflow_graph_view
+from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.exceptions import ResourceNotFoundError
 from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation import (
+    ContentGenerationRunRequest,
+    ContentGenerationRunResponse,
     WorkflowRunRequest,
     WorkflowRunResponse,
+    content_generation_state_to_run_response,
     workflow_state_to_run_response,
 )
 from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
@@ -46,9 +60,15 @@ def _workflow_index() -> dict[str, WorkflowGraphView]:
 
 @asynccontextmanager
 async def _local_ui_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Wire the composition root when uvicorn loads the app in a worker process."""
+    """Wire the composition root when settings are available (optional for graph browsing)."""
     bootstrap_environment()
-    bootstrap_application_runtime()
+    try:
+        bootstrap_application_runtime()
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Workflow UI graph browsing is available, but workflow execution is not wired: %s",
+            exc,
+        )
     yield
 
 
@@ -73,8 +93,12 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     )
 
     @app.get("/api/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok", "mode": "local"}
+    def health() -> dict[str, str | int]:
+        return {
+            "status": "ok",
+            "mode": "local",
+            "workflow_count": len(list_registered_workflows()),
+        }
 
     @app.get("/api/workflows", response_model=WorkflowListResponse)
     def list_workflows() -> WorkflowListResponse:
@@ -87,19 +111,57 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
         return workflow
 
-    @app.post("/api/workflows/{workflow_id}/run", response_model=WorkflowRunResponse)
-    async def run_workflow(workflow_id: str, body: WorkflowRunRequest) -> WorkflowRunResponse:
-        if workflow_id != "document-video-discovery":
-            raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
-        try:
-            result = await run_document_video_graph(
-                body.query,
-                document_limit=body.document_limit,
-                video_limit=body.video_limit,
-            )
-        except ResourceNotFoundError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return workflow_state_to_run_response(result)
+    @app.post("/api/workflows/{workflow_id}/run")
+    async def run_workflow(
+        workflow_id: str,
+        body: dict[str, object],
+    ) -> WorkflowRunResponse | ContentGenerationRunResponse:
+        if workflow_id == "document-video-discovery":
+            request = WorkflowRunRequest.model_validate(body)
+            try:
+                graph = get_document_video_graph()
+                state = initial_document_video_state(
+                    request.query,
+                    document_limit=request.document_limit,
+                    video_limit=request.video_limit,
+                )
+                result, trace = await invoke_graph_with_trace(
+                    graph,
+                    state,
+                    timeout_seconds=workflow_timeout_seconds(),
+                )
+            except ResourceNotFoundError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status_code=504,
+                    detail="Workflow execution timed out.",
+                ) from exc
+            return workflow_state_to_run_response(result, trace=trace)
+
+        if workflow_id == "content-generation":
+            request = ContentGenerationRunRequest.model_validate(body)
+            try:
+                graph = get_content_generation_graph()
+                state = initial_content_generation_state(
+                    request.topic,
+                    grade_level=request.grade_level,
+                )
+                result, trace = await invoke_graph_with_trace(
+                    graph,
+                    state,
+                    timeout_seconds=workflow_timeout_seconds(),
+                )
+            except ResourceNotFoundError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            except TimeoutError as exc:
+                raise HTTPException(
+                    status_code=504,
+                    detail="Workflow execution timed out.",
+                ) from exc
+            return content_generation_state_to_run_response(result, trace=trace)
+
+        raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
 
     static_dir = Path(__file__).resolve().parents[4] / "ui" / "dist"
     if static_dir.is_dir():

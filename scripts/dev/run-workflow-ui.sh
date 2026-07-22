@@ -14,7 +14,21 @@ if [[ ! -d "ui/node_modules" ]]; then
 fi
 
 echo "Starting FastAPI workflow API on http://${LOCAL_UI_HOST}:${LOCAL_UI_PORT}"
-uv run workflow-ui &
+
+if command -v fuser >/dev/null 2>&1; then
+  fuser -k "${LOCAL_UI_PORT}/tcp" 2>/dev/null || true
+elif command -v lsof >/dev/null 2>&1; then
+  stale_pid="$(lsof -ti tcp:"${LOCAL_UI_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
+  if [[ -n "${stale_pid}" ]]; then
+    kill "${stale_pid}" 2>/dev/null || true
+  fi
+fi
+
+if command -v doppler >/dev/null 2>&1 && doppler configure get config >/dev/null 2>&1; then
+  doppler run -- uv run workflow-ui &
+else
+  uv run workflow-ui &
+fi
 API_PID=$!
 
 cleanup() {
