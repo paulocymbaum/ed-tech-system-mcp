@@ -117,7 +117,7 @@ def test_list_registered_workflows_returns_document_video_discovery_metadata() -
     reset_registered_workflows_cache()
     workflows = list_registered_workflows()
 
-    assert len(workflows) == 1
+    assert len(workflows) >= 2
     workflow = workflows[0]
     assert workflow.id == "document-video-discovery"
     assert workflow.name == "Document + Video Discovery"
