@@ -20,6 +20,7 @@ dependencies = [
     "pydantic-settings",
     "redis",
     "langchain-groq>=1.1.3",
+    "httpx",
 ]
 
 [project.scripts]
@@ -125,3 +126,6 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "secrets_homologation: live API checks for Doppler/.env secrets (RUN_SECRETS_HOMOLOGATION=1)",
+]
