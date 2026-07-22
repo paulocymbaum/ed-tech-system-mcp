@@ -144,6 +144,7 @@ button {
 }
 
 .graph-panel {
+  position: relative;
   flex: 1;
   min-height: 420px;
   margin: 0 1.5rem;
@@ -230,6 +231,61 @@ button {
   color: #fffbeb;
 }
 
+.graph-panel .workflow-node--visited {
+  background: #1e3a5f;
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.graph-panel .workflow-node--history-failed {
+  background: #451a1a;
+  border-color: #f87171;
+  color: #fee2e2;
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.35);
+}
+
+.graph-panel .workflow-node--history-retry {
+  background: #422006;
+  border-color: #f59e0b;
+  color: #fef3c7;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
+}
+
+.graph-legend {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 70%;
+}
+
+.graph-legend__item {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+}
+
+.graph-legend__item--visited {
+  border-color: #38bdf8;
+}
+
+.graph-legend__item--retry {
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+.graph-legend__item--failed {
+  border-color: #f87171;
+  color: #fecaca;
+}
+
 .graph-panel .react-flow__edge-path {
   stroke-linecap: round;
 }
@@ -292,6 +348,98 @@ button {
 
 .graph-panel .react-flow__attribution a {
   color: #7dd3fc;
+}
+
+.run-summary {
+  margin: 1rem 1.5rem 0;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid #334155;
+  background: #0b1220;
+}
+
+.run-summary--ok {
+  border-color: #166534;
+}
+
+.run-summary--warn {
+  border-color: #b45309;
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.18), #0b1220 55%);
+}
+
+.run-summary__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.run-summary__header h3 {
+  margin: 0;
+}
+
+.run-summary__badge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #334155;
+}
+
+.run-summary__badge--ok {
+  color: #86efac;
+  border-color: #166534;
+}
+
+.run-summary__badge--warn {
+  color: #fde68a;
+  border-color: #b45309;
+}
+
+.run-summary__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.run-summary__stats div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.run-summary__stats dt {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.run-summary__stats dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.run-summary__highlight-failed {
+  color: #f87171;
+}
+
+.run-summary__highlight-retry {
+  color: #fbbf24;
+}
+
+.run-summary__meta,
+.run-summary__hint,
+.run-summary__alert {
+  margin: 0.75rem 0 0;
+}
+
+.run-summary__alert {
+  color: #fca5a5;
 }
 
 .run-panel,
@@ -396,6 +544,16 @@ button {
   background: #0b1220;
 }
 
+.trace-item--failed {
+  border-color: #7f1d1d;
+  background: linear-gradient(90deg, rgba(127, 29, 29, 0.35), #0b1220 35%);
+}
+
+.trace-item--retry {
+  border-color: #92400e;
+  background: linear-gradient(90deg, rgba(146, 64, 14, 0.35), #0b1220 35%);
+}
+
 .trace-item.active {
   border-color: #38bdf8;
   box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
@@ -432,9 +590,14 @@ button {
 }
 
 .trace-meta,
-.trace-errors {
+.trace-errors,
+.trace-route {
   font-size: 0.85rem;
   color: #94a3b8;
+}
+
+.trace-route {
+  color: #fbbf24;
 }
 
 .trace-errors {

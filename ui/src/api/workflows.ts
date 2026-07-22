@@ -31,6 +31,8 @@ export type WorkflowTraceStep = {
   input_snapshot: Record<string, unknown>;
   output_update: Record<string, unknown>;
   llm_io: {
+    model_name?: string;
+    llm_complexity?: number;
     system_prompt?: string;
     user_prompt?: string;
     raw_output?: string;

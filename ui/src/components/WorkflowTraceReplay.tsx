@@ -15,9 +15,18 @@ function formatRetryCounts(retryCounts: Record<string, number>) {
   return entries.map(([key, value]) => `${key.replace(/_count$/, "")}: ${value}`).join(" · ");
 }
 
+function nextNodeId(trace: WorkflowTraceStep[], index: number): string | null {
+  return trace[index + 1]?.node_id ?? null;
+}
+
 export function WorkflowTraceReplay({ trace, onActiveStepChange }: WorkflowTraceReplayProps) {
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    setCursor(trace.length);
+    setPlaying(false);
+  }, [trace]);
 
   const attempts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -90,13 +99,14 @@ export function WorkflowTraceReplay({ trace, onActiveStepChange }: WorkflowTrace
       </p>
 
       <ol className="trace-list">
-        {trace.map((step) => {
+        {trace.map((step, index) => {
           const isActive = activeStep?.step === step.step;
           const retrySummary = formatRetryCounts(step.retry_counts);
+          const routeTarget = step.status === "retry" ? nextNodeId(trace, index) : null;
           return (
             <li
               key={`${step.step}-${step.node_id}-${step.attempt}`}
-              className={`trace-item ${isActive ? "active" : ""} status-${step.status}`}
+              className={`trace-item ${isActive ? "active" : ""} trace-item--${step.status}`}
             >
               <button
                 type="button"
@@ -111,6 +121,9 @@ export function WorkflowTraceReplay({ trace, onActiveStepChange }: WorkflowTrace
                   {step.attempt > 1 ? ` (attempt ${step.attempt})` : ""}
                 </span>
                 <span className={`trace-status trace-status-${step.status}`}>{step.status}</span>
+                {routeTarget && (
+                  <span className="trace-route">retry route → {routeTarget.replaceAll("_", " ")}</span>
+                )}
                 {retrySummary && <span className="trace-meta">retries · {retrySummary}</span>}
                 {step.validation_errors.length > 0 && (
                   <span className="trace-errors">{step.validation_errors.join(" · ")}</span>

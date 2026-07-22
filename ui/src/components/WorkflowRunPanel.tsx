@@ -1,14 +1,34 @@
 import { useState } from "react";
 
-import { runWorkflow, type WorkflowGraph, type WorkflowTraceStep } from "../api/workflows";
+import {
+  runWorkflow,
+  type ContentGenerationRunResult,
+  type WorkflowGraph,
+  type WorkflowTraceStep,
+} from "../api/workflows";
+import type { ContentRunMeta } from "../lib/traceAnalytics";
+
+export type WorkflowRunOutcome = {
+  trace: WorkflowTraceStep[];
+  runMeta: ContentRunMeta | null;
+};
 
 type WorkflowRunPanelProps = {
   workflow: WorkflowGraph;
-  onTrace: (trace: WorkflowTraceStep[]) => void;
+  onRunComplete: (outcome: WorkflowRunOutcome) => void;
   onError: (message: string | null) => void;
 };
 
-export function WorkflowRunPanel({ workflow, onTrace, onError }: WorkflowRunPanelProps) {
+function contentRunMeta(result: ContentGenerationRunResult): ContentRunMeta {
+  return {
+    generationComplete: result.generation_complete,
+    lessonRetryCount: result.lesson_retry_count,
+    quizRetryCount: result.quiz_retry_count,
+    pblRetryCount: result.pbl_retry_count,
+  };
+}
+
+export function WorkflowRunPanel({ workflow, onRunComplete, onError }: WorkflowRunPanelProps) {
   const [query, setQuery] = useState("fractions");
   const [topic, setTopic] = useState("fractions");
   const [gradeLevel, setGradeLevel] = useState("6th grade");
@@ -23,9 +43,12 @@ export function WorkflowRunPanel({ workflow, onTrace, onError }: WorkflowRunPane
           ? { topic, grade_level: gradeLevel }
           : { query, document_limit: 5, video_limit: 2 };
       const result = await runWorkflow(workflow.id, body);
-      onTrace(result.trace ?? []);
+      onRunComplete({
+        trace: result.trace ?? [],
+        runMeta: workflow.id === "content-generation" ? contentRunMeta(result as ContentGenerationRunResult) : null,
+      });
     } catch (runError) {
-      onTrace([]);
+      onRunComplete({ trace: [], runMeta: null });
       onError(runError instanceof Error ? runError.message : "Workflow run failed");
     } finally {
       setRunning(false);

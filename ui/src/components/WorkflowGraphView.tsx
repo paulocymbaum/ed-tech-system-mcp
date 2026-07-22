@@ -12,10 +12,17 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { WorkflowGraph, WorkflowTraceStep } from "../api/workflows";
+import {
+  activeTransitionKey,
+  buildNodeHistory,
+  traversedEdgeKeys,
+  type NodeHistory,
+} from "../lib/traceAnalytics";
 import { WorkflowNode, type WorkflowNodeData } from "./WorkflowNode";
 
 type WorkflowGraphViewProps = {
   workflow: WorkflowGraph;
+  trace: WorkflowTraceStep[];
   activeStep: WorkflowTraceStep | null;
   activeNodeAttempts: Record<string, number>;
 };
@@ -32,37 +39,58 @@ function nodeStatus(
   nodeId: string,
   activeStep: WorkflowTraceStep | null,
   activeNodeAttempts: Record<string, number>,
+  nodeHistory: Record<string, NodeHistory>,
 ): WorkflowNodeData["status"] {
-  if (!activeStep || activeStep.node_id !== nodeId) {
+  if (activeStep?.node_id === nodeId) {
+    if (activeStep.status === "failed") {
+      return "failed";
+    }
+    if (activeStep.status === "retry" || activeNodeAttempts[nodeId] > 1) {
+      return "retry";
+    }
+    return "active";
+  }
+
+  const history = nodeHistory[nodeId];
+  if (!history) {
     return "idle";
   }
-  if (activeStep.status === "failed") {
-    return "failed";
+  if (history.worstStatus === "failed") {
+    return "history-failed";
   }
-  if (activeStep.status === "retry" || activeNodeAttempts[nodeId] > 1) {
-    return "retry";
+  if (history.worstStatus === "retry" || history.maxAttempt > 1 || history.visitCount > 1) {
+    return "history-retry";
   }
-  return "active";
+  if (history.visitCount > 0) {
+    return "visited";
+  }
+  return "idle";
 }
 
-function edgeStyle(kind: GraphEdge["kind"], isActive: boolean) {
+function edgeStyle(kind: GraphEdge["kind"], emphasis: "idle" | "traversed" | "active") {
+  const active = emphasis === "active";
+  const traversed = emphasis === "traversed";
+
   if (kind === "retry") {
     return {
-      stroke: isActive ? "#fbbf24" : "#d97706",
+      stroke: active ? "#fbbf24" : traversed ? "#f59e0b" : "#92400e",
       strokeDasharray: "6 4",
-      strokeWidth: isActive ? 2.5 : 1.5,
+      strokeWidth: active ? 3 : traversed ? 2.5 : 1.5,
+      opacity: traversed || active ? 1 : 0.45,
     };
   }
   if (kind === "failure") {
     return {
-      stroke: isActive ? "#f87171" : "#dc2626",
+      stroke: active ? "#f87171" : traversed ? "#ef4444" : "#991b1b",
       strokeDasharray: "4 4",
-      strokeWidth: isActive ? 2.5 : 1.5,
+      strokeWidth: active ? 3 : traversed ? 2.5 : 1.5,
+      opacity: traversed || active ? 1 : 0.45,
     };
   }
   return {
-    stroke: isActive ? "#60a5fa" : "#94a3b8",
-    strokeWidth: isActive ? 3 : 2,
+    stroke: active ? "#60a5fa" : traversed ? "#38bdf8" : "#64748b",
+    strokeWidth: active ? 3 : traversed ? 2.5 : 2,
+    opacity: traversed || active ? 1 : 0.35,
   };
 }
 
@@ -77,12 +105,14 @@ function buildNodes(
   graphNodes: GraphNode[],
   activeStep: WorkflowTraceStep | null,
   activeNodeAttempts: Record<string, number>,
+  nodeHistory: Record<string, NodeHistory>,
 ): Node<WorkflowNodeData, "workflow">[] {
   return graphNodes.map((node) => {
-    const status = nodeStatus(node.id, activeStep, activeNodeAttempts);
-    const attempt = activeNodeAttempts[node.id] ?? 0;
+    const status = nodeStatus(node.id, activeStep, activeNodeAttempts, nodeHistory);
+    const history = nodeHistory[node.id];
+    const attempt = activeStep?.node_id === node.id ? activeNodeAttempts[node.id] : history?.maxAttempt;
     const label =
-      attempt > 1 && (activeStep?.node_id === node.id || status === "retry")
+      attempt && attempt > 1
         ? `${node.label} (#${attempt})`
         : node.label;
 
@@ -105,22 +135,27 @@ function buildNodes(
 
 export function WorkflowGraphView({
   workflow,
+  trace,
   activeStep,
   activeNodeAttempts,
 }: WorkflowGraphViewProps) {
+  const nodeHistory = useMemo(() => buildNodeHistory(trace), [trace]);
+  const traversedEdges = useMemo(() => traversedEdgeKeys(trace), [trace]);
+  const activeEdgeKey = useMemo(() => activeTransitionKey(trace, activeStep), [trace, activeStep]);
+
   const nodes = useMemo(
-    () => buildNodes(workflow.nodes, activeStep, activeNodeAttempts),
-    [workflow.nodes, activeStep, activeNodeAttempts],
+    () => buildNodes(workflow.nodes, activeStep, activeNodeAttempts, nodeHistory),
+    [workflow.nodes, activeStep, activeNodeAttempts, nodeHistory],
   );
 
   const edges = useMemo<Edge[]>(
     () =>
       workflow.edges.map((edge, index) => {
-        const isActive =
-          activeStep !== null &&
-          activeStep.node_id === edge.target &&
-          (edge.kind === "forward" || edge.kind === "retry" || edge.kind === "failure");
-        const styles = edgeStyle(edge.kind, isActive);
+        const edgeKey = `${edge.source}->${edge.target}`;
+        const isTraversed = traversedEdges.has(edgeKey);
+        const isActive = activeEdgeKey === edgeKey;
+        const emphasis = isActive ? "active" : isTraversed ? "traversed" : "idle";
+        const styles = edgeStyle(edge.kind, emphasis);
         const handles = edgeHandles(edge.kind);
         const label =
           edge.kind === "retry" ? "retry" : edge.kind === "failure" ? "give up" : undefined;
@@ -138,10 +173,10 @@ export function WorkflowGraphView({
           labelBgBorderRadius: 4,
           markerEnd: { type: MarkerType.ArrowClosed, color: styles.stroke, width: 20, height: 20 },
           style: styles,
-          zIndex: 1,
+          zIndex: isActive ? 3 : isTraversed ? 2 : 1,
         };
       }),
-    [workflow.edges, activeStep],
+    [workflow.edges, traversedEdges, activeEdgeKey],
   );
 
   useEffect(() => {
@@ -150,6 +185,13 @@ export function WorkflowGraphView({
 
   return (
     <div className="graph-panel">
+      {trace.length > 0 && (
+        <div className="graph-legend">
+          <span className="graph-legend__item graph-legend__item--visited">visited path</span>
+          <span className="graph-legend__item graph-legend__item--retry">retry / re-run</span>
+          <span className="graph-legend__item graph-legend__item--failed">validation failure</span>
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
