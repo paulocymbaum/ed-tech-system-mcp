@@ -161,27 +161,17 @@ def test_e05_configure_logging_maps_log_level_case_insensitively(
     assert logging.getLogger().level == logging.WARNING
 
 
-def test_e06_local_ui_main_bootstraps_application_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Local UI entrypoint must wire the composition root before serving requests."""
+def test_e06_local_ui_main_starts_uvicorn_without_eager_bootstrap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Local UI entrypoint starts uvicorn; runtime wiring happens in FastAPI lifespan."""
     from mcp_server.local_ui_main import main as local_ui_main
 
-    call_order: list[str] = []
-
     with (
-        patch(
-            "mcp_server.local_ui_main.bootstrap_environment",
-            side_effect=lambda: call_order.append("bootstrap_environment"),
-        ),
-        patch(
-            "mcp_server.local_ui_main.bootstrap_application_runtime",
-            side_effect=lambda: call_order.append("bootstrap_application_runtime"),
-        ),
+        patch("mcp_server.local_ui_main.assert_local_development") as mock_assert,
         patch("mcp_server.local_ui_main.uvicorn.run") as mock_uvicorn,
     ):
         local_ui_main()
 
+    mock_assert.assert_called_once()
     mock_uvicorn.assert_called_once()
-    assert call_order == [
-        "bootstrap_environment",
-        "bootstrap_application_runtime",
-    ]
