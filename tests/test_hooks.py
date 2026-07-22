@@ -9,6 +9,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BLOCK_SENSITIVE_FILES = REPO_ROOT / "scripts/hooks/block-sensitive-files.sh"
+SCAN_SECRETS = REPO_ROOT / "scripts/hooks/scan-secrets.sh"
 PRE_COMMIT = REPO_ROOT / "scripts/hooks/pre-commit.sh"
 
 
@@ -66,6 +67,49 @@ def test_block_sensitive_files_allows_py_files(tmp_path: Path) -> None:
     result = _run_hook_in_repo(tmp_path, BLOCK_SENSITIVE_FILES, "src/foo.py")
     assert result.returncode == 0
     assert "No sensitive files staged" in result.stdout
+
+
+def test_scan_secrets_skips_deleted_staged_files(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "config", "user.email", "hooks-test@example.com"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Hooks Test"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    tracked = repo_dir / "tracked.txt"
+    tracked.write_text("safe content\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    tracked.unlink()
+    subprocess.run(["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True)
+
+    result = subprocess.run(
+        ["bash", str(SCAN_SECRETS)],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "No staged files to scan" in result.stdout
 
 
 @pytest.mark.skipif(not PRE_COMMIT.is_file(), reason="pre-commit hook script missing")
