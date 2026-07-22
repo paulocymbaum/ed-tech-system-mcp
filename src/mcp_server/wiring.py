@@ -5,17 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pydantic import SecretStr
+
 from mcp_server.application.llm import (
     LLMSettings,
     configure_lazy_chat_model,
     create_chat_model,
     register_chat_model_builder,
     register_groq_model_builder,
+    register_llm_router,
 )
+from mcp_server.application.llm_models import register_groq_language_models
+from mcp_server.application.llm_router import LLMRouter
 from mcp_server.application.mcp_tool_cache_runtime import set_mcp_tool_cache
 from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
     set_workflow_execution_config,
+)
+from mcp_server.application.integration_runtime import (
+    configure_lazy_integration_clients,
+    register_search_client_builder,
+    register_video_client_builder,
 )
 from mcp_server.application.workflow_runtime import (
     WorkflowSettings,
@@ -25,6 +35,7 @@ from mcp_server.application.workflow_runtime import (
 from mcp_server.application.workflows import DocumentVideoWorkflow
 from mcp_server.domain.cache import ICacheStore
 from mcp_server.domain.interfaces import IDataRepository, ISearchClient, IVideoSearchClient
+from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.infrastructure.cache_config import build_cache_rule_set
 from mcp_server.infrastructure.cached_adapters import (
     CachedDataRepository,
@@ -33,10 +44,18 @@ from mcp_server.infrastructure.cached_adapters import (
 )
 from mcp_server.infrastructure.cached_llm import CachedChatModel
 from mcp_server.infrastructure.groq_adapter import build_groq_chat_model
+from mcp_server.infrastructure.groq_model_catalog import (
+    CachingGroqModelCatalogClient,
+    GroqModelCatalogClient,
+)
+from mcp_server.infrastructure.groq_model_catalog_cache import FileGroqModelCatalogCache
+from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
+from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
 from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
 from mcp_server.infrastructure.supabase_client import SupabaseRepository
+from mcp_server.infrastructure.tavily_search_client import TavilySearchClient
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
 from mcp_server.operational_config import OperationalConfig
 
@@ -49,6 +68,8 @@ _CACHE_STORE_REQUIRED_MSG = (
     "cache store is required when CACHE_ENABLED=true; "
     "pass the shared store from initialize_application_runtime()"
 )
+
+_wired_llm_router: LLMRouter | None = None
 
 
 @dataclass(frozen=True)
@@ -100,13 +121,15 @@ def build_search_client(
     settings: Settings,
     cache: ICacheStore | None = None,
 ) -> ISearchClient:
-    """Build the web search client, optionally wrapped with cache-aside.
-
-    # deferred — web search: factory only; inject via ``langchain_tools.search_web``
-    when BL-022 adapter implementation and MCP ``search_web`` tool ship (see
-    AGENTIC_ARCHITECTURE.md § Web search wiring).
-    """
-    client: ISearchClient = DuckDuckGoSearchClient()
+    """Build the web search client, preferring Tavily when configured."""
+    api_key = (
+        settings.tavily_api_key.get_secret_value().strip()
+        if settings.tavily_api_key is not None
+        else ""
+    )
+    client: ISearchClient = (
+        TavilySearchClient(api_key) if api_key else DuckDuckGoSearchClient()
+    )
     if not settings.cache_enabled or cache is None:
         return client
     return CachedSearchClient(client, cache, build_cache_rule_set(settings))
@@ -135,6 +158,56 @@ def build_workflow_execution_config(
     )
 
 
+def build_llm_router(settings: Settings) -> LLMRouter:
+    """Build the Groq LLM router with catalog-backed registry and debounce gate."""
+    global _wired_llm_router
+    if _wired_llm_router is not None:
+        register_llm_router(_wired_llm_router)
+        return _wired_llm_router
+
+    if settings.groq_api_key is None:
+        msg = "GROQ_API_KEY is required to build the LLM router"
+        raise ValueError(msg)
+
+    def _build_groq_model(api_key: SecretStr, model_id: str, temperature: float) -> BaseChatModel:
+        return build_groq_chat_model(
+            api_key=api_key,
+            model_id=model_id,
+            temperature=temperature,
+        )
+
+    register_groq_model_builder(_build_groq_model)
+
+    catalog_client = CachingGroqModelCatalogClient(
+        GroqModelCatalogClient(settings.groq_api_key),
+        FileGroqModelCatalogCache(
+            settings.groq_model_catalog_cache_path,
+            ttl_seconds=settings.groq_model_catalog_ttl_days * 24 * 60 * 60,
+        ),
+    )
+    registry = GroqModelRegistry(catalog_client)
+    debounce_gate = IntervalLLMDebounceGate(settings.llm_router_debounce_seconds)
+    router = LLMRouter(
+        api_key=settings.groq_api_key,
+        temperature=settings.llm_temperature,
+        registry=registry,
+        debounce_gate=debounce_gate,
+        model_builder=_build_groq_model,
+        default_complexity=LLMComplexity(settings.llm_complexity),
+    )
+    router.refresh_registry()
+    register_groq_language_models(registry.list_records())
+    register_llm_router(router)
+    _wired_llm_router = router
+    return router
+
+
+def reset_wired_llm_router() -> None:
+    """Clear the memoized router (for tests)."""
+    global _wired_llm_router
+    _wired_llm_router = None
+
+
 def build_chat_model(
     settings: Settings,
     cache: ICacheStore | None = None,
@@ -145,13 +218,7 @@ def build_chat_model(
     ``initialize_application_runtime()`` — do not call this builder directly
     with caching enabled.
     """
-    register_groq_model_builder(
-        lambda api_key, model_id, temperature: build_groq_chat_model(
-            api_key=api_key,
-            model_id=model_id,
-            temperature=temperature,
-        )
-    )
+    build_llm_router(settings)
     model = create_chat_model(settings)
     if not settings.cache_enabled:
         return model
@@ -213,6 +280,7 @@ def initialize_application_runtime(
         cache_store: ICacheStore = NoOpCacheStore()
         configure_lazy_chat_model(None)
         configure_lazy_document_video_workflow(None)
+        configure_lazy_integration_clients(None)
         set_mcp_tool_cache(None)
         return ApplicationContext(
             workflow_execution_config=config,
@@ -224,6 +292,7 @@ def initialize_application_runtime(
     cache_store = create_cache_store(settings)
     configure_lazy_chat_model(settings, cache_store)
     configure_lazy_document_video_workflow(settings, cache_store)
+    configure_lazy_integration_clients(settings, cache_store)
     tool_cache = build_mcp_tool_cache(settings, cache_store)
     set_mcp_tool_cache(tool_cache)
     return ApplicationContext(
@@ -248,5 +317,21 @@ def _lazy_build_document_video_workflow(
     return build_document_video_workflow(settings, cache)  # type: ignore[arg-type]
 
 
+def _lazy_build_search_client(
+    settings: WorkflowSettings,
+    cache: ICacheStore | None,
+) -> ISearchClient:
+    return build_search_client(settings, cache)  # type: ignore[arg-type]
+
+
+def _lazy_build_video_client(
+    settings: WorkflowSettings,
+    cache: ICacheStore | None,
+) -> IVideoSearchClient:
+    return build_video_client(settings, cache)  # type: ignore[arg-type]
+
+
 register_chat_model_builder(_lazy_build_chat_model)
 register_document_video_workflow_builder(_lazy_build_document_video_workflow)
+register_search_client_builder(_lazy_build_search_client)
+register_video_client_builder(_lazy_build_video_client)
