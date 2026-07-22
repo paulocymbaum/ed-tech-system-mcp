@@ -9,12 +9,16 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import SecretStr
 
 from mcp_server.application.llm_models import resolve_language_model
+from mcp_server.application.llm_router import LLMRouter
+from mcp_server.application.routing_chat_model import RoutingChatModel
 from mcp_server.domain.cache import ICacheStore
+from mcp_server.domain.llm_routing import LLMComplexity
 
 GroqChatModelBuilder = Callable[[SecretStr, str, float], BaseChatModel]
 ChatModelBuilder = Callable[["LLMSettings", ICacheStore | None], BaseChatModel]
 
 _groq_model_builder: GroqChatModelBuilder | None = None
+_llm_router: LLMRouter | None = None
 _chat_model_builder: ChatModelBuilder | None = None
 _lazy_settings: LLMSettings | None = None
 _lazy_cache_store: ICacheStore | None = None
@@ -27,6 +31,7 @@ class LLMSettings(Protocol):
     groq_api_key: SecretStr | None
     llm_model: str
     llm_temperature: float
+    llm_complexity: int
 
 
 def register_groq_model_builder(builder: GroqChatModelBuilder) -> None:
@@ -39,6 +44,18 @@ def reset_groq_model_builder() -> None:
     """Clear the registered Groq builder (for tests)."""
     global _groq_model_builder
     _groq_model_builder = None
+
+
+def register_llm_router(router: LLMRouter) -> None:
+    """Register the wired LLM router (composition root only)."""
+    global _llm_router
+    _llm_router = router
+
+
+def reset_llm_router() -> None:
+    """Clear the registered LLM router (for tests)."""
+    global _llm_router
+    _llm_router = None
 
 
 def register_chat_model_builder(builder: ChatModelBuilder) -> None:
@@ -106,10 +123,14 @@ def create_chat_model(
         if _groq_model_builder is None:
             msg = "Groq model builder has not been registered"
             raise RuntimeError(msg)
-        return _groq_model_builder(
-            settings.groq_api_key,
-            spec["id"],
-            resolved_temperature,
+        if _llm_router is None:
+            msg = "LLM router has not been registered"
+            raise RuntimeError(msg)
+        _llm_router.set_temperature(resolved_temperature)
+        return RoutingChatModel(
+            _llm_router,
+            default_complexity=LLMComplexity(settings.llm_complexity),
+            preferred_model_id=spec["id"],
         )
 
     msg = f"Unsupported language model provider: {spec['provider']}"
