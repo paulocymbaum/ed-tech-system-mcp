@@ -2,19 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 _pending_llm_io: dict[str, Any] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class LlmTraceRecord:
-    """Prompts and raw model text for one generation node invocation."""
-
-    system_prompt: str
-    user_prompt: str
-    raw_output: str
 
 
 def reset_llm_trace_capture() -> None:
@@ -28,10 +18,14 @@ def record_llm_invocation(
     system_prompt: str,
     user_prompt: str,
     raw_output: str,
+    model_name: str,
+    llm_complexity: int,
 ) -> None:
     """Store LLM I/O for attachment to the next workflow trace step."""
     global _pending_llm_io
     _pending_llm_io = {
+        "model_name": model_name,
+        "llm_complexity": llm_complexity,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "raw_output": raw_output,

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchWorkflows, type WorkflowGraph, type WorkflowTraceStep } from "./api/workflows";
 import { WorkflowGraphView } from "./components/WorkflowGraphView";
-import { WorkflowRunPanel } from "./components/WorkflowRunPanel";
+import { WorkflowRunPanel, type WorkflowRunOutcome } from "./components/WorkflowRunPanel";
+import { WorkflowRunSummary } from "./components/WorkflowRunSummary";
 import { WorkflowStepInspector } from "./components/WorkflowStepInspector";
 import { WorkflowTraceReplay } from "./components/WorkflowTraceReplay";
+import type { ContentRunMeta } from "./lib/traceAnalytics";
 import "./App.css";
 
 export default function App() {
@@ -14,6 +16,7 @@ export default function App() {
   const [runError, setRunError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [trace, setTrace] = useState<WorkflowTraceStep[]>([]);
+  const [runMeta, setRunMeta] = useState<ContentRunMeta | null>(null);
   const [activeStep, setActiveStep] = useState<WorkflowTraceStep | null>(null);
   const [activeNodeAttempts, setActiveNodeAttempts] = useState<Record<string, number>>({});
 
@@ -46,6 +49,11 @@ export default function App() {
   }, []);
 
   const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedId) ?? null;
+
+  const handleRunComplete = useCallback((outcome: WorkflowRunOutcome) => {
+    setTrace(outcome.trace);
+    setRunMeta(outcome.runMeta);
+  }, []);
 
   const handleActiveStepChange = useCallback(
     (step: WorkflowTraceStep | null, attempts: Record<string, number>) => {
@@ -82,6 +90,7 @@ export default function App() {
                   onClick={() => {
                     setSelectedId(workflow.id);
                     setTrace([]);
+                    setRunMeta(null);
                     setActiveStep(null);
                     setActiveNodeAttempts({});
                     setRunError(null);
@@ -105,12 +114,14 @@ export default function App() {
               </div>
               <WorkflowRunPanel
                 workflow={selectedWorkflow}
-                onTrace={setTrace}
+                onRunComplete={handleRunComplete}
                 onError={setRunError}
               />
               {runError && <p className="error run-error">{runError}</p>}
+              <WorkflowRunSummary trace={trace} runMeta={runMeta} />
               <WorkflowGraphView
                 workflow={selectedWorkflow}
+                trace={trace}
                 activeStep={activeStep}
                 activeNodeAttempts={activeNodeAttempts}
               />

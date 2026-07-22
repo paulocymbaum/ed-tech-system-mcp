@@ -47,7 +47,7 @@ entrypoint  →  interface  →  application  →  domain  ←  infrastructure
 | **infrastructure** | `infrastructure/` | Supabase, search, YouTube, Redis adapters |
 | **entrypoint** | `main.py`, `settings.py`, `wiring.py` | Bootstrap, settings, dependency injection |
 
-**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) for layer rules, patterns, and anti-patterns. [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) for LLM wiring, tool taxonomy, and agent flows.
+**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) for layer rules, patterns, and anti-patterns. [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) for LLM wiring, tool taxonomy, and agent flows. [OBSERVABILITY.md](./OBSERVABILITY.md) for the local LangGraph workflow UI, execution replay, and trace debugging.
 
 ## Quick start
 
@@ -100,6 +100,8 @@ Local dev UI for inspecting workflow graphs:
 ```
 
 API: `http://127.0.0.1:8877` (default) · React dev server: `http://127.0.0.1:4173`
+
+See [OBSERVABILITY.md](./OBSERVABILITY.md) for graph replay, node I/O inspection, and trace API details.
 
 ## Development
 
