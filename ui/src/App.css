@@ -145,12 +145,336 @@ button {
 
 .graph-panel {
   flex: 1;
-  min-height: 520px;
-  margin: 1rem 1.5rem 1.5rem;
+  min-height: 420px;
+  margin: 0 1.5rem;
   border: 1px solid #334155;
   border-radius: 18px;
   overflow: hidden;
   background: #0b1220;
+}
+
+/* React Flow dark theme overrides */
+.graph-panel .react-flow {
+  background: #0b1220;
+}
+
+.graph-panel .react-flow__node {
+  border: none;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.graph-panel .react-flow__node-default,
+.graph-panel .react-flow__node-input,
+.graph-panel .react-flow__node-output {
+  background: transparent !important;
+  border: none !important;
+  color: inherit !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.graph-panel .workflow-node {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  border-radius: 12px;
+  border: 1px solid #38bdf8;
+  background: #1e293b;
+  color: #f8fafc;
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.45);
+}
+
+.graph-panel .workflow-node__label {
+  color: inherit;
+}
+
+.graph-panel .workflow-node--start {
+  border-radius: 999px;
+  background: #14532d;
+  border-color: #22c55e;
+  color: #ecfdf5;
+}
+
+.graph-panel .workflow-node--end {
+  border-radius: 999px;
+  background: #7f1d1d;
+  border-color: #ef4444;
+  color: #fef2f2;
+}
+
+.graph-panel .workflow-node--active {
+  background: #1d4ed8;
+  border-color: #60a5fa;
+  color: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.35);
+}
+
+.graph-panel .workflow-node--failed {
+  background: #7f1d1d;
+  border-color: #f87171;
+  color: #fef2f2;
+}
+
+.graph-panel .workflow-node--retry {
+  background: #78350f;
+  border-color: #fbbf24;
+  color: #fffbeb;
+}
+
+.graph-panel .react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+.graph-panel .react-flow__edge-path,
+.graph-panel .react-flow__connection-path {
+  stroke-width: 2;
+}
+
+.graph-panel .workflow-handle {
+  width: 7px;
+  height: 7px;
+  background: #cbd5e1;
+  border: 1px solid #f8fafc;
+  opacity: 0.85;
+}
+
+.graph-panel .workflow-handle--target {
+  background: #38bdf8;
+}
+
+.graph-panel .react-flow__edge-text {
+  fill: #f8fafc !important;
+}
+
+.graph-panel .react-flow__edge-textbg {
+  fill: #1e293b !important;
+}
+
+.graph-panel .react-flow__controls {
+  background: #1e293b;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.5);
+}
+
+.graph-panel .react-flow__controls-button {
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  fill: #e2e8f0;
+  color: #e2e8f0;
+}
+
+.graph-panel .react-flow__controls-button:hover {
+  background: #334155;
+}
+
+.graph-panel .react-flow__controls-button svg {
+  fill: #e2e8f0;
+}
+
+.graph-panel .react-flow__minimap {
+  background: #0f172a;
+  border: 1px solid #475569;
+}
+
+.graph-panel .react-flow__attribution {
+  background: rgba(15, 23, 42, 0.85);
+  color: #94a3b8;
+}
+
+.graph-panel .react-flow__attribution a {
+  color: #7dd3fc;
+}
+
+.run-panel,
+.trace-panel {
+  margin: 1rem 1.5rem 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #111827;
+}
+
+.run-panel h3,
+.trace-panel h3,
+.trace-header h3 {
+  margin: 0 0 0.75rem;
+}
+
+.run-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.run-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.run-form input {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.run-button {
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #38bdf8;
+  background: #0c4a6e;
+  color: #e0f2fe;
+  cursor: pointer;
+}
+
+.run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.run-error {
+  margin: 0.75rem 1.5rem 0;
+}
+
+.trace-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.trace-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.trace-controls button,
+.trace-item-button {
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.trace-controls button {
+  padding: 0.35rem 0.7rem;
+}
+
+.trace-progress {
+  margin: 0 0 0.75rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.trace-item {
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0b1220;
+}
+
+.trace-item.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.trace-item-button {
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.trace-item-title {
+  font-weight: 600;
+}
+
+.trace-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trace-status-ok {
+  color: #4ade80;
+}
+
+.trace-status-failed {
+  color: #f87171;
+}
+
+.trace-status-retry {
+  color: #fbbf24;
+}
+
+.trace-meta,
+.trace-errors {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.trace-errors {
+  color: #fca5a5;
+}
+
+.trace-panel {
+  margin-bottom: 1rem;
+}
+
+.inspector-panel {
+  margin: 0 1.5rem 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #111827;
+}
+
+.inspector-panel h3,
+.inspector-panel h4 {
+  margin: 0 0 0.75rem;
+}
+
+.inspector-block + .inspector-block {
+  margin-top: 1rem;
+}
+
+.inspector-pre {
+  margin: 0;
+  padding: 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #020617;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow: auto;
+  max-height: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .empty-state,

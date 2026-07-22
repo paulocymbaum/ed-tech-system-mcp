@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from typing import NotRequired, TypedDict, cast
+from typing import Any, NotRequired, TypedDict
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RetryPolicy
 
+from mcp_server.application.agents.content_generation.graph import (
+    get_content_generation_graph,
+    reset_content_generation_graph_cache,
+)
 from mcp_server.application.workflow_config import (
     DEFAULT_WORKFLOW_EXECUTION_CONFIG,
     WorkflowExecutionConfig,
@@ -176,17 +180,17 @@ def workflow_timeout_seconds() -> float:
 
 
 async def ainvoke_with_workflow_timeout(
-    graph: DocumentVideoGraph,
-    state: DocumentVideoState,
+    graph: CompiledStateGraph[Any, Any, Any],
+    state: Any,
     *,
     config: RunnableConfig | None = None,
-) -> DocumentVideoState:
+) -> Any:
     """Invoke a compiled graph with the configured workflow timeout."""
     result = await asyncio.wait_for(
         graph.ainvoke(state, config=config),
         timeout=workflow_timeout_seconds(),
     )
-    return cast(DocumentVideoState, result)
+    return result
 
 
 def initial_document_video_state(
@@ -204,6 +208,11 @@ def initial_document_video_state(
         document_count=0,
         video_count=0,
     )
+
+
+def get_document_video_graph() -> DocumentVideoGraph:
+    """Return the memoized document-video graph."""
+    return _get_compiled_graph()
 
 
 async def run_document_video_graph(
@@ -241,6 +250,15 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             ),
             graph=_get_compiled_graph(),
         ),
+        RegisteredWorkflow(
+            id="content-generation",
+            name="Lesson → Quiz + PBL",
+            description=(
+                "Generate a structured lesson with Groq, then derive a quiz and "
+                "problem-based learning project with validation retries and model fallback."
+            ),
+            graph=get_content_generation_graph(),
+        ),
     ]
 
 
@@ -257,3 +275,4 @@ def reset_registered_workflows_cache() -> None:
     global _REGISTERED_WORKFLOWS
     _REGISTERED_WORKFLOWS = None
     reset_compiled_graph_cache()
+    reset_content_generation_graph_cache()
