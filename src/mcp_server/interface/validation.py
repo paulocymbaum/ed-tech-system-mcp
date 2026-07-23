@@ -237,6 +237,7 @@ class RagValidationDocumentDefaults(BaseModel):
     document_text: str
     query: str
     expected_phrases: list[str]
+    suggested_hyperparameters: dict[str, str | int | bool] | None = None
 
 
 class RagValidationRunResponse(BaseModel):

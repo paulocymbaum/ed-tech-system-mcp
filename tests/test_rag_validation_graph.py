@@ -146,6 +146,47 @@ async def test_rag_validation_retrieve_limit_changes_phrase_coverage() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rag_validation_graph_skips_reindex_when_content_hash_matches() -> None:
+    class _HashAwareWriter(RecordingIndexWriter):
+        def __init__(self) -> None:
+            super().__init__()
+            self.content_hash = "stale"
+
+        async def get_document_content_hash(self, document_id: str) -> str | None:
+            _ = document_id
+            return self.content_hash
+
+        async def upsert_document(self, **kwargs: object) -> None:
+            content_hash = kwargs.get("content_hash")
+            if isinstance(content_hash, str):
+                self.content_hash = content_hash
+
+    from mcp_server.application.agents.rag_validation.fixture import load_default_document_text
+    import hashlib
+
+    writer = _HashAwareWriter()
+    document_text = load_default_document_text()
+    writer.content_hash = hashlib.sha256(document_text.strip().encode("utf-8")).hexdigest()
+    retriever = FixtureAwareRetriever(writer)
+    set_chunking_strategy(FakeChunkingStrategy())
+    set_embedding_provider(FakeEmbeddingProvider())
+    set_vector_index_writer(writer)
+    set_vector_retriever(retriever)
+    set_reranker(NoOpReranker())
+
+    state = await run_rag_validation_graph(
+        "How does photosynthesis convert light energy?",
+        document_text=document_text,
+        retrieval_mode="vector",
+        rerank_enabled=False,
+    )
+
+    assert state.get("index_skipped") is True
+    assert state["index_complete"] is True
+    assert len(writer.chunks) == 0
+
+
+@pytest.mark.asyncio
 async def test_rag_validation_graph_end_to_end_with_mocked_ports() -> None:
     writer = RecordingIndexWriter()
     retriever = FixtureAwareRetriever(writer)

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from mcp_server.domain.schemas import ChunkHit
 
 ScoreKind = Literal["cosine", "rrf", "reranker"]
 RetrievalMode = Literal["vector", "hybrid"]
+
+# Minimum cosine similarity (query embedding vs passage embedding) to count a chunk as
+# semantically relevant to the gold answer when computing precision@k.
+DEFAULT_GOLD_SEMANTIC_PRECISION_THRESHOLD = 0.55
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +67,10 @@ class RagBenchmarkScores:
     expected_phrase_count: int
     matched_phrase_count: int
     retrieved_chunk_count: int
+    gold_semantic_relevance: float = 0.0
+    mean_gold_semantic_relevance: float = 0.0
+    gold_semantic_precision: float = 0.0
+    gold_semantic_rank_reciprocal: float = 0.0
 
     def as_dict(self) -> dict[str, float | int]:
         return {
@@ -72,7 +81,28 @@ class RagBenchmarkScores:
             "expected_phrase_count": self.expected_phrase_count,
             "matched_phrase_count": self.matched_phrase_count,
             "retrieved_chunk_count": self.retrieved_chunk_count,
+            "gold_semantic_relevance": self.gold_semantic_relevance,
+            "mean_gold_semantic_relevance": self.mean_gold_semantic_relevance,
+            "gold_semantic_precision": self.gold_semantic_precision,
+            "gold_semantic_rank_reciprocal": self.gold_semantic_rank_reciprocal,
         }
+
+    def with_semantic_gold_scores(
+        self,
+        *,
+        gold_semantic_relevance: float,
+        mean_gold_semantic_relevance: float,
+        gold_semantic_precision: float,
+        gold_semantic_rank_reciprocal: float,
+    ) -> RagBenchmarkScores:
+        """Return a copy with semantic gold-answer metrics attached."""
+        return replace(
+            self,
+            gold_semantic_relevance=round(gold_semantic_relevance, 4),
+            mean_gold_semantic_relevance=round(mean_gold_semantic_relevance, 4),
+            gold_semantic_precision=round(gold_semantic_precision, 4),
+            gold_semantic_rank_reciprocal=round(gold_semantic_rank_reciprocal, 4),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +149,48 @@ def resolve_score_kind(
     if retrieval_mode == "hybrid" and hybrid_fts_active:
         return "rrf"
     return "cosine"
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    """Cosine similarity between two L2-normalized or arbitrary vectors."""
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right, strict=True))
+    left_norm = math.sqrt(sum(a * a for a in left))
+    right_norm = math.sqrt(sum(b * b for b in right))
+    if left_norm == 0.0 or right_norm == 0.0:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+def compute_semantic_gold_benchmarks(
+    *,
+    gold_embedding: list[float],
+    chunk_embeddings: list[list[float]],
+    relevance_threshold: float = DEFAULT_GOLD_SEMANTIC_PRECISION_THRESHOLD,
+) -> tuple[float, float, float, float]:
+    """Compute semantic relevance and precision vs a gold-answer embedding.
+
+    Returns:
+        (max_relevance, mean_relevance, precision_at_k, rank_reciprocal)
+    """
+    if not gold_embedding or not chunk_embeddings:
+        return 0.0, 0.0, 0.0, 0.0
+
+    similarities = [cosine_similarity(gold_embedding, vector) for vector in chunk_embeddings]
+    max_relevance = max(similarities)
+    mean_relevance = sum(similarities) / len(similarities)
+    relevant_count = sum(1 for value in similarities if value >= relevance_threshold)
+    precision = relevant_count / len(similarities)
+
+    best_rank: int | None = None
+    for index, value in enumerate(similarities, start=1):
+        if value >= relevance_threshold:
+            best_rank = index
+            break
+    rank_reciprocal = 1.0 / best_rank if best_rank is not None else 0.0
+
+    return max_relevance, mean_relevance, precision, rank_reciprocal
 
 
 def _normalize_phrases(phrases: list[str]) -> list[str]:

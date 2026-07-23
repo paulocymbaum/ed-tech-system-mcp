@@ -52,6 +52,18 @@ def _rerank_node_timeout_seconds() -> float:
     return max(base * 3.0, 180.0)
 
 
+def _index_node_timeout_seconds() -> float:
+    """Indexing large documents can exceed the default per-node limit."""
+    base = _node_timeout_seconds()
+    return max(base * 10.0, 300.0)
+
+
+def rag_validation_workflow_timeout_seconds() -> float:
+    """Overall workflow budget — must cover indexing plus retrieval."""
+    workflow = _workflow_runtime_config().workflow_timeout_seconds
+    return max(workflow, _index_node_timeout_seconds() + 120.0)
+
+
 def build_rag_validation_graph() -> RagValidationGraph:
     """Build load document → index → embed → retrieve → [rerank] → merge → validate."""
     graph: StateGraph[RagValidationState, RagValidationState, RagValidationState] = StateGraph(
@@ -69,8 +81,8 @@ def build_rag_validation_graph() -> RagValidationGraph:
     graph.add_node(
         "index_document",
         index_document,
-        retry_policy=read_retry_policy,
-        timeout=node_timeout,
+        retry_policy=RetryPolicy(max_attempts=1),
+        timeout=_index_node_timeout_seconds(),
     )
     graph.add_node(
         "embed_query",
@@ -181,5 +193,9 @@ async def run_rag_validation_graph(
 
     graph = get_rag_validation_graph()
     state = initial_rag_validation_state(query, **kwargs)  # type: ignore[arg-type]
-    result = await ainvoke_with_workflow_timeout(graph, state)
+    result = await ainvoke_with_workflow_timeout(
+        graph,
+        state,
+        timeout_seconds=rag_validation_workflow_timeout_seconds(),
+    )
     return cast(RagValidationState, result)

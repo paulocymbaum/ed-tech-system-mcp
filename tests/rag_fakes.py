@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from mcp_server.domain.interfaces import (
@@ -23,15 +24,25 @@ class FakeEmbeddingProvider(IEmbeddingProvider):
     def dimensions(self) -> int:
         return self._dimensions
 
+    def _embed_text(self, text: str) -> list[float]:
+        vector = [0.0] * self._dimensions
+        for raw in text.lower().split():
+            token = raw.strip("?.!,;:\"'()")
+            if not token or token in _STOPWORDS:
+                continue
+            vector[hash(token) % self._dimensions] += 1.0
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0.0:
+            return [1.0] + [0.0] * (self._dimensions - 1)
+        return [value / norm for value in vector]
+
     async def embed_queries(self, texts: list[str]) -> list[list[float]]:
         self.queries.extend(texts)
-        return [
-            [float(index) / self._dimensions for index in range(self._dimensions)] for _ in texts
-        ]
+        return [self._embed_text(text) for text in texts]
 
     async def embed_passages(self, texts: list[str]) -> list[list[float]]:
         self.passages.extend(texts)
-        return [[1.0] + [0.0] * (self._dimensions - 1) for _ in texts]
+        return [self._embed_text(text) for text in texts]
 
 
 class FakeVectorRetriever(IVectorRetriever):

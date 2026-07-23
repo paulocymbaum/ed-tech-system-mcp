@@ -6,6 +6,8 @@ from mcp_server.domain.rag_benchmarks import (
     build_retrieval_haystack,
     compute_rag_benchmarks,
     compute_retrieval_proxy_metrics,
+    compute_semantic_gold_benchmarks,
+    cosine_similarity,
     missing_expected_phrases,
     partition_phrase_matches,
     resolve_score_kind,
@@ -21,6 +23,29 @@ def _chunk(content: str, *, score: float = 0.9, rank: int = 0) -> ChunkHit:
         content=content,
         score=score,
     )
+
+
+def test_compute_semantic_gold_benchmarks_reports_relevance_and_precision() -> None:
+    gold = [1.0, 0.0]
+    chunks = [
+        [1.0, 0.0],
+        [0.7, 0.7141428],
+        [0.0, 1.0],
+    ]
+    max_rel, mean_rel, precision, rank_reciprocal = compute_semantic_gold_benchmarks(
+        gold_embedding=gold,
+        chunk_embeddings=chunks,
+        relevance_threshold=0.75,
+    )
+    assert max_rel == 1.0
+    assert round(mean_rel, 2) == 0.57
+    assert precision == 1 / 3
+    assert rank_reciprocal == 1.0
+
+
+def test_cosine_similarity_returns_zero_for_empty_vectors() -> None:
+    assert cosine_similarity([], [1.0]) == 0.0
+    assert cosine_similarity([1.0, 0.0], [0.0, 0.0]) == 0.0
 
 
 def test_compute_rag_benchmarks_perfect_coverage() -> None:
@@ -187,4 +212,8 @@ def test_rag_benchmark_scores_as_dict_keys() -> None:
         "expected_phrase_count",
         "matched_phrase_count",
         "retrieved_chunk_count",
+        "gold_semantic_relevance",
+        "mean_gold_semantic_relevance",
+        "gold_semantic_precision",
+        "gold_semantic_rank_reciprocal",
     }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { fetchBenchmarks, type BenchmarkSummary } from "./api/benchmarks";
 import { fetchWorkflows, type WorkflowGraph, type WorkflowTraceStep } from "./api/workflows";
+import { BenchmarkRunPanel } from "./components/BenchmarkRunPanel";
 import { WorkflowGraphView } from "./components/WorkflowGraphView";
 import { RagBenchmarkDashboard } from "./components/RagBenchmarkDashboard";
 import { WorkflowRunPanel, type RagValidationRunMeta, type WorkflowRunOutcome } from "./components/WorkflowRunPanel";
@@ -8,18 +10,24 @@ import { WorkflowRunSummary } from "./components/WorkflowRunSummary";
 import { WorkflowStepInspector } from "./components/WorkflowStepInspector";
 import { WorkflowTraceReplay } from "./components/WorkflowTraceReplay";
 import type { ContentRunMeta } from "./lib/traceAnalytics";
+import type { RagWorkflowRunMeta } from "./lib/ragBenchmarks";
 import "./App.css";
 
+type AppSegment = "workflows" | "benchmarks";
+
 export default function App() {
+  const [segment, setSegment] = useState<AppSegment>("workflows");
   const [workflows, setWorkflows] = useState<WorkflowGraph[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkSummary[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [trace, setTrace] = useState<WorkflowTraceStep[]>([]);
   const [runMeta, setRunMeta] = useState<ContentRunMeta | null>(null);
   const [ragValidation, setRagValidation] = useState<RagValidationRunMeta | null>(null);
-  const [ragRun, setRagRun] = useState<WorkflowRunOutcome["ragRun"]>(null);
+  const [ragRun, setRagRun] = useState<RagWorkflowRunMeta | null>(null);
   const [activeStep, setActiveStep] = useState<WorkflowTraceStep | null>(null);
   const [activeNodeAttempts, setActiveNodeAttempts] = useState<Record<string, number>>({});
 
@@ -28,12 +36,17 @@ export default function App() {
 
     async function load() {
       try {
-        const data = await fetchWorkflows();
+        const [workflowData, benchmarkData] = await Promise.all([
+          fetchWorkflows(),
+          fetchBenchmarks(),
+        ]);
         if (cancelled) {
           return;
         }
-        setWorkflows(data);
-        setSelectedId(data[0]?.id ?? null);
+        setWorkflows(workflowData);
+        setBenchmarks(benchmarkData);
+        setSelectedWorkflowId(workflowData[0]?.id ?? null);
+        setSelectedBenchmarkId(benchmarkData[0]?.id ?? null);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Unknown error");
@@ -51,9 +64,21 @@ export default function App() {
     };
   }, []);
 
-  const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedId) ?? null;
+  const selectedWorkflow = workflows.find((workflow) => workflow.id === selectedWorkflowId) ?? null;
+  const selectedBenchmark =
+    benchmarks.find((benchmark) => benchmark.id === selectedBenchmarkId) ?? null;
 
-  const handleRunComplete = useCallback((outcome: WorkflowRunOutcome) => {
+  const resetRunState = useCallback(() => {
+    setTrace([]);
+    setRunMeta(null);
+    setRagValidation(null);
+    setRagRun(null);
+    setActiveStep(null);
+    setActiveNodeAttempts({});
+    setRunError(null);
+  }, []);
+
+  const handleWorkflowRunComplete = useCallback((outcome: WorkflowRunOutcome) => {
     setTrace(outcome.trace);
     setRunMeta(outcome.runMeta);
     setRagValidation(outcome.ragValidation);
@@ -75,7 +100,7 @@ export default function App() {
           <p className="eyebrow">Local development only</p>
           <h1>LangGraph Workflow Explorer</h1>
           <p className="subtitle">
-            Inspect graphs, run workflows, and replay node execution with validation retries.
+            Inspect graphs, run workflows, replay node execution, and run streamed benchmarks.
           </p>
         </div>
         <div className="status-pill">127.0.0.1</div>
@@ -83,70 +108,138 @@ export default function App() {
 
       <main className="app-main">
         <aside className="sidebar">
-          <h2>Workflows</h2>
-          {loading && <p className="muted">Loading workflows…</p>}
-          {error && <p className="error">{error}</p>}
-          <ul className="workflow-list">
-            {workflows.map((workflow) => (
-              <li key={workflow.id}>
-                <button
-                  type="button"
-                  className={workflow.id === selectedId ? "workflow-card active" : "workflow-card"}
-                  onClick={() => {
-                    setSelectedId(workflow.id);
-                    setTrace([]);
-                    setRunMeta(null);
-                    setRagValidation(null);
-                    setRagRun(null);
-                    setActiveStep(null);
-                    setActiveNodeAttempts({});
-                    setRunError(null);
-                  }}
-                >
-                  <span className="workflow-name">{workflow.name}</span>
-                  <span className="workflow-meta">{workflow.framework}</span>
-                  <span className="workflow-description">{workflow.description}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <nav className="segment-nav" aria-label="Primary navigation">
+            <button
+              type="button"
+              className={segment === "workflows" ? "segment-nav__button active" : "segment-nav__button"}
+              onClick={() => {
+                setSegment("workflows");
+                resetRunState();
+              }}
+            >
+              Workflows
+            </button>
+            <button
+              type="button"
+              className={segment === "benchmarks" ? "segment-nav__button active" : "segment-nav__button"}
+              onClick={() => {
+                setSegment("benchmarks");
+                resetRunState();
+              }}
+            >
+              Benchmarks
+            </button>
+          </nav>
+
+          {segment === "workflows" ? (
+            <>
+              <h2>Workflows</h2>
+              {loading && <p className="muted">Loading workflows…</p>}
+              {error && <p className="error">{error}</p>}
+              <ul className="workflow-list">
+                {workflows.map((workflow) => (
+                  <li key={workflow.id}>
+                    <button
+                      type="button"
+                      className={
+                        workflow.id === selectedWorkflowId ? "workflow-card active" : "workflow-card"
+                      }
+                      onClick={() => {
+                        setSelectedWorkflowId(workflow.id);
+                        resetRunState();
+                      }}
+                    >
+                      <span className="workflow-name">{workflow.name}</span>
+                      <span className="workflow-meta">{workflow.framework}</span>
+                      <span className="workflow-description">{workflow.description}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <>
+              <h2>Benchmarks</h2>
+              {loading && <p className="muted">Loading benchmarks…</p>}
+              {error && <p className="error">{error}</p>}
+              <ul className="workflow-list">
+                {benchmarks.map((benchmark) => (
+                  <li key={benchmark.id}>
+                    <button
+                      type="button"
+                      className={
+                        benchmark.id === selectedBenchmarkId ? "workflow-card active" : "workflow-card"
+                      }
+                      onClick={() => {
+                        setSelectedBenchmarkId(benchmark.id);
+                        resetRunState();
+                      }}
+                    >
+                      <span className="workflow-name">{benchmark.name}</span>
+                      <span className="workflow-meta">{benchmark.workflow_id}</span>
+                      <span className="workflow-description">{benchmark.description}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </aside>
 
         <section className="canvas">
-          {selectedWorkflow ? (
+          {segment === "workflows" ? (
+            selectedWorkflow ? (
+              <>
+                <div className="canvas-header">
+                  <h2>{selectedWorkflow.name}</h2>
+                  <p>{selectedWorkflow.description}</p>
+                </div>
+                <WorkflowRunPanel
+                  workflow={selectedWorkflow}
+                  onRunComplete={handleWorkflowRunComplete}
+                  onError={setRunError}
+                />
+                {runError && <p className="error run-error">{runError}</p>}
+                <RagBenchmarkDashboard
+                  workflowId={selectedWorkflow.id}
+                  trace={trace}
+                  ragRun={ragRun}
+                />
+                <WorkflowRunSummary trace={trace} runMeta={runMeta} ragValidation={ragValidation} />
+                <WorkflowGraphView
+                  workflow={selectedWorkflow}
+                  trace={trace}
+                  activeStep={activeStep}
+                  activeNodeAttempts={activeNodeAttempts}
+                />
+                <WorkflowTraceReplay
+                  trace={trace}
+                  nodeGroups={selectedWorkflow.node_groups ?? []}
+                  onActiveStepChange={handleActiveStepChange}
+                />
+                <WorkflowStepInspector step={activeStep} />
+              </>
+            ) : (
+              <div className="empty-state">
+                <p>No workflow selected.</p>
+              </div>
+            )
+          ) : selectedBenchmark ? (
             <>
               <div className="canvas-header">
-                <h2>{selectedWorkflow.name}</h2>
-                <p>{selectedWorkflow.description}</p>
+                <h2>{selectedBenchmark.name}</h2>
+                <p>{selectedBenchmark.description}</p>
               </div>
-              <WorkflowRunPanel
-                workflow={selectedWorkflow}
-                onRunComplete={handleRunComplete}
+              <BenchmarkRunPanel
+                key={selectedBenchmark.id}
+                benchmark={selectedBenchmark}
                 onError={setRunError}
               />
               {runError && <p className="error run-error">{runError}</p>}
-              <RagBenchmarkDashboard
-                workflowId={selectedWorkflow.id}
-                trace={trace}
-                ragRun={ragRun}
-              />
-              <WorkflowRunSummary trace={trace} runMeta={runMeta} ragValidation={ragValidation} />
-              <WorkflowGraphView
-                workflow={selectedWorkflow}
-                trace={trace}
-                activeStep={activeStep}
-                activeNodeAttempts={activeNodeAttempts}
-              />
-              <WorkflowTraceReplay
-                trace={trace}
-                nodeGroups={selectedWorkflow.node_groups ?? []}
-                onActiveStepChange={handleActiveStepChange}
-              />
-              <WorkflowStepInspector step={activeStep} />
             </>
           ) : (
             <div className="empty-state">
-              <p>No workflow selected.</p>
+              <p>No benchmark selected.</p>
             </div>
           )}
         </section>

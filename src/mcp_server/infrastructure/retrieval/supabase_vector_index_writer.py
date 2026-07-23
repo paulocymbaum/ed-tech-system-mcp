@@ -55,6 +55,25 @@ class SupabaseVectorIndexWriter(IVectorIndexWriter):
             lambda: client.table("documents").upsert(row, on_conflict="id").execute(),
         )
 
+    async def get_document_content_hash(self, document_id: str) -> str | None:
+        client = self._client_or_create()
+
+        def _fetch() -> str | None:
+            response = (
+                client.table("documents")
+                .select("content_hash")
+                .eq("id", document_id)
+                .limit(1)
+                .execute()
+            )
+            rows = response.data or []
+            if not rows:
+                return None
+            raw_hash = rows[0].get("content_hash")
+            return str(raw_hash) if raw_hash else None
+
+        return await asyncio.to_thread(_fetch)
+
     async def upsert_chunks(
         self,
         chunks: list[TextChunk],

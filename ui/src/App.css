@@ -86,6 +86,156 @@ button {
   margin: 0 0 0.75rem;
 }
 
+.segment-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.segment-nav__button {
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.segment-nav__button.active {
+  border-color: #38bdf8;
+  color: #e2e8f0;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.benchmark-run-panel {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.benchmark-run-panel__header h3 {
+  margin: 0.25rem 0 0.35rem;
+}
+
+.benchmark-progress {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0f172a;
+}
+
+.benchmark-progress__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.benchmark-progress__stage {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #38bdf8;
+}
+
+.benchmark-progress__percent {
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+.benchmark-progress__track {
+  height: 10px;
+  border-radius: 999px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.benchmark-progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  transition: width 0.45s ease;
+}
+
+.benchmark-progress--complete .benchmark-progress__fill {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.benchmark-progress--error .benchmark-progress__fill {
+  background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.benchmark-progress__message {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.benchmark-progress--error .benchmark-progress__message {
+  color: #fca5a5;
+}
+
+.dataset-scenario-list__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dataset-scenario-list__items li {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.dataset-benchmark-results {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0f172a;
+}
+
+.dataset-benchmark-results h4 {
+  margin: 0;
+}
+
+.dataset-benchmark-results__table-wrap {
+  overflow-x: auto;
+}
+
+.dataset-benchmark-results table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.dataset-benchmark-results th,
+.dataset-benchmark-results td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #1e293b;
+  text-align: left;
+  vertical-align: top;
+}
+
+.dataset-benchmark-results th {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
 .workflow-list {
   list-style: none;
   margin: 0;
