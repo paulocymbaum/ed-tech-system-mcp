@@ -5,15 +5,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from mcp_server.domain.rag_hyperparameters import OptimizedRagHyperparameters
+
 FIXTURE_DOCUMENT_ID = "00000000-0000-4000-8000-000000000001"
 FIXTURE_TITLE = "RAG Validation Fixture — Photosynthesis"
 DEFAULT_QUERY = "How does photosynthesis convert light energy?"
 DEFAULT_EXPECTED_PHRASES = ("chlorophyll", "light-dependent reactions", "glucose")
 
-_REPO_ROOT = Path(__file__).resolve().parents[5]
-FIXTURE_DIR = _REPO_ROOT / "fixtures" / "rag_validation"
+
+def resolve_repo_root() -> Path:
+    """Return the repository root directory."""
+    return Path(__file__).resolve().parents[5]
+
+
+FIXTURE_DIR = resolve_repo_root() / "fixtures" / "rag_validation"
 DEFAULT_CORPUS_PATH = FIXTURE_DIR / "corpus.md"
 EXPECTED_PHRASES_PATH = FIXTURE_DIR / "expected_phrases.json"
+OPTIMIZED_HYPERPARAMETERS_PATH = FIXTURE_DIR / "optimized_hyperparameters.json"
+OPTIMIZATION_REPORT_PATH = FIXTURE_DIR / "optimization_report.json"
 
 
 def resolve_fixture_path(path: str | None = None) -> Path:
@@ -22,7 +31,7 @@ def resolve_fixture_path(path: str | None = None) -> Path:
         return DEFAULT_CORPUS_PATH
     candidate = Path(path)
     if not candidate.is_absolute():
-        candidate = _REPO_ROOT / candidate
+        candidate = resolve_repo_root() / candidate
     return candidate
 
 
@@ -33,12 +42,16 @@ def load_default_document_text() -> str:
 
 def default_document_defaults() -> dict[str, object]:
     """Defaults for the local UI document editor."""
-    return {
+    defaults: dict[str, object] = {
         "document_title": FIXTURE_TITLE,
         "document_text": load_default_document_text(),
         "query": DEFAULT_QUERY,
         "expected_phrases": load_expected_phrases(),
     }
+    optimized = load_optimized_hyperparameters()
+    if optimized is not None:
+        defaults["suggested_hyperparameters"] = optimized.hyperparameters.as_dict()
+    return defaults
 
 
 def resolve_document_text(
@@ -66,3 +79,41 @@ def load_expected_phrases(custom: list[str] | None = None) -> list[str]:
         if isinstance(phrases, list):
             return [str(item).strip() for item in phrases if str(item).strip()]
     return list(DEFAULT_EXPECTED_PHRASES)
+
+
+def resolve_optimized_hyperparameters_path(path: str | Path | None = None) -> Path:
+    """Return the optimized hyperparameters JSON path."""
+    if path is None:
+        return OPTIMIZED_HYPERPARAMETERS_PATH
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = resolve_repo_root() / candidate
+    return candidate
+
+
+def load_optimized_hyperparameters(
+    path: str | Path | None = None,
+) -> OptimizedRagHyperparameters | None:
+    """Load persisted optimized hyperparameters, or None when the file is absent."""
+    target = resolve_optimized_hyperparameters_path(path)
+    if not target.is_file():
+        return None
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        msg = f"Optimized hyperparameters file must contain a JSON object: {target}"
+        raise ValueError(msg)
+    return OptimizedRagHyperparameters.from_dict(payload)
+
+
+def save_optimized_hyperparameters(
+    result: OptimizedRagHyperparameters,
+    path: str | Path | None = None,
+) -> Path:
+    """Persist optimized hyperparameters to the bundled fixture path by default."""
+    target = resolve_optimized_hyperparameters_path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(result.as_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return target

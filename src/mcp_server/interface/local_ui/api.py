@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from mcp_server.application.agent import (
@@ -28,6 +29,7 @@ from mcp_server.application.agents.rag_retrieval.graph import (
 from mcp_server.application.agents.rag_validation.graph import (
     get_rag_validation_graph,
     initial_rag_validation_state,
+    rag_validation_workflow_timeout_seconds,
 )
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
@@ -41,9 +43,36 @@ from mcp_server.application.agents.youtube_search.graph import (
     get_youtube_search_graph,
     initial_youtube_search_state,
 )
+from mcp_server.application.benchmark_runner import (
+    BenchmarkCompleteEvent,
+    BenchmarkErrorEvent,
+    BenchmarkProgressEvent,
+    BenchmarkStreamEvent,
+    RagOptimizationCompleteEvent,
+    RagOptimizationErrorEvent,
+    RagOptimizationProgressEvent,
+    RagOptimizationStreamEvent,
+    list_benchmarks,
+    stream_benchmark,
+    stream_rag_optimization,
+)
 from mcp_server.application.workflow_graph import WorkflowGraphView, workflow_graph_view
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.rag_hyperparameters import RagHyperparameters
+from mcp_server.interface.local_ui.benchmark_schemas import (
+    BenchmarkCompleteEventView,
+    BenchmarkErrorEventView,
+    BenchmarkProgressEventView,
+    BenchmarkSummaryView,
+    RagBenchmarkRunRequest,
+    RagOptimizationCompleteEventView,
+    RagOptimizationErrorEventView,
+    RagOptimizationProgressEventView,
+    RagOptimizationReportView,
+    RagOptimizationRequest,
+    TestDatasetSummaryView,
+)
 from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation import (
     ContentGenerationRunRequest,
@@ -238,7 +267,7 @@ async def _run_rag_validation_workflow(body: dict[str, object]) -> RagValidation
         result, trace = await invoke_graph_with_trace(
             graph,
             state,
-            timeout_seconds=workflow_timeout_seconds(),
+            timeout_seconds=rag_validation_workflow_timeout_seconds(),
         )
     except ResourceNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -250,6 +279,150 @@ async def _run_rag_validation_workflow(body: dict[str, object]) -> RagValidation
             detail="Workflow execution timed out.",
         ) from exc
     return rag_validation_state_to_run_response(result, trace=trace)
+
+
+def _optimization_event_to_view(event: RagOptimizationStreamEvent) -> dict[str, object]:
+    if isinstance(event, RagOptimizationProgressEvent):
+        return RagOptimizationProgressEventView(
+            stage=event.stage,
+            progress=event.progress,
+            message=event.message,
+            scenario_count=event.scenario_count,
+            combination_index=event.combination_index,
+            combination_total=event.combination_total,
+        ).model_dump()
+    if isinstance(event, RagOptimizationCompleteEvent):
+        return RagOptimizationCompleteEventView(
+            stage="complete",
+            progress=event.progress,
+            message=event.message,
+            report=event.report,
+            optimized_hyperparameters=event.optimized_hyperparameters,
+        ).model_dump()
+    if isinstance(event, RagOptimizationErrorEvent):
+        return RagOptimizationErrorEventView(
+            stage="error",
+            progress=event.progress,
+            message=event.message,
+        ).model_dump()
+    msg = f"Unsupported optimization event type: {type(event)!r}"
+    raise TypeError(msg)
+
+
+async def _rag_optimization_sse_stream(request: RagOptimizationRequest) -> AsyncIterator[str]:
+    baseline = RagHyperparameters(
+        retrieval_mode=request.retrieval_mode,
+        retrieve_limit=request.retrieve_limit,
+        rerank_enabled=request.rerank_enabled,
+        rerank_top_n=request.rerank_top_n,
+    )
+    try:
+        async for event in stream_rag_optimization(
+            max_scenarios=request.max_scenarios,
+            max_combinations=request.max_combinations,
+            baseline=baseline,
+        ):
+            payload = _optimization_event_to_view(event)
+            yield f"data: {json.dumps(payload)}\n\n"
+            if isinstance(event, (RagOptimizationCompleteEvent, RagOptimizationErrorEvent)):
+                return
+    except ValueError as exc:
+        error = RagOptimizationErrorEventView(
+            stage="error",
+            progress=0,
+            message=str(exc),
+        )
+        yield f"data: {json.dumps(error.model_dump())}\n\n"
+
+
+def _benchmark_event_to_view(event: BenchmarkStreamEvent) -> dict[str, object]:
+    if isinstance(event, BenchmarkProgressEvent):
+        return BenchmarkProgressEventView(
+            stage=event.stage,
+            progress=event.progress,
+            message=event.message,
+            step=event.step,
+            total=event.total,
+            node_id=event.node_id,
+            scenario_id=event.scenario_id,
+            scenario_index=event.scenario_index,
+            scenario_total=event.scenario_total,
+        ).model_dump()
+    if isinstance(event, BenchmarkCompleteEvent):
+        result = rag_validation_state_to_run_response(event.state, trace=event.trace)
+        return BenchmarkCompleteEventView(
+            stage="complete",
+            progress=event.progress,
+            message=event.message,
+            result=result,
+            dataset_report=event.dataset_report,
+        ).model_dump()
+    if isinstance(event, BenchmarkErrorEvent):
+        return BenchmarkErrorEventView(
+            stage="error",
+            progress=event.progress,
+            message=event.message,
+        ).model_dump()
+    msg = f"Unsupported benchmark event type: {type(event)!r}"
+    raise TypeError(msg)
+
+
+async def _benchmark_sse_stream(
+    benchmark_id: str,
+    body: dict[str, object],
+) -> AsyncIterator[str]:
+    if benchmark_id == "rag":
+        request = RagBenchmarkRunRequest.model_validate(body)
+        stream_kwargs = {
+            "hyperparameters": RagHyperparameters(
+                retrieval_mode=request.retrieval_mode,
+                retrieve_limit=request.retrieve_limit,
+                rerank_enabled=request.rerank_enabled,
+                rerank_top_n=request.rerank_top_n,
+            ),
+            "max_scenarios": request.max_scenarios,
+        }
+    else:
+        request = RagValidationRunRequest.model_validate(body)
+        stream_kwargs = {
+            "query": request.query,
+            "fixture_path": request.fixture_path,
+            "document_text": request.document_text,
+            "document_title": request.document_title,
+            "expected_phrases": request.expected_phrases,
+            "retrieval_mode": request.retrieval_mode,
+            "retrieve_limit": request.retrieve_limit,
+            "rerank_top_n": request.rerank_top_n,
+            "rerank_enabled": request.rerank_enabled,
+            "course_id": request.course_id,
+            "tags": request.tags,
+            "language": request.language,
+        }
+    try:
+        async for event in stream_benchmark(benchmark_id, **stream_kwargs):
+            payload = _benchmark_event_to_view(event)
+            yield f"data: {json.dumps(payload)}\n\n"
+    except ResourceNotFoundError as exc:
+        error = BenchmarkErrorEventView(
+            stage="error",
+            progress=0,
+            message=str(exc),
+        )
+        yield f"data: {json.dumps(error.model_dump())}\n\n"
+    except ValueError as exc:
+        error = BenchmarkErrorEventView(
+            stage="error",
+            progress=0,
+            message=str(exc),
+        )
+        yield f"data: {json.dumps(error.model_dump())}\n\n"
+    except FileNotFoundError as exc:
+        error = BenchmarkErrorEventView(
+            stage="error",
+            progress=0,
+            message=str(exc),
+        )
+        yield f"data: {json.dumps(error.model_dump())}\n\n"
 
 
 @asynccontextmanager
@@ -298,6 +471,18 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     def list_workflows() -> WorkflowListResponse:
         return list(_workflow_index().values())
 
+    @app.get("/api/benchmarks", response_model=list[BenchmarkSummaryView])
+    def list_benchmark_catalog() -> list[BenchmarkSummaryView]:
+        return [
+            BenchmarkSummaryView(
+                id=item.id,
+                name=item.name,
+                description=item.description,
+                workflow_id=item.workflow_id,
+            )
+            for item in list_benchmarks()
+        ]
+
     @app.get("/api/workflows/{workflow_id}", response_model=WorkflowGraphView)
     def get_workflow(workflow_id: str) -> WorkflowGraphView:
         workflow = _workflow_index().get(workflow_id)
@@ -340,6 +525,67 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
         if workflow_id == "rag-validation":
             return await _run_rag_validation_workflow(body)
         raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found.")
+
+    @app.post("/api/benchmarks/{benchmark_id}/run")
+    async def run_benchmark(benchmark_id: str, body: dict[str, object]) -> StreamingResponse:
+        from mcp_server.application.benchmark_runner import get_benchmark
+
+        if get_benchmark(benchmark_id) is None:
+            raise HTTPException(status_code=404, detail=f"Benchmark '{benchmark_id}' not found.")
+        return StreamingResponse(
+            _benchmark_sse_stream(benchmark_id, body),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.post("/api/benchmarks/rag/optimize")
+    async def optimize_rag_hyperparameters(
+        body: RagOptimizationRequest | None = None,
+    ) -> StreamingResponse:
+        request = body or RagOptimizationRequest()
+        return StreamingResponse(
+            _rag_optimization_sse_stream(request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.get(
+        "/api/benchmarks/rag/optimization-report",
+        response_model=RagOptimizationReportView,
+    )
+    def get_rag_optimization_report() -> RagOptimizationReportView:
+        from mcp_server.application.agents.rag_validation.optimization_report import (
+            load_optimization_report,
+        )
+
+        report = load_optimization_report()
+        if report is None:
+            raise HTTPException(status_code=404, detail="Optimization report not found.")
+        return RagOptimizationReportView.model_validate(report.as_dict())
+
+    @app.get(
+        "/api/benchmarks/rag/test-dataset-summary",
+        response_model=TestDatasetSummaryView,
+    )
+    def get_rag_test_dataset_summary() -> TestDatasetSummaryView:
+        from mcp_server.application.agents.rag_validation.test_dataset_loader import (
+            TestDatasetNotFoundError,
+            summarize_test_dataset,
+        )
+
+        try:
+            summary = summarize_test_dataset()
+        except TestDatasetNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return TestDatasetSummaryView.model_validate(summary.as_dict())
 
     static_dir = Path(__file__).resolve().parents[4] / "ui" / "dist"
     if static_dir.is_dir():

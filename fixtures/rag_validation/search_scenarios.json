@@ -1,0 +1,9 @@
+{
+  "scenarios": [
+    {
+      "name": "default",
+      "query": "How does photosynthesis convert light energy?",
+      "expected_phrases": ["chlorophyll", "light-dependent reactions", "glucose"]
+    }
+  ]
+}

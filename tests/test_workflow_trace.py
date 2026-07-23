@@ -16,7 +16,12 @@ from mcp_server.application.agents.content_generation.graph import (
 )
 from mcp_server.application.llm import reset_chat_model, set_chat_model
 from mcp_server.application.token_counting_runtime import reset_token_counter, set_token_counter
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
+from mcp_server.application.workflow_trace import (
+    GraphStreamComplete,
+    WorkflowTraceStep,
+    invoke_graph_with_trace,
+    stream_graph_with_trace,
+)
 from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
 
 
@@ -143,3 +148,43 @@ async def test_invoke_graph_with_trace_records_retries_and_failures() -> None:
     assert trace[0].input_snapshot["llm_request"]["input_tokens"] > 0
     assert trace[0].output_update["total_tokens"] > 0
     assert trace[0].output_update.get("lesson_validation_errors")
+
+
+async def test_stream_graph_with_trace_yields_steps_then_complete() -> None:
+    set_chat_model(ScriptedContentModel())
+    graph = build_content_generation_graph()
+    state = initial_content_generation_state("fractions", grade_level="6th grade")
+
+    items: list[WorkflowTraceStep | GraphStreamComplete] = []
+    async for item in stream_graph_with_trace(graph, state, timeout_seconds=30.0):
+        items.append(item)
+
+    step_items = [item for item in items if isinstance(item, WorkflowTraceStep)]
+    complete_items = [item for item in items if isinstance(item, GraphStreamComplete)]
+    assert step_items
+    assert len(complete_items) == 1
+    assert items[-1] is complete_items[0]
+
+
+async def test_stream_graph_with_trace_matches_invoke_final_state() -> None:
+    graph = build_content_generation_graph()
+    state = initial_content_generation_state("fractions", grade_level="6th grade")
+
+    set_chat_model(ScriptedContentModel())
+    streamed_state = None
+    streamed_trace: list[WorkflowTraceStep] = []
+    async for item in stream_graph_with_trace(graph, state, timeout_seconds=30.0):
+        if isinstance(item, GraphStreamComplete):
+            streamed_state = item.state
+            streamed_trace = item.trace
+
+    set_chat_model(ScriptedContentModel())
+    invoked_state, invoked_trace = await invoke_graph_with_trace(
+        graph, state, timeout_seconds=30.0
+    )
+
+    assert streamed_state == invoked_state
+    assert len(streamed_trace) == len(invoked_trace)
+    assert [step.node_id for step in streamed_trace] == [
+        step.node_id for step in invoked_trace
+    ]

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -146,3 +148,112 @@ async def invoke_graph_with_trace(
 
     await asyncio.wait_for(_stream(), timeout=timeout_seconds)
     return running_state, steps
+
+
+@dataclass(frozen=True, slots=True)
+class GraphStreamComplete:
+    """Final payload from ``stream_graph_with_trace``."""
+
+    state: Any
+    trace: list[WorkflowTraceStep]
+
+
+async def stream_graph_with_trace(
+    graph: CompiledStateGraph[Any, Any, Any],
+    state: Any,
+    *,
+    timeout_seconds: float,
+) -> AsyncIterator[WorkflowTraceStep | GraphStreamComplete]:
+    """Yield each executed node step, then a final state + trace bundle."""
+    running_state = dict(state)
+    steps: list[WorkflowTraceStep] = []
+    attempts: dict[str, int] = defaultdict(int)
+    reset_llm_trace_capture()
+
+    async def _stream() -> AsyncIterator[WorkflowTraceStep | GraphStreamComplete]:
+        nonlocal running_state
+        step_index = 0
+        async for chunk in graph.astream(state, stream_mode="updates"):
+            step_index += 1
+            node_id, raw_update = next(iter(chunk.items()))
+            update = raw_update if isinstance(raw_update, dict) else None
+            attempts[node_id] += 1
+            input_snapshot = serialize_trace_value(dict(running_state))
+            llm_io = consume_llm_trace()
+            if llm_io is not None:
+                input_snapshot = {
+                    **input_snapshot,
+                    "llm_request": {
+                        "model_name": llm_io.get("model_name"),
+                        "llm_complexity": llm_io.get("llm_complexity"),
+                        "input_tokens": llm_io.get("input_tokens"),
+                        "output_tokens": llm_io.get("output_tokens"),
+                        "total_tokens": llm_io.get("total_tokens"),
+                    },
+                }
+            if update:
+                running_state.update(update)
+            output_update = serialize_trace_value(update or {})
+            if llm_io is not None:
+                output_update = {
+                    **output_update,
+                    "model_name": llm_io.get("model_name"),
+                    "llm_complexity": llm_io.get("llm_complexity"),
+                    "input_tokens": llm_io.get("input_tokens"),
+                    "output_tokens": llm_io.get("output_tokens"),
+                    "total_tokens": llm_io.get("total_tokens"),
+                }
+            step = WorkflowTraceStep(
+                step=step_index,
+                node_id=node_id,
+                status=_step_status(node_id, update),
+                attempt=attempts[node_id],
+                validation_errors=tuple(_validation_errors(update)),
+                retry_counts=_retry_counts(update),
+                input_snapshot=input_snapshot,
+                output_update=output_update,
+                llm_io=llm_io,
+            )
+            steps.append(step)
+            yield step
+
+        yield GraphStreamComplete(state=running_state, trace=steps)
+
+    async for item in _stream_with_timeout(_stream(), timeout_seconds=timeout_seconds):
+        yield item
+
+
+async def _stream_with_timeout[T](
+    iterator: AsyncIterator[T],
+    *,
+    timeout_seconds: float,
+) -> AsyncIterator[T]:
+    queue: asyncio.Queue[T | BaseException | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_seconds
+
+    async def _producer() -> None:
+        try:
+            async for item in iterator:
+                await queue.put(item)
+        except BaseException as exc:
+            await queue.put(exc)
+        finally:
+            await queue.put(None)
+
+    producer = asyncio.create_task(_producer())
+    try:
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise TimeoutError
+            item = await asyncio.wait_for(queue.get(), timeout=remaining)
+            if item is None:
+                break
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        producer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await producer

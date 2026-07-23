@@ -17,6 +17,7 @@ class RagValidationState(RagRetrievalState, total=False):
     expected_phrases: NotRequired[list[str]]
     indexed_chunk_count: NotRequired[int]
     index_complete: NotRequired[bool]
+    index_skipped: NotRequired[bool]
     validation_passed: NotRequired[bool]
     validation_errors: NotRequired[list[str]]
     rag_benchmarks: NotRequired[dict[str, float | int]]

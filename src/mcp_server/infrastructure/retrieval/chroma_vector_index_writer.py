@@ -95,6 +95,22 @@ class ChromaVectorIndexWriter(IVectorIndexWriter):
             metadatas=[metadata],
         )
 
+    async def get_document_content_hash(self, document_id: str) -> str | None:
+        return await asyncio.to_thread(self._get_document_content_hash_sync, document_id)
+
+    def _get_document_content_hash_sync(self, document_id: str) -> str | None:
+        collection = self._documents_collection()
+        result = collection.get(ids=[document_id], include=["metadatas"])
+        ids = result.get("ids") or []
+        if not ids:
+            return None
+        metadatas = result.get("metadatas") or []
+        if not metadatas:
+            return None
+        metadata = metadatas[0] or {}
+        raw_hash = metadata.get("content_hash")
+        return str(raw_hash) if raw_hash else None
+
     async def upsert_chunks(
         self,
         chunks: list[TextChunk],

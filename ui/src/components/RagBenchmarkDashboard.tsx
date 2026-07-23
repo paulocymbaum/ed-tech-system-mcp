@@ -224,11 +224,23 @@ export function RagBenchmarkDashboard({ workflowId, trace, ragRun }: RagBenchmar
   const showRetrieval = hasRetrievalMetrics(data.retrieval);
   const scoreKind =
     data.evaluationContext?.score_kind ?? data.retrieval.score_kind ?? "cosine";
+  const usesSemanticGold =
+    data.quality.gold_semantic_relevance !== undefined ||
+    data.quality.mean_gold_semantic_relevance !== undefined;
   const heroScore = showValidation ? primaryValidationScore(data.quality) : undefined;
-  const heroBand = heroScore === undefined ? "warn" : scoreBand(heroScore, "percent");
-  const heroLabel = showValidation ? "Phrase coverage" : "Retrieval diagnostics";
+  const heroBand =
+    heroScore === undefined
+      ? "warn"
+      : scoreBand(heroScore, usesSemanticGold ? "score" : "percent", usesSemanticGold ? "cosine" : undefined);
+  const heroLabel = showValidation
+    ? usesSemanticGold
+      ? "Gold semantic relevance"
+      : "Phrase coverage"
+    : "Retrieval diagnostics";
   const heroSubtitle =
-    showValidation && data.quality.expected_phrase_count !== undefined
+    showValidation && usesSemanticGold
+      ? `Precision ${formatMetricValue(data.quality.gold_semantic_precision, "percent")} · thresholded cosine vs gold answer`
+      : showValidation && data.quality.expected_phrase_count !== undefined
       ? `${data.quality.matched_phrase_count ?? 0}/${data.quality.expected_phrase_count} phrases matched`
       : data.retrieval.chunk_count !== undefined
         ? `${data.retrieval.chunk_count} chunks · ${scoreKindLabel(scoreKind)}`
@@ -339,13 +351,18 @@ export function RagBenchmarkDashboard({ workflowId, trace, ragRun }: RagBenchmar
 
       {showValidation && (
         <div className="rag-dashboard__section">
-          <h4>Phrase smoke test metrics</h4>
+          <h4>{usesSemanticGold ? "Semantic gold-answer metrics" : "Phrase smoke test metrics"}</h4>
           <div className="rag-dashboard__grid">
             {VALIDATION_METRICS.map((metric) => (
               <MetricBar
                 key={metric.key}
                 metric={metric}
                 value={data.quality[metric.key as keyof typeof data.quality]}
+                scoreKind={
+                  metric.format === "score" || metric.key.startsWith("gold_semantic")
+                    ? "cosine"
+                    : undefined
+                }
               />
             ))}
           </div>

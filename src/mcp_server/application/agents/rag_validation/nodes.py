@@ -12,6 +12,10 @@ from mcp_server.application.agents.rag_validation.fixture import (
     load_expected_phrases,
     resolve_document_text,
 )
+from mcp_server.application.agents.rag_validation.indexing import (
+    embed_passages_in_batches,
+    resolve_indexed_content_hash,
+)
 from mcp_server.application.agents.rag_validation.state import RagValidationState
 from mcp_server.application.retrieval_runtime import (
     get_chunking_strategy,
@@ -79,6 +83,30 @@ async def index_document(state: RagValidationState) -> dict[str, object]:
     if course_id is not None:
         metadata["course_id"] = course_id
 
+    chunks = chunking.chunk(
+        text,
+        document_id=FIXTURE_DOCUMENT_ID,
+        language=language,
+        metadata=metadata,
+    )
+    if not chunks:
+        msg = "Document produced no chunks to index"
+        raise ResourceNotFoundError(msg)
+
+    indexed_hash = await resolve_indexed_content_hash(writer, FIXTURE_DOCUMENT_ID)
+    if indexed_hash == content_hash:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        chunk_size = getattr(chunking, "chunk_size", None)
+        chunk_overlap = getattr(chunking, "chunk_overlap", None)
+        return {
+            "index_complete": True,
+            "index_skipped": True,
+            "indexed_chunk_count": len(chunks),
+            "chunk_size": chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "latency_ms": latency_ms,
+        }
+
     upsert_document = getattr(writer, "upsert_document", None)
     if callable(upsert_document):
         await upsert_document(
@@ -90,17 +118,10 @@ async def index_document(state: RagValidationState) -> dict[str, object]:
             language=language,
         )
 
-    chunks = chunking.chunk(
-        text,
-        document_id=FIXTURE_DOCUMENT_ID,
-        language=language,
-        metadata=metadata,
+    embeddings = await embed_passages_in_batches(
+        embedder,
+        [chunk.content for chunk in chunks],
     )
-    if not chunks:
-        msg = "Document produced no chunks to index"
-        raise ResourceNotFoundError(msg)
-
-    embeddings = await embedder.embed_passages([chunk.content for chunk in chunks])
     await writer.upsert_chunks(chunks, embeddings)
 
     latency_ms = int((time.perf_counter() - started) * 1000)
@@ -108,6 +129,7 @@ async def index_document(state: RagValidationState) -> dict[str, object]:
     chunk_overlap = getattr(chunking, "chunk_overlap", None)
     return {
         "index_complete": True,
+        "index_skipped": False,
         "indexed_chunk_count": len(chunks),
         "chunk_size": chunk_size,
         "chunk_overlap": chunk_overlap,
