@@ -12,7 +12,9 @@ _NO_ANSWER_MARKER = "NO_ANSWER_IN_CORPUS"
 _QUOTED_TITLE_PATTERN = re.compile(r"'([^']{15,})'")
 
 
-def derive_expected_phrases_from_chunk_texts(chunk_texts: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+def derive_expected_phrases_from_chunk_texts(
+    chunk_texts: tuple[str, ...] | list[str],
+) -> tuple[str, ...]:
     """Derive phrase anchors from labeled relevant corpus chunks.
 
     The bundled test-dataset gold answers are abstractive summaries that do not

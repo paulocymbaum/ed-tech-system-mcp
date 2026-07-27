@@ -156,7 +156,10 @@ async def validate_retrieval(state: RagValidationState) -> dict[str, object]:
     validation_errors = [f"Missing expected phrase: {phrase}" for phrase in missing]
     if not chunks and state.get("index_complete"):
         validation_errors = [
-            "Retrieval returned no chunks after indexing — check vector store wiring and embeddings.",
+            (
+                "Retrieval returned no chunks after indexing — "
+                "check vector store wiring and embeddings."
+            ),
             *validation_errors,
         ]
     elif missing and chunks:

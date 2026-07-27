@@ -371,35 +371,37 @@ async def _benchmark_sse_stream(
     benchmark_id: str,
     body: dict[str, object],
 ) -> AsyncIterator[str]:
-    if benchmark_id == "rag":
-        request = RagBenchmarkRunRequest.model_validate(body)
-        stream_kwargs = {
-            "hyperparameters": RagHyperparameters(
-                retrieval_mode=request.retrieval_mode,
-                retrieve_limit=request.retrieve_limit,
-                rerank_enabled=request.rerank_enabled,
-                rerank_top_n=request.rerank_top_n,
-            ),
-            "max_scenarios": request.max_scenarios,
-        }
-    else:
-        request = RagValidationRunRequest.model_validate(body)
-        stream_kwargs = {
-            "query": request.query,
-            "fixture_path": request.fixture_path,
-            "document_text": request.document_text,
-            "document_title": request.document_title,
-            "expected_phrases": request.expected_phrases,
-            "retrieval_mode": request.retrieval_mode,
-            "retrieve_limit": request.retrieve_limit,
-            "rerank_top_n": request.rerank_top_n,
-            "rerank_enabled": request.rerank_enabled,
-            "course_id": request.course_id,
-            "tags": request.tags,
-            "language": request.language,
-        }
     try:
-        async for event in stream_benchmark(benchmark_id, **stream_kwargs):
+        if benchmark_id == "rag":
+            rag_request = RagBenchmarkRunRequest.model_validate(body)
+            event_stream = stream_benchmark(
+                benchmark_id,
+                hyperparameters=RagHyperparameters(
+                    retrieval_mode=rag_request.retrieval_mode,
+                    retrieve_limit=rag_request.retrieve_limit,
+                    rerank_enabled=rag_request.rerank_enabled,
+                    rerank_top_n=rag_request.rerank_top_n,
+                ),
+                max_scenarios=rag_request.max_scenarios,
+            )
+        else:
+            validation_request = RagValidationRunRequest.model_validate(body)
+            event_stream = stream_benchmark(
+                benchmark_id,
+                query=validation_request.query,
+                fixture_path=validation_request.fixture_path,
+                document_text=validation_request.document_text,
+                document_title=validation_request.document_title,
+                expected_phrases=validation_request.expected_phrases,
+                retrieval_mode=validation_request.retrieval_mode,
+                retrieve_limit=validation_request.retrieve_limit,
+                rerank_top_n=validation_request.rerank_top_n,
+                rerank_enabled=validation_request.rerank_enabled,
+                course_id=validation_request.course_id,
+                tags=validation_request.tags,
+                language=validation_request.language,
+            )
+        async for event in event_stream:
             payload = _benchmark_event_to_view(event)
             yield f"data: {json.dumps(payload)}\n\n"
     except ResourceNotFoundError as exc:
