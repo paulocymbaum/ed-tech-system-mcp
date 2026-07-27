@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from mcp_server.application.integration_runtime import get_search_client
 from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.interfaces import ISearchClient
 
 TavilySearchGraph = CompiledStateGraph[
     "TavilySearchState", "TavilySearchState", "TavilySearchState"
@@ -24,7 +25,7 @@ class TavilySearchState(TypedDict):
     result_count: int
 
 
-def _require_search_client():
+def _require_search_client() -> ISearchClient:
     client = get_search_client()
     if client is None:
         raise ResourceNotFoundError("Search client has not been initialized")

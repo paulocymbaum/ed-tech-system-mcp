@@ -13,7 +13,9 @@ SCAN_SECRETS = REPO_ROOT / "scripts/hooks/scan-secrets.sh"
 PRE_COMMIT = REPO_ROOT / "scripts/hooks/pre-commit.sh"
 
 
-def _run_hook_in_repo(repo_dir: Path, hook_script: Path, *staged_paths: str) -> subprocess.CompletedProcess[str]:
+def _run_hook_in_repo(
+    repo_dir: Path, hook_script: Path, *staged_paths: str
+) -> subprocess.CompletedProcess[str]:
     repo_dir.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True, text=True)
     subprocess.run(
@@ -35,7 +37,9 @@ def _run_hook_in_repo(repo_dir: Path, hook_script: Path, *staged_paths: str) -> 
         file_path = repo_dir / relative_path
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text("staged-for-hook-test\n", encoding="utf-8")
-        subprocess.run(["git", "add", relative_path], cwd=repo_dir, check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "add", relative_path], cwd=repo_dir, check=True, capture_output=True, text=True
+        )
 
     return subprocess.run(
         ["bash", str(hook_script)],
@@ -90,7 +94,9 @@ def test_scan_secrets_skips_deleted_staged_files(tmp_path: Path) -> None:
 
     tracked = repo_dir / "tracked.txt"
     tracked.write_text("safe content\n", encoding="utf-8")
-    subprocess.run(["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
     subprocess.run(
         ["git", "commit", "-m", "seed", "--no-verify"],
         cwd=repo_dir,
@@ -100,7 +106,9 @@ def test_scan_secrets_skips_deleted_staged_files(tmp_path: Path) -> None:
     )
 
     tracked.unlink()
-    subprocess.run(["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "add", "tracked.txt"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
 
     result = subprocess.run(
         ["bash", str(SCAN_SECRETS)],

@@ -4,6 +4,10 @@ export type WorkflowNodeData = {
   label: string;
   kind: "start" | "end" | "node";
   status: "idle" | "active" | "failed" | "retry" | "visited" | "history-failed" | "history-retry";
+  composite?: boolean;
+  groupId?: string;
+  expanded?: boolean;
+  onToggleGroup?: (groupId: string) => void;
 };
 
 export type WorkflowNodeType = Node<WorkflowNodeData, "workflow">;
@@ -47,9 +51,36 @@ export function WorkflowNode({ data }: NodeProps<WorkflowNodeType>) {
         </>
       )}
       <div
-        className={`workflow-node workflow-node--${data.kind} workflow-node--${data.status}`}
+        className={`workflow-node workflow-node--${data.kind} workflow-node--${data.status} ${
+          data.composite ? "workflow-node--composite" : ""
+        }`}
         title={data.label}
+        onClick={
+          data.composite && data.groupId && data.onToggleGroup
+            ? (event) => {
+                event.stopPropagation();
+                data.onToggleGroup?.(data.groupId ?? "");
+              }
+            : undefined
+        }
+        onKeyDown={
+          data.composite && data.groupId && data.onToggleGroup
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  data.onToggleGroup?.(data.groupId ?? "");
+                }
+              }
+            : undefined
+        }
+        role={data.composite ? "button" : undefined}
+        tabIndex={data.composite ? 0 : undefined}
       >
+        {data.composite && (
+          <span className="workflow-node__chevron" aria-hidden="true">
+            {data.expanded ? "▾" : "▸"}
+          </span>
+        )}
         <span className="workflow-node__label">{data.label}</span>
       </div>
     </>

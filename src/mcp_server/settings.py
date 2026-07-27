@@ -66,6 +66,41 @@ class Settings(BaseSettings):
     cache_key_prefix_web: str | None = Field(default=None, alias="CACHE_KEY_PREFIX_WEB")
     cache_key_prefix_mcp_tool: str | None = Field(default=None, alias="CACHE_KEY_PREFIX_MCP_TOOL")
     cache_key_prefix_llm: str | None = Field(default=None, alias="CACHE_KEY_PREFIX_LLM")
+    cache_ttl_embedding_query: int | None = Field(
+        default=None,
+        alias="CACHE_TTL_EMBEDDING_QUERY",
+        gt=0,
+    )
+    cache_ttl_vector_retrieve: int | None = Field(
+        default=None,
+        alias="CACHE_TTL_VECTOR_RETRIEVE",
+        gt=0,
+    )
+    cache_key_prefix_embedding: str | None = Field(
+        default=None,
+        alias="CACHE_KEY_PREFIX_EMBEDDING",
+    )
+    cache_key_prefix_vector: str | None = Field(default=None, alias="CACHE_KEY_PREFIX_VECTOR")
+
+    embedding_model: str = Field(
+        default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        alias="EMBEDDING_MODEL",
+    )
+    embedding_dimension: int = Field(default=384, alias="EMBEDDING_DIMENSION", gt=0)
+    embedding_warm_on_boot: bool = Field(default=False, alias="EMBEDDING_WARM_ON_BOOT")
+    embedding_cache_dir: str = Field(default=".cache/fastembed", alias="EMBEDDING_CACHE_DIR")
+    retrieval_mode: str = Field(default="hybrid", alias="RETRIEVAL_MODE")
+    retrieve_limit: int = Field(default=20, alias="RETRIEVE_LIMIT", ge=1, le=100)
+    rerank_enabled: bool = Field(default=False, alias="RERANK_ENABLED")
+    reranker_model: str = Field(default="BAAI/bge-reranker-base", alias="RERANKER_MODEL")
+    rerank_top_n: int = Field(default=6, alias="RERANK_TOP_N", ge=1, le=50)
+    vector_store_backend: str = Field(default="auto", alias="VECTOR_STORE_BACKEND")
+    supabase_vector_enabled: bool = Field(default=False, alias="SUPABASE_VECTOR_ENABLED")
+    chroma_persist_path: str = Field(default=".cache/chromadb", alias="CHROMA_PERSIST_PATH")
+    chroma_collection_name: str = Field(
+        default="document_chunks",
+        alias="CHROMA_COLLECTION_NAME",
+    )
 
 
 def load_settings() -> Settings:

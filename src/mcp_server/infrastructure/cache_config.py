@@ -26,6 +26,10 @@ class CacheSettings(Protocol):
     cache_key_prefix_web: str | None
     cache_key_prefix_mcp_tool: str | None
     cache_key_prefix_llm: str | None
+    cache_ttl_embedding_query: int | None
+    cache_ttl_vector_retrieve: int | None
+    cache_key_prefix_embedding: str | None
+    cache_key_prefix_vector: str | None
 
 
 _TTL_OVERRIDES: dict[CacheOperationType, str] = {
@@ -34,6 +38,8 @@ _TTL_OVERRIDES: dict[CacheOperationType, str] = {
     CacheOperationType.WEB_SEARCH: "cache_ttl_web_search",
     CacheOperationType.MCP_TOOL: "cache_ttl_mcp_tool",
     CacheOperationType.LLM_COMPLETION: "cache_ttl_llm_completion",
+    CacheOperationType.EMBEDDING_QUERY: "cache_ttl_embedding_query",
+    CacheOperationType.VECTOR_RETRIEVE: "cache_ttl_vector_retrieve",
 }
 
 _PREFIX_OVERRIDES: dict[CacheOperationType, str] = {
@@ -42,6 +48,8 @@ _PREFIX_OVERRIDES: dict[CacheOperationType, str] = {
     CacheOperationType.WEB_SEARCH: "cache_key_prefix_web",
     CacheOperationType.MCP_TOOL: "cache_key_prefix_mcp_tool",
     CacheOperationType.LLM_COMPLETION: "cache_key_prefix_llm",
+    CacheOperationType.EMBEDDING_QUERY: "cache_key_prefix_embedding",
+    CacheOperationType.VECTOR_RETRIEVE: "cache_key_prefix_vector",
 }
 
 
