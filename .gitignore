@@ -80,6 +80,9 @@ Desktop.ini
 # --- Generated RAG optimization artifacts ---
 fixtures/rag_validation/optimization_report.json
 
+# --- Agent changelog memory (local only; never commit) ---
+changelog/
+
 # --- Local tooling artifacts ---
 *.log
 .cache/
