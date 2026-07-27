@@ -78,6 +78,62 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "write_article",
         "__end__",
     ],
+    "rag-retrieval": [
+        "__start__",
+        "embed_query",
+        "retrieve_chunks",
+        "rerank_chunks",
+        "merge_context",
+        "__end__",
+    ],
+    "rag-validation": [
+        "__start__",
+        "load_document",
+        "index_document",
+        "embed_query",
+        "retrieve_chunks",
+        "rerank_chunks",
+        "merge_context",
+        "validate_retrieval",
+        "__end__",
+    ],
+}
+
+_DOCUMENT_PIPELINE_NODE_IDS = (
+    "load_document",
+    "index_document",
+)
+
+_RAG_PIPELINE_NODE_IDS = (
+    "embed_query",
+    "retrieve_chunks",
+    "rerank_chunks",
+    "merge_context",
+)
+
+_WORKFLOW_NODE_GROUPS: dict[str, list[dict[str, object]]] = {
+    "rag-retrieval": [
+        {
+            "id": "rag_pipeline",
+            "label": "RAG Pipeline",
+            "node_ids": list(_RAG_PIPELINE_NODE_IDS),
+            "default_collapsed": True,
+        },
+    ],
+    "rag-validation": [
+        {
+            "id": "document_pipeline",
+            "label": "Document Pipeline",
+            "node_ids": list(_DOCUMENT_PIPELINE_NODE_IDS),
+            "default_collapsed": False,
+        },
+        {
+            "id": "rag_pipeline",
+            "label": "RAG Pipeline",
+            "node_ids": list(_RAG_PIPELINE_NODE_IDS),
+            "default_collapsed": True,
+        },
+    ],
 }
 
 _WORKFLOW_EDGES: dict[str, list[tuple[str, str]]] = {
@@ -89,6 +145,25 @@ _WORKFLOW_EDGES: dict[str, list[tuple[str, str]]] = {
         ("tool_search_youtube", "merge_context"),
         ("merge_context", "write_article"),
         ("write_article", "__end__"),
+    ],
+    "rag-retrieval": [
+        ("__start__", "embed_query"),
+        ("embed_query", "retrieve_chunks"),
+        ("retrieve_chunks", "rerank_chunks"),
+        ("retrieve_chunks", "merge_context"),
+        ("rerank_chunks", "merge_context"),
+        ("merge_context", "__end__"),
+    ],
+    "rag-validation": [
+        ("__start__", "load_document"),
+        ("load_document", "index_document"),
+        ("index_document", "embed_query"),
+        ("embed_query", "retrieve_chunks"),
+        ("retrieve_chunks", "rerank_chunks"),
+        ("retrieve_chunks", "merge_context"),
+        ("rerank_chunks", "merge_context"),
+        ("merge_context", "validate_retrieval"),
+        ("validate_retrieval", "__end__"),
     ],
 }
 
@@ -111,6 +186,15 @@ class GraphEdgeView(BaseModel):
     kind: str = Field(default="forward", description="forward | retry | failure | async")
 
 
+class NodeGroupView(BaseModel):
+    """Collapsible group of related workflow nodes (e.g. RAG pipeline substeps)."""
+
+    id: str
+    label: str
+    node_ids: list[str]
+    default_collapsed: bool = True
+
+
 class WorkflowGraphView(BaseModel):
     """Serializable graph structure for the local workflow UI."""
 
@@ -120,6 +204,7 @@ class WorkflowGraphView(BaseModel):
     framework: str = "langgraph"
     nodes: list[GraphNodeView]
     edges: list[GraphEdgeView]
+    node_groups: list[NodeGroupView] = Field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +249,7 @@ def _edge_kind(source: str, target: str) -> str:
 
 def _topological_order(node_ids: list[str], edges: list[tuple[str, str]]) -> list[str]:
     incoming = {node_id: 0 for node_id in node_ids}
-    adjacency = {node_id: [] for node_id in node_ids}
+    adjacency: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
     for source, target in edges:
         if source not in adjacency or target not in incoming:
             continue
@@ -194,9 +279,7 @@ def _layout_order(node_ids: list[str], edges: list[tuple[str, str]], workflow_id
         return ordered
 
     forward_edges = [
-        (source, target)
-        for source, target in edges
-        if _edge_kind(source, target) == "forward"
+        (source, target) for source, target in edges if _edge_kind(source, target) == "forward"
     ]
     return _topological_order(node_ids, forward_edges)
 
@@ -262,12 +345,16 @@ def workflow_graph_view(workflow: RegisteredWorkflow) -> WorkflowGraphView:
         )
         for source, target in edge_pairs
     ]
+    node_groups = [
+        NodeGroupView.model_validate(group) for group in _WORKFLOW_NODE_GROUPS.get(workflow.id, [])
+    ]
     return WorkflowGraphView(
         id=workflow.id,
         name=workflow.name,
         description=workflow.description,
         nodes=nodes,
         edges=edges,
+        node_groups=node_groups,
     )
 
 

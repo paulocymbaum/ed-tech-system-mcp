@@ -1,10 +1,12 @@
 import type { ContentRunMeta } from "../lib/traceAnalytics";
 import { summarizeTrace, totalRetryCount, type TraceSummary } from "../lib/traceAnalytics";
 import type { WorkflowTraceStep } from "../api/workflows";
+import type { RagValidationRunMeta } from "./WorkflowRunPanel";
 
 type WorkflowRunSummaryProps = {
   trace: WorkflowTraceStep[];
   runMeta: ContentRunMeta | null;
+  ragValidation: RagValidationRunMeta | null;
 };
 
 function formatNodeId(nodeId: string | null) {
@@ -14,7 +16,7 @@ function formatNodeId(nodeId: string | null) {
   return nodeId.replaceAll("_", " ");
 }
 
-export function WorkflowRunSummary({ trace, runMeta }: WorkflowRunSummaryProps) {
+export function WorkflowRunSummary({ trace, runMeta, ragValidation }: WorkflowRunSummaryProps) {
   if (trace.length === 0) {
     return null;
   }
@@ -22,7 +24,8 @@ export function WorkflowRunSummary({ trace, runMeta }: WorkflowRunSummaryProps) 
   const summary: TraceSummary = summarizeTrace(trace);
   const apiRetries = runMeta ? totalRetryCount(runMeta) : 0;
   const incomplete = runMeta?.generationComplete === false;
-  const cleanRun = !summary.hasIssues && apiRetries === 0 && !incomplete;
+  const validationFailed = ragValidation?.validationPassed === false;
+  const cleanRun = !summary.hasIssues && apiRetries === 0 && !incomplete && !validationFailed;
 
   return (
     <div className={`run-summary ${cleanRun ? "run-summary--ok" : "run-summary--warn"}`}>
@@ -63,6 +66,12 @@ export function WorkflowRunSummary({ trace, runMeta }: WorkflowRunSummaryProps) 
           {runMeta.generationComplete !== undefined && (
             <> · generation complete: {runMeta.generationComplete ? "yes" : "no"}</>
           )}
+        </p>
+      )}
+
+      {validationFailed && (
+        <p className="run-summary__alert">
+          Validation failed: {ragValidation.validationErrors.join(" · ")}
         </p>
       )}
 

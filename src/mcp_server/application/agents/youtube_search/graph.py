@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from mcp_server.application.integration_runtime import get_video_client
 from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.interfaces import IVideoSearchClient
 from mcp_server.domain.schemas import VideoResult
 
 YouTubeSearchGraph = CompiledStateGraph[
@@ -27,7 +28,7 @@ class YouTubeSearchState(TypedDict):
     video_count: int
 
 
-def _require_video_client():
+def _require_video_client() -> IVideoSearchClient:
     client = get_video_client()
     if client is None:
         raise ResourceNotFoundError("Video search client has not been initialized")

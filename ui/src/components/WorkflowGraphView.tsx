@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -18,6 +18,13 @@ import {
   traversedEdgeKeys,
   type NodeHistory,
 } from "../lib/traceAnalytics";
+import {
+  collapseGraphView,
+  compositeNodeId,
+  initialCollapsedGroups,
+  isCompositeNodeId,
+  toggleCollapsedGroup,
+} from "../lib/ragNodeGroups";
 import { WorkflowNode, type WorkflowNodeData } from "./WorkflowNode";
 
 type WorkflowGraphViewProps = {
@@ -40,31 +47,43 @@ function nodeStatus(
   activeStep: WorkflowTraceStep | null,
   activeNodeAttempts: Record<string, number>,
   nodeHistory: Record<string, NodeHistory>,
+  memberNodeIds?: string[],
 ): WorkflowNodeData["status"] {
-  if (activeStep?.node_id === nodeId) {
-    if (activeStep.status === "failed") {
-      return "failed";
+  const resolvedIds =
+    isCompositeNodeId(nodeId) && memberNodeIds && memberNodeIds.length > 0
+      ? memberNodeIds
+      : [nodeId];
+
+  for (const resolvedId of resolvedIds) {
+    if (activeStep?.node_id === resolvedId) {
+      if (activeStep.status === "failed") {
+        return "failed";
+      }
+      if (activeStep.status === "retry" || activeNodeAttempts[resolvedId] > 1) {
+        return "retry";
+      }
+      return "active";
     }
-    if (activeStep.status === "retry" || activeNodeAttempts[nodeId] > 1) {
-      return "retry";
-    }
-    return "active";
   }
 
-  const history = nodeHistory[nodeId];
-  if (!history) {
-    return "idle";
+  let worst: WorkflowNodeData["status"] = "idle";
+  for (const resolvedId of resolvedIds) {
+    const history = nodeHistory[resolvedId];
+    if (!history) {
+      continue;
+    }
+    if (history.worstStatus === "failed") {
+      return "history-failed";
+    }
+    if (history.worstStatus === "retry" || history.maxAttempt > 1 || history.visitCount > 1) {
+      worst = "history-retry";
+      continue;
+    }
+    if (history.visitCount > 0) {
+      worst = "visited";
+    }
   }
-  if (history.worstStatus === "failed") {
-    return "history-failed";
-  }
-  if (history.worstStatus === "retry" || history.maxAttempt > 1 || history.visitCount > 1) {
-    return "history-retry";
-  }
-  if (history.visitCount > 0) {
-    return "visited";
-  }
-  return "idle";
+  return worst;
 }
 
 function edgeStyle(kind: GraphEdge["kind"], emphasis: "idle" | "traversed" | "active") {
@@ -120,11 +139,32 @@ function buildNodes(
   activeStep: WorkflowTraceStep | null,
   activeNodeAttempts: Record<string, number>,
   nodeHistory: Record<string, NodeHistory>,
+  nodeGroups: WorkflowGraph["node_groups"],
+  collapsedGroupIds: Set<string>,
+  onToggleGroup: (groupId: string) => void,
 ): Node<WorkflowNodeData, "workflow">[] {
+  const groupByCompositeId = new Map(
+    nodeGroups.map((group) => [compositeNodeId(group.id), group]),
+  );
+
   return graphNodes.map((node) => {
-    const status = nodeStatus(node.id, activeStep, activeNodeAttempts, nodeHistory);
-    const history = nodeHistory[node.id];
-    const attempt = activeStep?.node_id === node.id ? activeNodeAttempts[node.id] : history?.maxAttempt;
+    const compositeGroup = groupByCompositeId.get(node.id);
+    const memberNodeIds = compositeGroup?.node_ids;
+    const status = nodeStatus(node.id, activeStep, activeNodeAttempts, nodeHistory, memberNodeIds);
+    const history = compositeGroup
+      ? compositeGroup.node_ids
+          .map((nodeId) => nodeHistory[nodeId])
+          .find((entry) => entry !== undefined)
+      : nodeHistory[node.id];
+    const attempt = compositeGroup
+      ? Math.max(
+          ...compositeGroup.node_ids.map((nodeId) =>
+            activeStep?.node_id === nodeId ? activeNodeAttempts[nodeId] : (nodeHistory[nodeId]?.maxAttempt ?? 1),
+          ),
+        )
+      : activeStep?.node_id === node.id
+        ? activeNodeAttempts[node.id]
+        : history?.maxAttempt;
     const label =
       attempt && attempt > 1
         ? `${node.label} (#${attempt})`
@@ -137,10 +177,14 @@ function buildNodes(
         label,
         kind: node.kind,
         status,
+        composite: Boolean(compositeGroup),
+        groupId: compositeGroup?.id,
+        expanded: compositeGroup ? !collapsedGroupIds.has(compositeGroup.id) : undefined,
+        onToggleGroup: compositeGroup ? onToggleGroup : undefined,
       },
       position: { x: node.x, y: node.y },
       style: {
-        width: NODE_WIDTH,
+        width: compositeGroup ? NODE_WIDTH + 24 : NODE_WIDTH,
         height: NODE_HEIGHT,
       },
     };
@@ -153,18 +197,58 @@ export function WorkflowGraphView({
   activeStep,
   activeNodeAttempts,
 }: WorkflowGraphViewProps) {
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() =>
+    initialCollapsedGroups(workflow.node_groups ?? []),
+  );
+
+  useEffect(() => {
+    setCollapsedGroupIds(initialCollapsedGroups(workflow.node_groups ?? []));
+  }, [workflow.id, workflow.node_groups]);
+
+  const onToggleGroup = useCallback((groupId: string) => {
+    setCollapsedGroupIds((current) => toggleCollapsedGroup(current, groupId));
+  }, []);
+
+  const { nodes: displayNodes, edges: displayEdges } = useMemo(
+    () =>
+      collapseGraphView(
+        workflow.nodes,
+        workflow.edges,
+        workflow.node_groups ?? [],
+        collapsedGroupIds,
+      ),
+    [workflow.nodes, workflow.edges, workflow.node_groups, collapsedGroupIds],
+  );
+
   const nodeHistory = useMemo(() => buildNodeHistory(trace), [trace]);
   const traversedEdges = useMemo(() => traversedEdgeKeys(trace), [trace]);
   const activeEdgeKey = useMemo(() => activeTransitionKey(trace, activeStep), [trace, activeStep]);
 
   const nodes = useMemo(
-    () => buildNodes(workflow.nodes, activeStep, activeNodeAttempts, nodeHistory),
-    [workflow.nodes, activeStep, activeNodeAttempts, nodeHistory],
+    () =>
+      buildNodes(
+        displayNodes,
+        activeStep,
+        activeNodeAttempts,
+        nodeHistory,
+        workflow.node_groups ?? [],
+        collapsedGroupIds,
+        onToggleGroup,
+      ),
+    [
+      displayNodes,
+      activeStep,
+      activeNodeAttempts,
+      nodeHistory,
+      workflow.node_groups,
+      collapsedGroupIds,
+      onToggleGroup,
+    ],
   );
 
   const edges = useMemo<Edge[]>(
     () =>
-      workflow.edges.map((edge, index) => {
+      displayEdges.map((edge, index) => {
         const edgeKey = `${edge.source}->${edge.target}`;
         const isTraversed = traversedEdges.has(edgeKey);
         const isActive = activeEdgeKey === edgeKey;
@@ -196,12 +280,14 @@ export function WorkflowGraphView({
           zIndex: isActive ? 3 : isTraversed ? 2 : 1,
         };
       }),
-    [workflow.edges, traversedEdges, activeEdgeKey],
+    [displayEdges, traversedEdges, activeEdgeKey],
   );
 
   useEffect(() => {
     document.title = `${workflow.name} · Workflow UI`;
   }, [workflow.name]);
+
+  const hasRagGroups = (workflow.node_groups ?? []).length > 0;
 
   return (
     <div className="graph-panel">
@@ -212,6 +298,12 @@ export function WorkflowGraphView({
           <span className="graph-legend__item graph-legend__item--retry">retry / re-run</span>
           <span className="graph-legend__item graph-legend__item--failed">validation failure</span>
         </div>
+      )}
+      {hasRagGroups && (
+        <p className="graph-hint muted">
+          Click grouped nodes to expand or collapse substeps. <strong>Document Pipeline</strong> loads and indexes
+          your text; <strong>RAG Pipeline</strong> covers embed → retrieve → rerank → merge.
+        </p>
       )}
       <ReactFlow
         nodes={nodes}

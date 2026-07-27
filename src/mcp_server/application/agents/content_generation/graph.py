@@ -80,9 +80,9 @@ def _route_after_validate_pbl(
 
 def build_content_generation_graph() -> ContentGenerationGraph:
     """Build the lesson → quiz + PBL LangGraph for local UI visualization."""
-    graph: StateGraph[
-        ContentGenerationState, ContentGenerationState, ContentGenerationState
-    ] = StateGraph(ContentGenerationState)
+    graph: StateGraph[ContentGenerationState, ContentGenerationState, ContentGenerationState] = (
+        StateGraph(ContentGenerationState)
+    )
     llm_retry_policy = _node_retry_policy()
     node_timeout = _node_timeout_seconds()
 

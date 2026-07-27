@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict, cast
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
@@ -13,6 +13,14 @@ from langgraph.types import RetryPolicy
 from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     reset_content_generation_graph_cache,
+)
+from mcp_server.application.agents.rag_retrieval.graph import (
+    get_rag_retrieval_graph,
+    reset_rag_retrieval_graph_cache,
+)
+from mcp_server.application.agents.rag_validation.graph import (
+    get_rag_validation_graph,
+    reset_rag_validation_graph_cache,
 )
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
@@ -196,11 +204,12 @@ async def ainvoke_with_workflow_timeout(
     state: Any,
     *,
     config: RunnableConfig | None = None,
+    timeout_seconds: float | None = None,
 ) -> Any:
     """Invoke a compiled graph with the configured workflow timeout."""
     result = await asyncio.wait_for(
         graph.ainvoke(state, config=config),
-        timeout=workflow_timeout_seconds(),
+        timeout=timeout_seconds if timeout_seconds is not None else workflow_timeout_seconds(),
     )
     return result
 
@@ -245,7 +254,10 @@ async def run_document_video_graph(
         document_limit=document_limit,
         video_limit=video_limit,
     )
-    return await ainvoke_with_workflow_timeout(graph, state)
+    return cast(
+        DocumentVideoState,
+        await ainvoke_with_workflow_timeout(graph, state),
+    )
 
 
 _REGISTERED_WORKFLOWS: list[RegisteredWorkflow] | None = None
@@ -283,6 +295,24 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             ),
             graph=get_content_generation_graph(),
         ),
+        RegisteredWorkflow(
+            id="rag-retrieval",
+            name="RAG Retrieval",
+            description=(
+                "Embed a query, retrieve document chunks via the configured vector store "
+                "(Chroma or Supabase pgvector), optionally rerank, and merge context."
+            ),
+            graph=get_rag_retrieval_graph(),
+        ),
+        RegisteredWorkflow(
+            id="rag-validation",
+            name="RAG Validation",
+            description=(
+                "Index the bundled photosynthesis fixture, run the full RAG pipeline, "
+                "and assert expected phrases appear in retrieved context."
+            ),
+            graph=get_rag_validation_graph(),
+        ),
     ]
 
 
@@ -303,3 +333,5 @@ def reset_registered_workflows_cache() -> None:
     reset_tavily_search_graph_cache()
     reset_youtube_search_graph_cache()
     reset_research_article_graph_cache()
+    reset_rag_retrieval_graph_cache()
+    reset_rag_validation_graph_cache()
