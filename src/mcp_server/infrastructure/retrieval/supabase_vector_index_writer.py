@@ -69,7 +69,10 @@ class SupabaseVectorIndexWriter(IVectorIndexWriter):
             rows = response.data or []
             if not rows:
                 return None
-            raw_hash = rows[0].get("content_hash")
+            row = rows[0]
+            if not isinstance(row, dict):
+                return None
+            raw_hash = row.get("content_hash")
             return str(raw_hash) if raw_hash else None
 
         return await asyncio.to_thread(_fetch)

@@ -38,6 +38,7 @@ def default_rag_hyperparameter_search_space() -> RagHyperparameterSearchSpace:
         rerank_top_ns=(4, 6),
     )
 
+
 RunRagValidation = Callable[..., Awaitable[RagValidationState]]
 
 
@@ -64,8 +65,7 @@ class RagHyperparameterOptimizer:
     ) -> RagConfigScore:
         """Score one hyperparameter set across all configured scenarios."""
         scenario_results = [
-            await self._evaluate_scenario(hyperparameters, scenario)
-            for scenario in self._scenarios
+            await self._evaluate_scenario(hyperparameters, scenario) for scenario in self._scenarios
         ]
         return score_config_results(hyperparameters, scenario_results)
 

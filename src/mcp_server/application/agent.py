@@ -209,9 +209,7 @@ async def ainvoke_with_workflow_timeout(
     """Invoke a compiled graph with the configured workflow timeout."""
     result = await asyncio.wait_for(
         graph.ainvoke(state, config=config),
-        timeout=timeout_seconds
-        if timeout_seconds is not None
-        else workflow_timeout_seconds(),
+        timeout=timeout_seconds if timeout_seconds is not None else workflow_timeout_seconds(),
     )
     return result
 

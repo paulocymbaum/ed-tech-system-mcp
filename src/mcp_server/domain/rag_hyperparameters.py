@@ -179,7 +179,7 @@ class OptimizedRagHyperparameters:
             raise ValueError(msg)
         return cls(
             optimized_at=str(payload["optimized_at"]),
-            objective=objective_raw,  # type: ignore[arg-type]
+            objective=objective_raw,
             best_score=float(payload["best_score"]),
             hyperparameters=RagHyperparameters.from_dict(payload["hyperparameters"]),
             search_space=dict(payload["search_space"]),
