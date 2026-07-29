@@ -10,8 +10,6 @@ paths = [
   '''ENVIRONMENT_SETUP\.md$''',
   '''ARCHITECTURE\.md$''',
   '''package-lock\.json$''',
-  '''tests/test_hooks\.py$''',
-  '''scripts/hooks/''',
 ]
 regexes = [
   '''SUPABASE_URL=\s*$''',
