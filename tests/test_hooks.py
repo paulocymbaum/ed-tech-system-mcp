@@ -86,6 +86,8 @@ def _write_gitignore(repo_dir: Path) -> None:
                 "*.key",
                 "*.KEY",
                 "changelog/",
+                ".cursor/",
+                "CURSOR.md",
                 "mcp.json",
             ]
         )
@@ -199,6 +201,20 @@ def test_block_sensitive_files_rejects_changelog_force_add(tmp_path: Path) -> No
     )
     assert result.returncode == 1
     assert "changelog/" in result.stderr
+
+
+def test_block_sensitive_files_rejects_cursor_force_add(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(
+        tmp_path, BLOCK_SENSITIVE_FILES, ".cursor/rules/documentation-matrix.mdc"
+    )
+    assert result.returncode == 1
+    assert ".cursor/" in result.stderr
+
+
+def test_block_sensitive_files_rejects_cursor_md_force_add(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(tmp_path, BLOCK_SENSITIVE_FILES, "CURSOR.md")
+    assert result.returncode == 1
+    assert "CURSOR.md" in result.stderr
 
 
 def test_block_sensitive_files_allows_py_files(tmp_path: Path) -> None:

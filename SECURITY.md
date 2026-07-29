@@ -20,4 +20,4 @@ When Chroma publishes a fixed version, bump the pin and re-run the test suite (`
 
 ## Secrets and hooks
 
-See `ENVIRONMENT_SETUP.md` and `.cursor/rules/secrets-env-safety.mdc`. Pre-commit and pre-push hooks scan for secrets; CI runs `gitleaks` on every push and pull request.
+See `ENVIRONMENT_SETUP.md`. Pre-commit and pre-push hooks scan for secrets; CI runs `gitleaks` on every push and pull request.

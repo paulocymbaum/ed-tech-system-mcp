@@ -45,5 +45,10 @@ is_sensitive_path() {
     return 0
   fi
 
+  # Cursor IDE config is gitignored; block force-adds.
+  if [[ "$file" == .cursor/* ]] || [[ "$file" == .cursor ]] || [[ "$base_lower" == "cursor.md" ]]; then
+    return 0
+  fi
+
   return 1
 }

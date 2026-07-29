@@ -6,7 +6,7 @@ Domain-Driven MCP (Model Context Protocol) server for ed-tech workflows. The ser
 
 ## What this project does
 
-External clients (Cursor, other MCP hosts) call **MCP tools** that validate input with Pydantic, delegate to **application workflows** and **LangGraph agents**, and reach external systems through **domain ports** implemented in the infrastructure layer.
+External MCP clients call **MCP tools** that validate input with Pydantic, delegate to **application workflows** and **LangGraph agents**, and reach external systems through **domain ports** implemented in the infrastructure layer.
 
 ### MCP tools
 
@@ -81,7 +81,7 @@ Required variables: `APP_ENV`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `YOU
 
 Optional: `GROQ_API_KEY` (only when an LLM path is invoked — lazy-init at first use), `TAVILY_API_KEY`, `LOG_LEVEL` (applied at bootstrap via `configure_logging()`), `CACHE_ENABLED` + `REDIS_URL` (production).
 
-See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) and [.cursor/skills/doppler-env-setup/SKILL.md](./.cursor/skills/doppler-env-setup/SKILL.md) for the full secrets workflow.
+See [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for the full secrets workflow.
 
 ### Run the MCP server
 
@@ -148,7 +148,7 @@ uv run pytest                 # tests (143 cases as of 2026-07-21)
 
 ### Engineering backlog
 
-Audit findings are triaged into [`backlog/BACKLOG.md`](./backlog/BACKLOG.md) (RICE-ranked, traceable to changelog audits). As of 2026-07-21: **23 done**, **6 deferred** (adapter HTTP implementation, profiling, trace IDs). The `master` agent executes same-scope items in batches and updates backlog status after homologation.
+Audit findings are triaged into [`backlog/BACKLOG.md`](./backlog/BACKLOG.md) (RICE-ranked, traceable to changelog audits). As of 2026-07-21: **23 done**, **6 deferred** (adapter HTTP implementation, profiling, trace IDs).
 
 ### Add dependencies
 
@@ -186,21 +186,17 @@ Run quality-gate commands from the **repository root** (`ed-tech-system-mcp/`), 
 │   └── dev/                 # Dev tooling (workflow UI launcher)
 ├── docs/
 │   └── assets/              # README screenshots (workflow UI)
-├── changelog/               # Agent long-term memory (investigations, reviews, tests)
-├── backlog/                 # RICE-ranked engineering backlog (BACKLOG.md, RICE.md)
-├── .cursor/                 # Cursor agents, rules, and skills — see CURSOR.md
 ├── ARCHITECTURE.md          # Layer boundaries and patterns
 ├── AGENTIC_ARCHITECTURE.md  # Agent graphs and tool orchestration
 ├── OBSERVABILITY.md         # Workflow UI, trace replay, debugging
-├── ENVIRONMENT_SETUP.md     # uv, secrets, CI, MCP client config
-└── CURSOR.md                # Cursor IDE configuration reference
+└── ENVIRONMENT_SETUP.md     # uv, secrets, CI, MCP client config
 ```
 
 ## Documentation index
 
-See the [full documentation matrix](#documentation-matrix) at the end of this file for canonical docs, changelog artifacts, Cursor rules/skills, and agent routing.
+See the [documentation matrix](#documentation-matrix) at the end of this file for canonical docs and changelog artifacts.
 
-## Cursor / MCP client integration
+## MCP client integration
 
 Register the server in your MCP host using the project interpreter:
 
@@ -215,25 +211,7 @@ Register the server in your MCP host using the project interpreter:
 }
 ```
 
-Alternative patterns (local `.env`, `uv` launcher) are in [ENVIRONMENT_SETUP.md § Cursor / MCP client integration](./ENVIRONMENT_SETUP.md#cursor--mcp-client-integration).
-
-## Agent-driven development
-
-This repo uses Cursor subagents, a `changelog/` memory system, and a `backlog/` task queue for feature work.
-
-**Delivery pipeline** (orchestrated by `master`):
-
-```text
-incremental-layer-builder → changelog-code-reviewer → remediation → test-homologator → backlog update
-```
-
-**Audit pipeline** (feeds the backlog):
-
-```text
-code-health-auditor / performance-auditor → backlog/BACKLOG.md (RICE-ranked) → master (batched execution)
-```
-
-See [CURSOR.md](./CURSOR.md) for agent roles, rules, batching conventions, and invocation guidance.
+Alternative patterns (local `.env`, `uv` launcher) are in [ENVIRONMENT_SETUP.md § MCP client integration](./ENVIRONMENT_SETUP.md#mcp-client-integration).
 
 ## Documentation matrix
 
@@ -248,7 +226,6 @@ Read the **minimum** doc set for your task. Do not load everything.
 | [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) | LangGraph/LangChain agents, LLM wiring, tool taxonomy, DB/web/video flows |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Local workflow UI, execution replay, trace/API debugging |
 | [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) | `uv`, lockfile, deps, env vars, `ruff`/`mypy`/`pytest`, CI, MCP client setup |
-| [CURSOR.md](./CURSOR.md) | Cursor agents, rules, skills, and changelog workflow |
 
 **Conflict resolution:** `ARCHITECTURE.md` wins on layer boundaries; `AGENTIC_ARCHITECTURE.md` wins on orchestration semantics.
 
@@ -256,46 +233,25 @@ Read the **minimum** doc set for your task. Do not load everything.
 
 | Document | Read when |
 | :--- | :--- |
-| [backlog/BACKLOG.md](./backlog/BACKLOG.md) | RICE-ranked tasks from audits; status tracking for agent batches |
+| [backlog/BACKLOG.md](./backlog/BACKLOG.md) | RICE-ranked tasks from audits; status tracking |
 | [backlog/RICE.md](./backlog/RICE.md) | Scoring rubric and priority formula for backlog items |
 
 ### Changelog memory (`changelog/{DATE}/{LAYER}/`)
 
-Agent long-term memory for investigations, implementations, reviews, audits, and test homologation.
+Local engineering memory for investigations, implementations, reviews, audits, and test homologation (gitignored — not published).
 
-| File pattern | Read | Write |
-| :--- | :--- | :--- |
-| `INVESTIGATION{N}.md` | Before coding — gaps, scope, minimal increment | Start of feature/refactor/scaffold work |
-| `IMPLEMENTATION{N}.md` | During execution — checklist, status | After investigation; update while coding |
-| `CODE_REVIEW{N}.md` | Before merge — review findings | After implementation (`changelog-code-reviewer`) |
-| `TEST{N}.md` | Before writing tests — behavior catalog | Start of test/homologation work (`tests/` layer) |
-| `HOMOLOGATION.md` | Verify coverage verdict | After tests pass (`test-homologator`) |
-| `PERFORMANCE_AUDIT{N}.md` | Before perf work — bottleneck findings | Performance audit (`performance-auditor`) |
-| `CODE_HEALTH_AUDIT{N}.md` | Before refactors/cleanup — dead/dup/redundant findings | Code health audit (`code-health-auditor`) |
-| `REFACTOR{N}.md` | Before cleanup implementation — merged actions from audits | Refactor planning (`refactor-planner`) |
-
-**Pairing:** `IMPLEMENTATION{N}` ↔ `INVESTIGATION{N}`; `CODE_REVIEW{N}` ↔ same `{N}`. `REFACTOR{N}` references matching `PERFORMANCE_AUDIT*` and `CODE_HEALTH_AUDIT*` from the same date slug. Folder layout and status values: [`.cursor/rules/changelog-agent-memory.mdc`](./.cursor/rules/changelog-agent-memory.mdc).
-
-### Cursor rules & skills
-
-| File | Read when |
+| File pattern | Purpose |
 | :--- | :--- |
-| [`.cursor/rules/documentation-matrix.mdc`](./.cursor/rules/documentation-matrix.mdc) | Routing which doc to read or write for a task |
-| [`.cursor/rules/changelog-agent-memory.mdc`](./.cursor/rules/changelog-agent-memory.mdc) | Creating or continuing changelog files |
-| [`.cursor/rules/secrets-env-safety.mdc`](./.cursor/rules/secrets-env-safety.mdc) | `.env`, Doppler, secrets, `settings.py` env loading |
-| [`.cursor/skills/doppler-env-setup/SKILL.md`](./.cursor/skills/doppler-env-setup/SKILL.md) | First-time or broken Doppler / local secret bootstrap |
+| `INVESTIGATION{N}.md` | Scope and gaps before coding |
+| `IMPLEMENTATION{N}.md` | Execution checklist and status |
+| `CODE_REVIEW{N}.md` | Pre-merge review findings |
+| `TEST{N}.md` | Behavior catalog before writing tests |
+| `HOMOLOGATION.md` | Coverage verdict after tests pass |
+| `PERFORMANCE_AUDIT{N}.md` | Performance bottleneck findings |
+| `CODE_HEALTH_AUDIT{N}.md` | Maintainability / dead-code findings |
+| `REFACTOR{N}.md` | Merged refactor actions from audits |
 
-### Cursor agents (`.cursor/agents/`)
-
-| Agent | Invoke when |
-| :--- | :--- |
-| `incremental-layer-builder` | Feature, refactor, or scaffold work |
-| `changelog-code-reviewer` | Post-implementation review |
-| `test-homologator` | Test inventory, pytest, homologation |
-| `performance-auditor` | Performance bottleneck audit |
-| `code-health-auditor` | Dead code, duplication, maintainability audit |
-| `refactor-planner` | Audit synthesis → change/remove refactor plan |
-| `master` | Full build → review → test cycle |
+**Pairing:** `IMPLEMENTATION{N}` ↔ `INVESTIGATION{N}`; `CODE_REVIEW{N}` ↔ same `{N}`.
 
 ### Quick routing
 
@@ -303,11 +259,9 @@ Agent long-term memory for investigations, implementations, reviews, audits, and
 Code in a layer?        → ARCHITECTURE.md (+ AGENTIC_ARCHITECTURE.md if agents/tools/LLM)
 Workflow UI / traces?   → OBSERVABILITY.md
 Environment / CI?       → ENVIRONMENT_SETUP.md
-Secrets / Doppler?      → secrets-env-safety.mdc → doppler-env-setup skill
-New work?               → changelog INVESTIGATION → IMPLEMENTATION → code → CODE_REVIEW
-Tests / merge gate?     → changelog TEST → tests → HOMOLOGATION
-Audits / cleanup?       → PERFORMANCE_AUDIT / CODE_HEALTH_AUDIT → REFACTOR → backlog
-Cursor config?          → CURSOR.md
+Secrets / Doppler?      → ENVIRONMENT_SETUP.md § Secrets & safety
+Tests / merge gate?     → pytest + quality gates in ENVIRONMENT_SETUP.md
+Audits / cleanup?       → backlog/BACKLOG.md
 ```
 
 ## License

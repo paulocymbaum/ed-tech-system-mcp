@@ -76,8 +76,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# --- IDE / editor ---
-.cursor/projects/
+# --- IDE / editor (local only; never commit) ---
+.cursor/
+CURSOR.md
 .idea/
 .vscode/*
 !.vscode/extensions.json

@@ -208,7 +208,7 @@ Secrets must **never** be committed to the repository. This section defines how 
 | **Single load point** | Load configuration **only** in `main.py` (Entrypoint). No `load_dotenv()` in Domain, Application, Interface, or Infrastructure |
 | **Inject, don't import** | Pass secrets into Infrastructure adapters via constructors or a typed `Settings` object — never `os.getenv()` scattered across the codebase |
 | **OS env wins** | When both a `.env` file and a real environment variable exist, the real environment variable must take precedence |
-| **No secrets in MCP config** | Cursor/`mcp.json` may reference `${env:VAR}` placeholders — never paste literal keys into version-controlled JSON |
+| **No secrets in MCP config** | MCP host / `mcp.json` may reference `${env:VAR}` placeholders — never paste literal keys into version-controlled JSON |
 | **Fail closed** | If a required secret is missing at startup, exit immediately with a clear error — do not fall back to empty strings or mock credentials |
 
 ### Configuration routing strategy
@@ -246,7 +246,7 @@ Use **one interface** (`Settings`) and **route the source** based on where the p
 | **Local development** | `development` (default) | Gitignored `.env` in project root | **Yes** — via `python-dotenv` |
 | **CI / automated tests** | `ci` | Doppler → GitHub sync, or platform secret store (e.g. GitHub Actions Secrets) | **No** |
 | **Production / staging** | `production` / `staging` | Secrets manager (see below) | **No** |
-| **Cursor / local MCP host** | `development` | Shell profile, OS keychain, or `.env` | **Yes** — dotenv fills gaps only |
+| **Local MCP host** | `development` | Shell profile, OS keychain, or `.env` | **Yes** — dotenv fills gaps only |
 
 Set `APP_ENV` explicitly in each context. Never rely on implicit detection of "am I in prod?" beyond this variable.
 
@@ -704,7 +704,7 @@ After migration, treat Doppler as canonical and disable manual GitHub secret edi
 | **Never log secrets** | Do not `print(os.environ)`, dump `Settings`, or use `set -x` around secret exports |
 | **Rotate in one place** | Revoke the old key in Supabase/YouTube, update Doppler; sync propagates to GitHub |
 
-In Cursor, point the MCP server command at Doppler instead of baking secrets into `mcp.json`:
+In your MCP host, point the server command at Doppler instead of baking secrets into `mcp.json`:
 
 ```json
 {
@@ -720,9 +720,9 @@ In Cursor, point the MCP server command at Doppler instead of baking secrets int
 }
 ```
 
-#### Cursor without Doppler (local only)
+#### MCP host without Doppler (local only)
 
-Export secrets in your shell profile or use `${env:VAR}` so Cursor inherits them from the OS — not from a committed file:
+Export secrets in your shell profile or use `${env:VAR}` so the MCP host inherits them from the OS — not from a committed file:
 
 ```json
 {
@@ -851,9 +851,9 @@ uv self update 0.7.0   # pin to a known uv release in workflow YAML
 
 ---
 
-## Cursor / MCP client integration
+## MCP client integration
 
-When registering this server in Cursor (or any MCP host), point the client at the **project interpreter**, not the system Python. For secret injection patterns (`.env`, Doppler, `${env:VAR}`), see [Secrets & safety](#secrets--safety).
+When registering this server in any MCP host, point the client at the **project interpreter**, not the system Python. For secret injection patterns (`.env`, Doppler, `${env:VAR}`), see [Secrets & safety](#secrets--safety).
 
 **Option A — uv launcher + OS env substitution (local dev):**
 
