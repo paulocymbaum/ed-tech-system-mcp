@@ -112,7 +112,8 @@ scan_with_secretlint() {
       fi
 
       secretlint_rc=0
-      git show "$commit:$file" 2>/dev/null | run_secretlint_on_stdin "commits being pushed" "$file" || secretlint_rc=$?
+      blob_content="$(git show "$commit:$file" 2>/dev/null)" || continue
+      printf '%s' "$blob_content" | run_secretlint_on_stdin "commits being pushed" "$file" || secretlint_rc=$?
       if ((secretlint_rc != 0)); then
         return "$secretlint_rc"
       fi
