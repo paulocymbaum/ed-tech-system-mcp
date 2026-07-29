@@ -24,7 +24,7 @@ dependencies = [
     "fastembed",
     "langchain-text-splitters",
     "tiktoken",
-    "chromadb",
+    "chromadb>=0.6.3,<1.0.0",
 ]
 
 [project.scripts]
