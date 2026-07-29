@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/common.sh"
 
-bash scripts/lint/architecture.sh
+bash scripts/hooks/pre-push.sh

@@ -47,9 +47,16 @@ scripts/doppler/*.env
 *.key
 *.p12
 *.pfx
+*.p8
+*.jks
+id_rsa
+id_ed25519
+.npmrc
+.pypirc
 credentials.json
 secrets.json
 service-account*.json
+mcp.json
 
 # --- Node (Husky toolchain) ---
 node_modules/

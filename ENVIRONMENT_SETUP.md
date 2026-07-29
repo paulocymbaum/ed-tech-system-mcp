@@ -804,8 +804,8 @@ If `pyproject.toml` or `uv.lock` changed, this reinstalls the exact locked graph
 
 | Tier | Hook | Blocks | Checks |
 | :--- | :--- | :--- | :--- |
-| **1 — Safety** | Husky `pre-commit` | **Commits** | `.gitignore` probes, sensitive files (`block-sensitive-files.sh`), secret scan (`scan-secrets.sh`) |
-| **2 — Architecture** | Husky `pre-push`, pytest, CI | **Push / CI** (not commits) | `import-linter` layer contracts + `check-boundary-patterns.sh` via `npm run lint:architecture` |
+| **1 — Safety** | Husky `pre-commit` | **Commits** | `.gitignore` probes + tracked violations (`verify-gitignore.sh`), tracked sensitive files (`check-tracked-sensitive.sh`), staged sensitive filenames (`block-sensitive-files.sh`), entropy heuristic (`scan-entropy.sh`), secret scan (`scan-secrets.sh` — gitleaks + secretlint when available) |
+| **2 — Safety + Architecture** | Husky `pre-push`, pytest, CI | **Push / CI** (not commits) | Re-run `verify-gitignore.sh` + `check-tracked-sensitive.sh` (`pre-push-safety.sh`), then `import-linter` layer contracts + `check-boundary-patterns.sh` via `npm run lint:architecture` |
 
 Install hooks after cloning (from the **repository root**):
 
