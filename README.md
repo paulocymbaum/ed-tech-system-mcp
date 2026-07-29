@@ -312,4 +312,4 @@ Cursor config?          → CURSOR.md
 
 ## License
 
-See repository metadata for license information.
+[MIT](LICENSE)
