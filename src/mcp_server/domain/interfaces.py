@@ -1,8 +1,15 @@
 """Abstract base classes (ports) for external integrations."""
 
 from abc import ABC, abstractmethod
+from typing import Literal
 
-from mcp_server.domain.schemas import DocumentHit, VideoResult
+from mcp_server.domain.schemas import (
+    ChunkHit,
+    ChunkRetrievalFilter,
+    DocumentHit,
+    TextChunk,
+    VideoResult,
+)
 
 
 class IDataRepository(ABC):
@@ -33,3 +40,91 @@ class IVideoSearchClient(ABC):
         safe_search: bool = True,
     ) -> list[VideoResult]:
         """Return normalized video results for the query."""
+
+
+class IChunkingStrategy(ABC):
+    """Port for splitting document text into indexable chunks."""
+
+    @abstractmethod
+    def chunk(
+        self,
+        text: str,
+        *,
+        document_id: str,
+        language: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> list[TextChunk]:
+        """Split text into ordered chunks with stable content hashes."""
+
+
+class IEmbeddingProvider(ABC):
+    """Port for local embedding inference (E5 query/passage prefixes in adapter)."""
+
+    @property
+    @abstractmethod
+    def dimensions(self) -> int:
+        """Return the embedding vector dimension for the configured model."""
+
+    @abstractmethod
+    async def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Embed search queries (E5 ``query:`` prefix applied by adapter)."""
+
+    @abstractmethod
+    async def embed_passages(self, texts: list[str]) -> list[list[float]]:
+        """Embed document passages (E5 ``passage:`` prefix applied by adapter)."""
+
+
+class IVectorRetriever(ABC):
+    """Port for semantic chunk retrieval from a vector index."""
+
+    @property
+    def supports_hybrid_fts(self) -> bool:
+        """Whether ``hybrid`` mode runs true FTS+vector fusion (not vector-only fallback)."""
+        return False
+
+    @abstractmethod
+    async def retrieve(
+        self,
+        query_embedding: list[float],
+        *,
+        limit: int,
+        filters: ChunkRetrievalFilter,
+        mode: Literal["vector", "hybrid"],
+        query_text: str | None = None,
+    ) -> list[ChunkHit]:
+        """Return ranked chunk hits for the query embedding."""
+
+
+class IVectorIndexWriter(ABC):
+    """Port for index-time chunk upsert and document-scoped deletion."""
+
+    @abstractmethod
+    async def upsert_chunks(
+        self,
+        chunks: list[TextChunk],
+        embeddings: list[list[float]],
+    ) -> None:
+        """Persist chunks and embeddings, replacing stale rows for each document."""
+
+    @abstractmethod
+    async def delete_by_document_id(self, document_id: str) -> None:
+        """Remove all chunks for a document (soft or hard delete per adapter)."""
+
+
+class IReranker(ABC):
+    """Port for cross-encoder re-ranking of retrieval candidates."""
+
+    @property
+    def is_pass_through(self) -> bool:
+        """True when rerank only truncates candidates without re-scoring."""
+        return False
+
+    @abstractmethod
+    async def rerank(
+        self,
+        query: str,
+        candidates: list[ChunkHit],
+        *,
+        top_n: int,
+    ) -> list[ChunkHit]:
+        """Return candidates re-ordered and truncated to top_n."""

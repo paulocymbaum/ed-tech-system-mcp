@@ -12,6 +12,7 @@ This document extends [ARCHITECTURE.md](./ARCHITECTURE.md). It defines how **lan
 | :--- | :--- |
 | **ARCHITECTURE.md** | Clean Architecture layers, ports & adapters, validation boundaries, anti-patterns |
 | **AGENTIC_ARCHITECTURE.md** | Agent graphs, LLM wiring, tool taxonomy, capability flows (DB / web / video), conditional parameters |
+| **[OBSERVABILITY.md](./OBSERVABILITY.md)** | Local workflow UI, execution trace/replay, LLM I/O inspection, debugging |
 
 Both documents share the same layer names and restrictions. If they conflict, **ARCHITECTURE.md wins** on layer boundaries; this document wins on orchestration semantics.
 
@@ -52,11 +53,11 @@ External clients (Cursor, other MCP hosts) call **MCP tools**. MCP tools validat
                                 │ adapter implementations
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  INFRASTRUCTURE — supabase_client · search_client · youtube_client      │
-│  • Supabase repository (structured queries)                             │
-│  • Supabase SQL executor (sandboxed read-only SQL agent path)           │
-│  • DuckDuckGo / Tavily web search                                       │
-│  • YouTube Data API v3                                                  │
+│  INFRASTRUCTURE — supabase_client · tavily_search_client · search_client   │
+│  • youtube_client · cached_adapters · groq_adapter                         │
+│  • Supabase repository (structured queries)                                │
+│  • Tavily web search (preferred) · DuckDuckGo fallback (stub)              │
+│  • YouTube Data API v3 (live)                                              │
 └─────────────────────────────────────────────────────────────────────────┘
 
          ▲
@@ -119,12 +120,16 @@ Orchestration, agents, LangChain tools, and conditional parameter construction.
 
 | Module | Responsibility |
 | :--- | :--- |
-| `agent.py` | LangGraph graph definitions (`StateGraph`), node functions, `create_agent()` factory |
-| `workflows.py` | Use-case orchestrators (e.g. `DocumentVideoWorkflow`) callable from MCP tools or graph terminal nodes |
+| `agent.py` | LangGraph graph definitions, `create_agent()`, `list_registered_workflows()` for local UI |
+| `workflows.py` | Use-case orchestrators (e.g. `DocumentVideoWorkflow`) callable from MCP tools |
+| `integration_runtime.py` | Lazy accessors for `ISearchClient` and `IVideoSearchClient` (Tavily / YouTube) |
+| `workflow_trace.py` | `invoke_graph_with_trace()` — per-node replay for local UI |
+| `workflow_llm_trace.py` | Captures LLM prompts, raw output, and model name per node |
+| `llm.py` / `llm_router.py` | `create_chat_model()`, Groq `LLMRouter` with complexity tiers and model fallback |
+| `workflow_graph.py` | Graph introspection DTOs, spine layout, async/retry edge classification for UI |
+| `agents/*/` | One package per LangGraph workflow (`content_generation`, `research_article`, `tavily_search`, `youtube_search`) |
 | `langchain_tools.py` *(planned)* | `@tool` wrappers: `search_web`, `search_youtube`, `find_documents`, `run_sql_read` |
 | `parameter_builders.py` *(planned)* | Build tool/agent parameters from graph state, user intent, and prior retrieval results |
-| `llm.py` | `create_chat_model(settings)` — single factory for LLM access; no raw API keys in agents |
-| `workflow_graph.py` | Graph introspection for local workflow UI |
 
 #### Language model access
 
@@ -196,6 +201,7 @@ MCP protocol adapter. The only layer that speaks JSON-RPC / FastMCP.
 | `search_youtube` | ✅ | `VideoSearchRequest` → `VideoSearchResponse` | `DocumentVideoWorkflow.search_videos` |
 | `run_workflow` | ✅ | `WorkflowRunRequest` → `WorkflowRunResponse` | `run_document_video_graph` (sequential LangGraph) |
 | `search_web` | 📋 planned | `WebSearchRequest` → `WebSearchResponse` | web search LangChain tool / workflow |
+| `rag_search` | 📋 planned | `RagSearchRequest` → `RagSearchResponse` | `rag_retrieval` LangGraph via `retrieval_runtime` |
 | `query_supabase_sql` | 📋 planned | `SqlAgentRequest` → `SqlAgentResponse` | SQL agent subgraph (read-only) |
 
 Every MCP tool follows the same template:
@@ -210,15 +216,17 @@ receive raw args → Pydantic validate → call application → Pydantic validat
 
 Concrete adapters. The only layer that imports Supabase, DuckDuckGo, YouTube, and Redis clients.
 
-| Adapter | Port | Agentic capability |
-| :--- | :--- | :--- |
-| `supabase_client.py` | `IDataRepository` | Structured document retrieval (parameterized queries / RPC / filtered select) |
-| `supabase_sql_executor.py` *(planned)* | `ISqlReadExecutor` | Execute **validated** read-only SQL against allowlisted views |
-| `search_client.py` | `ISearchClient` | Web search snippets for agent context |
-| `youtube_client.py` | `IVideoSearchClient` | Normalized `VideoResult` list |
-| `cached_adapters.py` | wraps above | Cache-aside for repeated agent tool calls |
-| `cached_llm.py` | wraps `BaseChatModel` | Cache-aside for LLM completions (**async path only** — see below) |
-| `mcp_tool_cache.py` | — | Optional MCP tool I/O caching at the interface boundary |
+| Adapter | Port | Agentic capability | Status |
+| :--- | :--- | :--- | :--- |
+| `supabase_client.py` | `IDataRepository` | Structured document retrieval | Stub (guards live; HTTP body deferred BL-022) |
+| `supabase_sql_executor.py` *(planned)* | `ISqlReadExecutor` | Execute **validated** read-only SQL | 📋 Planned |
+| `tavily_search_client.py` | `ISearchClient` | Tavily API → normalized `list[str]` snippets | ✅ Live |
+| `search_client.py` | `ISearchClient` | DuckDuckGo fallback when `TAVILY_API_KEY` unset | Stub |
+| `youtube_client.py` | `IVideoSearchClient` | YouTube Data API v3 → `list[VideoResult]` | ✅ Live |
+| `cached_adapters.py` | wraps above | Cache-aside for repeated agent tool calls | ✅ |
+| `cached_llm.py` | wraps `BaseChatModel` | Cache-aside for LLM completions (**async path only**) | ✅ |
+| `groq_adapter.py` | — | Groq `ChatGroq` builder for `LLMRouter` | ✅ |
+| `mcp_tool_cache.py` | — | Optional MCP tool I/O caching at the interface boundary | ✅ |
 
 #### Supabase — structured queries (`IDataRepository`)
 
@@ -245,24 +253,23 @@ SQL agent and structured query **share the same Supabase connection** but **neve
 #### Web search (`ISearchClient`)
 
 - Input: `query`, `max_results` (validated, capped).
-- Output: `list[str]` snippets — not raw provider JSON.
-- Used by agents for real-time context enrichment and by optional sparse-document enrichment (planned).
+- Output: `list[str]` snippets — title, content excerpt, and URL joined per result (not raw provider JSON).
+- **Primary adapter:** `TavilySearchClient` when `TAVILY_API_KEY` is set in Settings.
+- **Fallback:** `DuckDuckGoSearchClient` when Tavily key is absent (still a stub — returns `NotImplementedError` after guards).
 
-**Wiring status (BL-005, 2026-07-21):** `build_search_client()` exists in `wiring.py` but is **not** injected at the composition root yet. The DuckDuckGo adapter remains a stub (BL-022). Defer wiring until:
-
-1. `application/langchain_tools.py` ships `search_web` (LangChain tool wrapping `ISearchClient`), and
-2. MCP `search_web` tool delegates through that LangChain tool or a dedicated workflow step.
-
-**Target injection path (not `DocumentVideoWorkflow` in the current increment):**
+**Wiring (finalized 2026-07-22):**
 
 ```text
 wiring.build_search_client(settings, cache)
-  → application/langchain_tools.search_web (planned)
-  → MCP search_web tool (planned)
-  → optional application/agents/web_enrich subgraph when documents are sparse
+  → TavilySearchClient (if TAVILY_API_KEY) else DuckDuckGoSearchClient
+  → optional CachedSearchClient wrapper
+  → integration_runtime.get_search_client()  (lazy, wired at bootstrap)
+  → agents/tavily_search, agents/research_article tool nodes
 ```
 
-`DocumentVideoWorkflow` continues to use only `IDataRepository` + `IVideoSearchClient`. Web search enrichment is a separate capability path to avoid coupling document+video discovery to an unwired stub adapter.
+`configure_lazy_integration_clients(settings, cache)` is called from `initialize_application_runtime()` alongside the document-video workflow and chat model. Search and video clients are **not** injected into `DocumentVideoWorkflow`; they are consumed by dedicated UI workflows and the research-article agent graph.
+
+MCP `search_web` and `application/langchain_tools.py` remain **planned** — the live path today is LangGraph nodes calling ports via `integration_runtime`.
 
 #### LLM completion cache (`CachedChatModel`)
 
@@ -278,8 +285,10 @@ TTL and key prefix: `CACHE_TTL_LLM_COMPLETION`, `CACHE_KEY_PREFIX_LLM` (see env 
 #### YouTube search (`IVideoSearchClient`)
 
 - Input: `query`, `max_results`, `language`, `safe_search` (see `VideoSearchRequest` in `validation.py`).
-- Output: `list[VideoResult]` — normalized domain entities.
-- Often chained after document retrieval: search terms derived from document metadata, not the raw user prompt.
+- Output: `list[VideoResult]` — title, channel, canonical `watch?v=` URL.
+- **Adapter:** `YouTubeDataApiClient` — live YouTube Data API v3 via `asyncio.to_thread` around the Google client.
+- Wired through `build_video_client()` → `integration_runtime.get_video_client()`.
+- Used by MCP `search_youtube`, `DocumentVideoWorkflow`, `agents/youtube_search`, and `agents/research_article` (`tool_search_youtube` node).
 
 ---
 
@@ -294,20 +303,20 @@ Composition root and transport bootstrap.
 | Start MCP transport | `main.py` → `create_mcp_server().run()` |
 | Local workflow UI | `local_ui_main.py` (development only) |
 
-#### `wiring.py` responsibilities *(target)*
+#### `wiring.py` responsibilities
 
 ```text
 build_data_repository(settings, cache)     → IDataRepository
-build_search_client(settings, cache)       → ISearchClient
-build_video_client(settings, cache)        → IVideoSearchClient
-build_sql_executor(settings)               → ISqlReadExecutor
-build_langchain_tools(ports...)            → list[BaseTool]
-build_document_video_workflow(ports...)    → DocumentVideoWorkflow
-build_agent(settings, ports, tools, llm)   → CompiledStateGraph
-register_mcp_tools(workflow, agent, ...)   → side effect on custom_tools.py / mcp
+build_search_client(settings, cache)       → ISearchClient (Tavily preferred)
+build_video_client(settings, cache)        → IVideoSearchClient (YouTube live)
+build_chat_model(settings, cache)          → BaseChatModel (Groq router + optional cache)
+build_document_video_workflow(...)         → DocumentVideoWorkflow
+configure_lazy_integration_clients(...)    → search + video client lazy builders
+configure_lazy_document_video_workflow(...)→ document-video workflow lazy builder
+configure_lazy_chat_model(...)             → chat model lazy builder
 ```
 
-`main()` must call `register_mcp_tools(...)` after wiring so MCP decorators receive injected dependencies — not global singletons with lazy `os.getenv()`.
+`main()` and the local UI lifespan call `initialize_application_runtime()` so all lazy builders are registered before MCP tools or UI workflow runs execute.
 
 ---
 
@@ -379,6 +388,84 @@ MCP: run_workflow(query, document_limit?, video_limit?)
 
 **Latency note:** MCP `find_documents` uses `DocumentVideoWorkflow.retrieve_with_videos` with BL-010 optimistic parallel I/O. MCP `run_workflow` uses the sequential LangGraph path above for step visibility and workflow timeout enforcement — not the parallel composite method.
 
+### F. Tavily web search (local UI workflow)
+
+```text
+UI: POST /api/workflows/tavily-search/run { query, max_results }
+  → TavilySearchRunRequest validation
+  → get_tavily_search_graph() — single-node graph
+      search_web → ISearchClient.search() via integration_runtime
+  → TavilySearchRunResponse (results + execution trace)
+```
+
+Requires `TAVILY_API_KEY`. Returns `503` when the search client is not wired.
+
+### G. YouTube video search (local UI workflow)
+
+```text
+UI: POST /api/workflows/youtube-search/run { query, max_results, language?, safe_search? }
+  → YouTubeSearchRunRequest validation
+  → get_youtube_search_graph() — single-node graph
+      search_videos → IVideoSearchClient.search_videos() via integration_runtime
+  → YouTubeSearchRunResponse (videos + execution trace)
+```
+
+Requires `YOUTUBE_API_KEY`. Homologated in `tests/test_secrets_homologation.py` (`test_h04`).
+
+### H. Research → journalistic article (local UI workflow)
+
+```text
+UI: POST /api/workflows/research-article/run { query, max_web_results?, max_video_results? }
+  → ResearchArticleRunRequest validation
+  → get_research_article_graph()
+      agent_plan_research   → LLM editorial brief (Groq, MEDIUM complexity)
+      dispatch_parallel_tools → LangGraph Send fan-out
+          tool_search_tavily   → ISearchClient (async node)
+          tool_search_youtube  → IVideoSearchClient (async node)
+      merge_context         → defer=True; waits for both tools; builds merged_context + tool_calls
+      write_article         → LLM journalistic output (Groq, HIGH complexity)
+  → ResearchArticleRunResponse (brief, sources, article, trace)
+```
+
+Parallel tool nodes are **separate LangGraph nodes** (not hidden inside one orchestrator) so the workflow UI can visualize the async fork and record per-tool trace steps. Graph edges from `Send` fan-out are declared explicitly in `workflow_graph._WORKFLOW_EDGES` because LangGraph's drawable graph omits them.
+
+### I. Lesson → quiz + PBL (local UI workflow)
+
+```text
+UI: POST /api/workflows/content-generation/run { topic, grade_level? }
+  → ContentGenerationRunRequest validation
+  → get_content_generation_graph()
+      generate_lesson ⇄ validate_lesson (retry loop)
+      generate_quiz   ⇄ validate_quiz
+      generate_pbl    ⇄ validate_pbl
+      merge_results
+  → ContentGenerationRunResponse (lesson, quiz, pbl, retry counts, trace)
+```
+
+- **LLM:** Groq via `RoutingChatModel` → `LLMRouter` with complexity tiers and **automatic model fallback** on provider failure.
+- **Validation retries:** configurable via `config.json` `node_retries`; failed Pydantic/JSON parses loop back to `generate_*` nodes.
+- **Trace:** each LLM node records `llm_io` (system/user prompts, raw output, `model_name`, `llm_complexity`) via `workflow_llm_trace`.
+
+### J. Semantic RAG retrieval (Phase A — shipped)
+
+See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for library selection, ports, and ingest pipeline.
+
+```text
+UI: POST /api/workflows/rag-retrieval/run { query, retrieval_mode?, course_id?, tags? }
+  → RagRetrievalRunRequest validation
+  → get_rag_retrieval_graph()
+      embed_query      → IEmbeddingProvider.embed_queries via retrieval_runtime
+      retrieve_chunks  → IVectorRetriever (hybrid default)
+      [rerank_chunks?] → IReranker (RERANK_ENABLED)
+      merge_context
+  → RagRetrievalRunResponse (chunks, merged_context, trace)
+```
+
+- **Embeddings:** local `fastembed` ONNX (`intfloat/multilingual-e5-small`); Groq has no embeddings API.
+- **Vector store:** Supabase pgvector + hybrid RPC; structured `IDataRepository` and semantic `IVectorRetriever` may run in parallel (BL-010 pattern).
+- **Rerank:** optional (`RERANK_ENABLED=false` MVP default); when enabled use `BAAI/bge-reranker-base` via fastembed — not Jina v2 (CC-BY-NC).
+- **Trace:** RAG nodes record `candidate_count`, `cache_hit`, `retrieval_mode`, `latency_ms` in `output_update` — not `llm_io`.
+
 ---
 
 ## Validation schema map
@@ -388,7 +475,13 @@ MCP: run_workflow(query, document_limit?, video_limit?)
 | `DocumentSummary` | `interface/validation.py` | Pruned document DTO in MCP responses (BL-013) |
 | `DocumentQueryRequest` / `DocumentQueryResponse` | `interface/validation.py` | MCP `find_documents` |
 | `VideoSearchRequest` / `VideoSearchResponse` | `interface/validation.py` | MCP `search_youtube` |
-| `WorkflowRunRequest` / `WorkflowRunResponse` | `interface/validation.py` | MCP `run_workflow`, local UI POST run |
+| `WorkflowRunRequest` / `WorkflowRunResponse` | `interface/validation.py` | MCP `run_workflow` |
+| `TavilySearchRunRequest` / `TavilySearchRunResponse` | `interface/validation.py` | Local UI `tavily-search` |
+| `YouTubeSearchRunRequest` / `YouTubeSearchRunResponse` | `interface/validation.py` | Local UI `youtube-search` |
+| `ResearchArticleRunRequest` / `ResearchArticleRunResponse` | `interface/validation.py` | Local UI `research-article` |
+| `ContentGenerationRunRequest` / `ContentGenerationRunResponse` | `interface/validation.py` | Local UI `content-generation` |
+| `RagRetrievalRunRequest` / `RagRetrievalRunResponse` | `interface/validation.py` | Local UI `rag-retrieval` |
+| `WorkflowTraceStepView` | `interface/validation.py` | Trace replay in all UI workflow responses |
 | `WebSearchRequest` / `WebSearchResponse` *(planned)* | `interface/validation.py` | MCP `search_web` |
 | `SqlAgentRequest` / `SqlAgentResponse` *(planned)* | `interface/validation.py` | MCP `query_supabase_sql` |
 | `SqlQueryProposal` *(planned)* | `domain/schemas.py` or `validation.py` | LLM → SQL agent gate |
@@ -397,6 +490,50 @@ MCP: run_workflow(query, document_limit?, video_limit?)
 ---
 
 ## LangGraph agent design
+
+### Registered workflows (local UI)
+
+`list_registered_workflows()` in `agent.py` exposes compiled graphs to the local workflow explorer. As of 2026-07-22:
+
+| Workflow ID | Package | Graph shape | External deps |
+| :--- | :--- | :--- | :--- |
+| `tavily-search` | `agents/tavily_search/` | `search_web` | `TAVILY_API_KEY` |
+| `youtube-search` | `agents/youtube_search/` | `search_videos` | `YOUTUBE_API_KEY` |
+| `research-article` | `agents/research_article/` | plan → **parallel tools** → merge → write | Tavily + YouTube + `GROQ_API_KEY` |
+| `content-generation` | `agents/content_generation/` | lesson/quiz/pbl with validation retries | `GROQ_API_KEY` |
+| `rag-retrieval` | `agents/rag_retrieval/` | embed → retrieve → [rerank?] → merge | `fastembed` + Supabase |
+
+MCP production tools (`find_documents`, `search_youtube`, `run_workflow`) still use `DocumentVideoWorkflow` and `run_document_video_graph` — they are **not** removed. The local UI favors focused integration-test workflows plus the full agentic paths above.
+
+See [OBSERVABILITY.md](./OBSERVABILITY.md) for trace fields, replay controls, run summary, and edge highlighting semantics.
+
+### Homologation status (2026-07-22)
+
+All four local UI workflows are covered by pytest and pass in CI (`206 passed`). Live-key homologation (`RUN_SECRETS_HOMOLOGATION=1`) validates Tavily, YouTube, and Groq credentials.
+
+| Behavior | How to verify |
+| :--- | :--- |
+| Tavily + YouTube integrations | `tavily-search`, `youtube-search`, `research-article` UI runs |
+| Parallel async tool trace | `research-article` replay shows `tool_search_tavily` and `tool_search_youtube` as separate steps |
+| Validation retries | `content-generation` with bad LLM output — see `tests/test_workflow_trace.py` |
+| Groq model fallback | `LLMRouter` falls back on provider failure — see `tests/test_llm.py::test_llm14_router_falls_back_on_provider_failure` |
+
+**Note:** Fallback and retry paths do not appear in the UI unless a node actually fails. Clean runs show all-green traces. To exercise fallbacks locally, use the scripted tests above or temporarily misconfigure a model tier in tests.
+
+### Parallel async tool nodes (`research-article`)
+
+LangGraph `Send` fan-out dispatches two tool nodes after planning:
+
+```text
+agent_plan_research
+        ├─(async)─► tool_search_tavily  ──┐
+        └─(async)─► tool_search_youtube ──┴─► merge_context (defer=True) → write_article
+```
+
+- `dispatch_parallel_tools` returns `[Send("tool_search_tavily", state), Send("tool_search_youtube", state)]`.
+- `merge_context` uses `defer=True` so it runs **once** after both branches complete.
+- Each tool node records its own `ToolCallRecord` (`search_tavily` / `search_youtube`) in state; `merge_context` assembles `tool_calls` and `merged_context`.
+- UI layout places tool nodes on a parallel branch (Tavily above, YouTube below) with purple **`async`** edges.
 
 ### State
 
@@ -414,13 +551,57 @@ State is the **only** shared memory between nodes. Nodes return partial state up
 | :--- | :--- | :--- |
 | **Retrieval** | Domain port via injected dependency | `fetch_documents` |
 | **Transform** | Parameter builder (rules / LLM) | `derive_search_terms` |
-| **Tool** | LangChain tool | `search_videos` |
-| **Merge** | Pure Python on state | `merge_results` |
-| **Route** | Conditional edge function | `route_by_intent` |
+| **Tool** | Domain port via `integration_runtime` | `tool_search_tavily`, `search_web` |
+| **LLM** | `get_chat_model()` + trace capture | `agent_plan_research`, `generate_lesson`, `write_article` |
+| **Merge** | Pure Python on state | `merge_context`, `merge_results` |
+| **Route** | Conditional edge or `Send` fan-out | `dispatch_parallel_tools`, `_route_after_validate_*` |
 
 ### Graph registration
 
-`list_registered_workflows()` in `agent.py` registers compiled graphs for the local workflow UI. Production MCP exposure uses `create_agent()` and dedicated MCP tools — both compile the same graph definitions, not duplicate logic.
+`list_registered_workflows()` memoizes compiled graphs for the local workflow UI. MCP exposure uses dedicated tools and `create_agent()` for the document-video graph — workflow packages under `agents/` are the single source of graph definitions.
+
+---
+
+## Local Workflow UI (finalized)
+
+The workflow explorer is **development-only** (`local_ui_main.py`, loopback bind). It is the primary surface for homologating integrations and agent graphs before MCP exposure.
+
+### Stack
+
+| Layer | Path | Role |
+| :--- | :--- | :--- |
+| API | `interface/local_ui/api.py` | `GET /api/workflows`, `POST /api/workflows/{id}/run` |
+| Graph DTOs | `application/workflow_graph.py` | Node positions, edge kinds (`forward`, `retry`, `failure`, `async`) |
+| Trace | `application/workflow_trace.py` | `invoke_graph_with_trace()` via `stream_mode="updates"` |
+| UI | `ui/src/` | React Flow graph, run panel, step replay, LLM I/O inspector |
+
+Start with `./scripts/dev/run-workflow-ui.sh` → http://127.0.0.1:4173 (API on :8877).
+
+### UI capabilities
+
+| Feature | Component | Behavior |
+| :--- | :--- | :--- |
+| Workflow sidebar | `App.tsx` | Lists all `list_registered_workflows()` entries |
+| Graph canvas | `WorkflowGraphView.tsx` | Custom nodes, handles, traversed-path highlighting, async/retry edge styles |
+| Run panel | `WorkflowRunPanel.tsx` | Per-workflow forms (query, limits, topic/grade) |
+| Run summary | `WorkflowRunSummary.tsx` | Step counts, retry/failed stats, `generation_complete` warning |
+| Step replay | `WorkflowTraceReplay.tsx` | Auto-advances to last step; click steps to inspect |
+| LLM inspector | `WorkflowStepInspector.tsx` | `input_snapshot`, `output_update`, `llm_io` per step |
+
+### Edge kinds in the canvas
+
+| Kind | Visual | Used for |
+| :--- | :--- | :--- |
+| `forward` | Solid blue | Normal sequential execution |
+| `async` | Dashed purple, label `async` | Parallel fan-out (`research-article` tool branches) |
+| `retry` | Dashed amber, label `retry` | Validation retry loops (`content-generation`) |
+| `failure` | Dashed red, label `give up` | Exhausted retries → early merge |
+
+### Bootstrap behavior
+
+- **Graph browsing** works without secrets (structure-only API).
+- **Execution** requires wired runtime: FastAPI lifespan calls `bootstrap_application_runtime()`. Missing credentials return `503` with a clear message.
+- Live integration tests: `tests/interface/test_local_ui_api.py` (Tavily/YouTube when keys present); `tests/test_research_article_graph.py` (scripted LLM + fake ports).
 
 ---
 
@@ -444,22 +625,28 @@ ed-tech-system-mcp/
 │   ├── package.json
 │   ├── vite.config.ts                   # Proxies /api → 127.0.0.1:8877
 │   └── src/
-│       ├── App.tsx                      # Workflow list + graph canvas
-│       ├── api/workflows.ts             # Fetches /api/workflows from local_ui
+│       ├── App.tsx                      # Workflow list + run summary + replay shell
+│       ├── api/workflows.ts             # Workflow + trace TypeScript types
+│       ├── lib/traceAnalytics.ts        # Path/edge analytics for graph highlighting
 │       └── components/
-│           └── WorkflowGraphView.tsx    # React Flow graph renderer
+│           ├── WorkflowGraphView.tsx    # React Flow graph (forward/async/retry edges)
+│           ├── WorkflowRunPanel.tsx     # Per-workflow run forms
+│           ├── WorkflowRunSummary.tsx   # Post-run stats banner
+│           ├── WorkflowTraceReplay.tsx  # Step-by-step replay
+│           └── WorkflowStepInspector.tsx# Node I/O + LLM trace viewer
 │
 ├── tests/
-│   ├── application/
-│   │   ├── test_agent.py                # 📋 Graph compile, node routing, state updates
-│   │   ├── test_parameter_builders.py   # 📋 Conditional param construction
-│   │   └── test_langchain_tools.py      # 📋 LangChain tool → port delegation
+│   ├── test_agent.py                    # ✅ Workflow registry + memoization
+│   ├── test_workflow_graph.py           # ✅ Layout + async edge classification
+│   ├── test_workflow_trace.py           # ✅ Trace status, retries, LLM I/O
+│   ├── test_research_article_graph.py   # ✅ Parallel tools + article generation
+│   ├── test_content_generation_graph.py # ✅ Lesson/quiz/PBL + router fallback
+│   ├── test_integration_clients.py      # ✅ Tavily + YouTube adapter unit tests
+│   ├── test_llm.py                      # ✅ Groq router, fallback, cache
 │   ├── interface/
-│   │   ├── test_custom_tools.py         # 📋 MCP tool validate → delegate
-│   │   └── test_local_ui_api.py         # ✅ Local workflow UI API
+│   │   └── test_local_ui_api.py         # ✅ Local workflow UI API + live key tests
 │   ├── infrastructure/
-│   │   ├── test_supabase_repository.py  # 📋 Structured document queries
-│   │   └── test_sql_executor.py         # 📋 Read-only SQL agent path
+│   │   └── test_infrastructure_stubs.py # Adapter guard contracts
 │   └── test_cache.py                    # ✅ Cache-aside + wiring smoke tests
 │
 └── src/
@@ -467,43 +654,53 @@ ed-tech-system-mcp/
         │
         ├── main.py                      # ✅ MCP entrypoint — bootstrap, settings, server.run()
         ├── local_ui_main.py             # ✅ Local workflow UI entrypoint (loopback only)
-        ├── settings.py                  # ✅ Typed config; 📋 LLM + SQL agent fields
+        ├── settings.py                  # ✅ Typed config (Groq, Tavily, YouTube, Supabase, cache)
         ├── operational_config.py        # ✅ Pydantic loader for repo-root config.json
-        ├── wiring.py                    # ✅ Composition root — ports, workflows, cache
-        │                                # 📋 + langchain tools, agents, MCP registration
+        ├── wiring.py                    # ✅ Composition root — ports, workflows, cache, lazy builders
         │
         ├── domain/                      # Pure contracts — no LangChain / MCP / SDKs
         │   ├── interfaces.py            # ✅ IDataRepository, ISearchClient, IVideoSearchClient
-        │   │                            # 📋 ISqlReadExecutor
+        │   │                            # 📋 ISqlReadExecutor, IEmbeddingProvider, IVectorRetriever, IReranker
         │   ├── schemas.py               # ✅ DocumentHit, VideoResult
-        │   │                            # 📋 SqlQueryProposal, SqlQueryResult
+        │   │                            # 📋 ChunkHit, TextChunk, SqlQueryProposal, SqlQueryResult
         │   ├── query_policies.py        # 📋 SQL allowlists, table/column caps, SELECT-only rules
         │   ├── cache.py                 # ✅ ICacheStore port
         │   ├── cache_keys.py            # ✅ Deterministic cache key builders
         │   └── exceptions.py            # ✅ Domain errors → interface mapping
         │
         ├── application/                 # Agents, graphs, LangChain tools, orchestration
-        │   ├── agent.py                 # ✅ create_agent(), list_registered_workflows()
-        │   │                            # 📋 thin facade → agents/* graphs
-        │   ├── workflow_graph.py        # ✅ Graph introspection DTOs (local UI)
-        │   ├── workflow_config.py       # ✅ WorkflowExecutionConfig runtime view (wiring init)
-        │   ├── llm_models.py            # ✅ AVAILABLE_LANGUAGE_MODELS registry
+        │   ├── agent.py                 # ✅ Document-video graph + list_registered_workflows()
+        │   ├── integration_runtime.py   # ✅ Lazy ISearchClient / IVideoSearchClient accessors
+        │   ├── retrieval_runtime.py     # ✅ Lazy IEmbeddingProvider / IVectorRetriever / IReranker accessors
+        │   ├── workflow_trace.py        # ✅ Per-node execution trace collection
+        │   ├── workflow_llm_trace.py    # ✅ LLM prompt/output capture per node
+        │   ├── workflow_graph.py        # ✅ Graph introspection + UI layout (async edges)
+        │   ├── workflow_config.py       # ✅ WorkflowExecutionConfig runtime view
+        │   ├── llm_router.py            # ✅ Groq model fallback + complexity routing
+        │   ├── routing_chat_model.py    # ✅ LangChain adapter over LLMRouter
+        │   ├── llm_models.py            # ✅ Groq model registry from catalog
         │   ├── workflows.py             # ✅ DocumentVideoWorkflow use-case orchestrator
         │   ├── llm.py                   # ✅ create_chat_model(settings) → BaseChatModel
         │   ├── parameter_builders.py    # 📋 Rule + state + optional LLM param builders
         │   ├── langchain_tools.py       # 📋 @tool wrappers (web, youtube, documents, sql)
         │   │
-        │   └── agents/                  # 📋 One package per LangGraph workflow
-        │       ├── __init__.py          #     Re-exports compiled graphs for wiring/UI
-        │       ├── document_video/      #     Document + YouTube discovery graph
-        │       │   ├── state.py         #     DocumentVideoState TypedDict
-        │       │   ├── nodes.py         #     fetch_documents, derive_search_terms, …
-        │       │   └── graph.py         #     StateGraph wiring + compile()
-        │       ├── sql_read/            #     Read-only Supabase SQL agent graph
-        │       │   ├── state.py         #     SqlReadState TypedDict
-        │       │   ├── nodes.py         #     propose_sql, validate_sql, execute_sql
+        │   └── agents/                  # ✅ One package per LangGraph workflow
+        │       ├── content_generation/  #     Lesson → quiz + PBL (validation retries)
+        │       │   ├── state.py
+        │       │   ├── nodes.py
+        │       │   ├── prompts.py
+        │       │   ├── llm_output.py
         │       │   └── graph.py
-        │       └── web_enrich/          #     Optional: web search enrichment subgraph
+        │       ├── research_article/    #     Plan → parallel Tavily/YouTube → article
+        │       │   ├── state.py
+        │       │   ├── nodes.py
+        │       │   ├── prompts.py
+        │       │   └── graph.py
+        │       ├── tavily_search/       #     Single-node Tavily integration test
+        │       │   └── graph.py
+        │       ├── youtube_search/      #     Single-node YouTube integration test
+        │       │   └── graph.py
+        │       └── rag_retrieval/       # ✅ Semantic RAG: embed → retrieve → [rerank?] → merge
         │           ├── state.py
         │           ├── nodes.py
         │           └── graph.py
@@ -512,17 +709,17 @@ ed-tech-system-mcp/
         │   ├── mcp_server.py            # ✅ FastMCP instance
         │   ├── custom_tools.py          # ✅ health_check, find_documents, search_youtube, run_workflow
         │   │                            # 📋 search_web, query_supabase_sql
-        │   ├── validation.py            # ✅ DocumentSummary, DocumentQuery*, VideoSearch*,
-        │   │                            #     WorkflowRun*; 📋 WebSearch*, SqlAgent*
+        │   ├── validation.py            # ✅ All MCP + local UI request/response models
         │   └── local_ui/                # ✅ FastAPI adapter (dev-only workflow explorer)
         │       ├── api.py               #     GET /api/workflows, POST /api/workflows/{id}/run
         │       └── schemas.py
         │
         └── infrastructure/              # Provider adapters — only layer with external SDKs
-            ├── supabase_client.py       # ✅ IDataRepository (stub)
+            ├── supabase_client.py       # ✅ IDataRepository (stub body; guards live)
+            ├── tavily_search_client.py  # ✅ ISearchClient — Tavily HTTP API
+            ├── search_client.py         # ✅ ISearchClient — DuckDuckGo fallback (stub)
+            ├── youtube_client.py        # ✅ IVideoSearchClient — YouTube Data API v3
             ├── supabase_sql_executor.py # 📋 ISqlReadExecutor — parameterized read-only SQL
-            ├── search_client.py         # ✅ ISearchClient (stub)
-            ├── youtube_client.py        # ✅ IVideoSearchClient (stub)
             ├── cached_adapters.py       # ✅ Cache-aside wrappers for ports
             ├── cache_config.py          # ✅ Per-operation TTL rules
             ├── redis_cache_store.py     # ✅ Redis ICacheStore
@@ -550,14 +747,17 @@ ed-tech-system-mcp/
 | `wiring.py` | Entrypoint | Wire ports → LangChain tools → graphs → MCP tool handlers |
 | `ui/` + `interface/local_ui/` | Dev tooling | Visualize registered graphs locally (not production MCP) |
 
-### Growth path: flat → packaged agents
+### Growth path: packaged agents ✅ (in progress)
 
-Today `application/agent.py` holds the first graph inline. As more workflows are added:
+The first graph lived inline in `application/agent.py` (`DocumentVideoState`, `build_document_video_graph`). New workflows now follow the packaged layout:
 
-1. Move each graph into `application/agents/<name>/` (`state.py`, `nodes.py`, `graph.py`).
-2. Keep `agent.py` as a **facade** that re-exports `create_agent()` and `list_registered_workflows()` so `wiring.py` and the local UI have a stable import path.
-3. Add matching tests under `tests/application/agents/<name>/`.
-4. Register new graphs in `list_registered_workflows()` for the local UI and expose via MCP through `custom_tools.py`.
+1. **Graph package** under `application/agents/<name>/` (`state.py`, `nodes.py`, `graph.py`, optional `prompts.py`).
+2. **Registration** in `list_registered_workflows()` for local UI introspection.
+3. **API route** in `interface/local_ui/api.py` with matching Pydantic DTOs in `validation.py`.
+4. **Tests** under `tests/test_<name>_graph.py` and layout contracts in `tests/test_workflow_graph.py`.
+5. **UI spine + edges** in `workflow_graph._WORKFLOW_SPINES` / `_WORKFLOW_EDGES` when LangGraph drawable edges are incomplete (e.g. `Send` fan-out).
+
+**Next packaged agents (planned):** `sql_read/`, `web_enrich/`. MCP `search_web` should delegate through a LangChain tool once `langchain_tools.py` ships.
 
 ### Cursor build agents (repository tooling — not runtime)
 
@@ -590,16 +790,18 @@ Do not confuse **Cursor build agents** (`.cursor/agents/`) with **runtime LangGr
 
 ## Settings and secrets (agentic extensions)
 
-Extend `Settings` in `settings.py` *(planned fields)*:
+Extend `Settings` in `settings.py` (RAG fields shipped in Phase A):
 
 | Variable | Used by |
 | :--- | :--- |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `application/llm.py` *(deferred)* |
-| `GROQ_API_KEY` | `application/llm.py` via `create_chat_model()` |
-| `LLM_MODEL`, `LLM_TEMPERATURE` | Chat model factory defaults |
-| `CACHE_TTL_LLM_COMPLETION`, `CACHE_KEY_PREFIX_LLM` | `CachedChatModel` cache-aside |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Repository + SQL executor |
-| `YOUTUBE_API_KEY` | Video search adapter |
+| `GROQ_API_KEY` | `application/llm.py` via `LLMRouter` |
+| `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_COMPLEXITY` | Chat model factory defaults and router tiers |
+| `TAVILY_API_KEY` | `TavilySearchClient` via `build_search_client()` |
+| `YOUTUBE_API_KEY` | `YouTubeDataApiClient` via `build_video_client()` |
+| `CACHE_TTL_*`, `CACHE_KEY_PREFIX_*` | Cache-aside for ports, LLM, MCP tools |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Repository + vector index (Phase A) |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_WARM_ON_BOOT` | `IEmbeddingProvider` via `retrieval_runtime` |
+| `RETRIEVAL_MODE`, `RETRIEVE_LIMIT`, `RERANK_ENABLED`, `RERANKER_MODEL`, `RERANK_TOP_N` | RAG retrieval graph defaults |
 | `SQL_AGENT_ENABLED` | Gate SQL agent MCP tool and graph routes |
 | `SQL_AGENT_MAX_ROWS` | Domain query policy default |
 
@@ -627,23 +829,26 @@ See [Agent file structure](#agent-file-structure) for the full tree. Status snap
 
 | Path | Status | Agentic role |
 | :--- | :--- | :--- |
-| `application/agent.py` | ✅ | LangGraph facade, `run_document_video_graph`, workflow registry |
-| `application/agents/` | 📋 | One package per LangGraph workflow |
-| `application/workflows.py` | ✅ | Use-case orchestration; BL-010 parallel `retrieve_with_videos` |
-| `application/workflow_graph.py` | ✅ | UI introspection |
-| `application/workflow_config.py` | ✅ | Runtime workflow limits (initialized at startup) |
-| `application/llm_models.py` | ✅ | Typed LLM model registry for future factory |
+| `application/agent.py` | ✅ | Document-video graph, `list_registered_workflows()` |
+| `application/agents/` | ✅ | `content_generation`, `research_article`, `tavily_search`, `youtube_search` |
+| `application/integration_runtime.py` | ✅ | Lazy Tavily/YouTube client accessors |
+| `application/retrieval_runtime.py` | ✅ | Lazy RAG port accessors |
+| `application/workflow_trace.py` | ✅ | UI execution trace collection |
+| `application/workflow_llm_trace.py` | ✅ | Per-node LLM I/O for observability |
+| `application/workflows.py` | ✅ | `DocumentVideoWorkflow`; BL-010 parallel I/O |
+| `application/workflow_graph.py` | ✅ | UI layout, async/retry edge kinds |
+| `application/llm_router.py` | ✅ | Groq fallback + complexity routing |
 | `application/langchain_tools.py` | 📋 | LangChain `@tool` wrappers |
-| `application/parameter_builders.py` | 📋 | Conditional parameter construction |
-| `application/llm.py` | ✅ | LLM factory (Groq-first; OpenAI/Anthropic deferred) |
-| `interface/custom_tools.py` | ✅ | MCP tools: `health_check`, `find_documents`, `search_youtube`, `run_workflow` |
-| `interface/validation.py` | ✅ | `DocumentSummary`, `DocumentQuery*`, `VideoSearch*`, `WorkflowRun*` |
-| `interface/local_ui/` | ✅ | Local workflow explorer API + POST run endpoint |
-| `domain/query_policies.py` | 📋 | SQL agent safety |
-| `infrastructure/supabase_sql_executor.py` | 📋 | Read-only SQL execution |
-| `operational_config.py` | ✅ | Load and validate repo-root `config.json` |
-| `wiring.py` | partial | Composition; `build_search_client` deferred until BL-022 + `langchain_tools` |
-| `ui/` | ✅ | React workflow graph viewer (local dev) |
+| `interface/custom_tools.py` | ✅ | MCP: `health_check`, `find_documents`, `search_youtube`, `run_workflow` |
+| `interface/validation.py` | ✅ | MCP DTOs + all local UI run/trace models |
+| `interface/local_ui/` | ✅ | Workflow explorer API (5 UI workflows) |
+| `infrastructure/tavily_search_client.py` | ✅ | Live Tavily integration |
+| `infrastructure/youtube_client.py` | ✅ | Live YouTube Data API v3 |
+| `infrastructure/search_client.py` | stub | DuckDuckGo fallback |
+| `infrastructure/supabase_client.py` | stub | Structured document queries |
+| `wiring.py` | ✅ | Composition root — ports, cache, lazy builders |
+| `ui/` | ✅ | React workflow explorer with trace replay |
+| `OBSERVABILITY.md` | ✅ | Trace/replay/debugging guide |
 
 ---
 
@@ -663,6 +868,7 @@ domain (ports + policies + entities)
 Within application layer, prefer this sequence:
 
 1. Structured Supabase path (`DocumentQueryRequest` + repository implementation)
+1.5. Semantic RAG path (domain ports → pgvector adapters → `rag_retrieval` graph) — see [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md)
 2. Web and YouTube LangChain tools (ports already defined)
 3. Parameter builders and conditional graph edges
 4. LLM factory and optional LLM-assisted parameter nodes
@@ -674,14 +880,17 @@ Within application layer, prefer this sequence:
 
 | Concern | Owner layer | Mechanism |
 | :--- | :--- | :--- |
-| LLM access | Application (`llm.py`) | Injected `BaseChatModel`; no keys in nodes |
-| Conditional parameters | Application (`parameter_builders.py` + graph edges) | Rules → state merge → optional LLM → Pydantic |
+| LLM access | Application (`llm.py`, `llm_router.py`) | `RoutingChatModel` + Groq fallback; no keys in nodes |
+| LLM observability | Application (`workflow_llm_trace.py`) | Prompts, raw output, model name per trace step |
+| Conditional parameters | Application (graph edges + state) | Rules → state merge → optional LLM → Pydantic |
+| Parallel async tools | Application (`agents/research_article/`) | LangGraph `Send` + `defer=True` merge node |
 | Tool calling (external) | Interface (`custom_tools.py`) | MCP tools validate and delegate |
-| Tool calling (internal) | Application (`langchain_tools.py`) | LangChain tools wrap domain ports |
-| Supabase structured read | Infrastructure → `IDataRepository` | Validated query params; fixed templates |
-| Supabase SQL agent | Application + Domain + Infrastructure | LLM proposes → policy validates → `ISqlReadExecutor` |
-| Web search | Infrastructure → `ISearchClient` | Normalized snippets |
-| YouTube search | Infrastructure → `IVideoSearchClient` | Normalized `VideoResult` |
+| Tool calling (internal) | Application (graph nodes) | Nodes call ports via `integration_runtime` |
+| Web search (Tavily) | Infrastructure → `ISearchClient` | `TavilySearchClient`; wired at bootstrap |
+| YouTube search | Infrastructure → `IVideoSearchClient` | `YouTubeDataApiClient`; wired at bootstrap |
+| Supabase structured read | Infrastructure → `IDataRepository` | Stub adapter; guards live |
+| Semantic RAG | Infrastructure → `IVectorRetriever` + `retrieval_runtime` | ✅ Phase A — pgvector + fastembed ONNX |
+| Workflow UI | Interface + `ui/` | Graph viz, trace replay, run summary |
 | Wiring | Entrypoint (`wiring.py`) | Single composition root for all dependencies |
 
 This architecture keeps **reasoning** (LLM + LangGraph) in the application layer, **contracts** in the domain, **protocol exposure** in the interface, and **provider details** in infrastructure — consistent with [ARCHITECTURE.md](./ARCHITECTURE.md).

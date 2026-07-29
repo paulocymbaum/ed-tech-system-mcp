@@ -349,6 +349,34 @@ In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), e
 
 Local development may keep `CACHE_ENABLED=false` (default). CI tests run with cache disabled unless a dedicated Redis service is added to the workflow.
 
+#### RAG settings (Phase A — shipped in `settings.py`)
+
+See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for library and port design.
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `EMBEDDING_MODEL` | `intfloat/multilingual-e5-small` | fastembed model id |
+| `EMBEDDING_DIMENSION` | `384` | Must match pgvector column |
+| `EMBEDDING_WARM_ON_BOOT` | `false` | Pre-load ONNX at bootstrap |
+| `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | Model weights on VPS |
+| `RETRIEVAL_MODE` | `hybrid` | `vector` or `hybrid` (MVP) |
+| `RETRIEVE_LIMIT` | `20` | Pre-rerank candidate cap |
+| `RERANK_ENABLED` | `false` | MVP default off |
+| `RERANKER_MODEL` | `BAAI/bge-reranker-base` | When rerank enabled (MIT, fastembed ONNX) |
+| `RERANK_TOP_N` | `6` | Post-rerank cap |
+| `CACHE_TTL_EMBEDDING_QUERY` | `3600` | Query embedding cache TTL (seconds) |
+| `CACHE_TTL_VECTOR_RETRIEVE` | `600` | Retrieval result cache TTL (seconds) |
+| `CACHE_KEY_PREFIX_EMBEDDING` | `embed` | Redis key namespace |
+| `CACHE_KEY_PREFIX_VECTOR` | `vector` | Redis key namespace |
+| `VECTOR_STORE_BACKEND` | `auto` | `auto`, `chroma`, or `supabase` |
+| `SUPABASE_VECTOR_ENABLED` | `false` | When `true`, `auto` selects Supabase pgvector |
+| `CHROMA_PERSIST_PATH` | `.cache/chromadb` | Local Chroma persistence directory |
+| `CHROMA_COLLECTION_NAME` | `document_chunks` | Chroma collection for chunk embeddings |
+
+**Vector store default:** `VECTOR_STORE_BACKEND=auto` with `SUPABASE_VECTOR_ENABLED=false` uses **ChromaDB** locally until Supabase migrations are applied; set `SUPABASE_VECTOR_ENABLED=true` (or `VECTOR_STORE_BACKEND=supabase`) to switch.
+
+**Blocked for commercial ed-tech:** `RERANKER_MODEL=jinaai/jina-reranker-v2-base-multilingual` (CC-BY-NC-4.0).
+
 ### Recommended secrets manager (by context)
 
 Route secrets **into `os.environ` before the process starts** (or via your platform's injection). The application never reads directly from a secrets-manager SDK in Domain or Application code — only the Entrypoint/bootstrap layer resolves configuration.
@@ -486,6 +514,26 @@ CACHE_ENABLED=false
 # CACHE_KEY_PREFIX_WEB=web
 # CACHE_KEY_PREFIX_MCP_TOOL=mcp
 # CACHE_KEY_PREFIX_LLM=llm
+
+# RAG retrieval (Phase A — Infrastructure + Application)
+# EMBEDDING_MODEL=intfloat/multilingual-e5-small
+# EMBEDDING_DIMENSION=384
+# EMBEDDING_WARM_ON_BOOT=false
+# EMBEDDING_CACHE_DIR=.cache/fastembed
+# RETRIEVAL_MODE=hybrid
+# RETRIEVE_LIMIT=20
+# RERANK_ENABLED=false
+# RERANKER_MODEL=BAAI/bge-reranker-base
+# RERANK_TOP_N=6
+# BLOCKED (NC license): RERANKER_MODEL=jinaai/jina-reranker-v2-base-multilingual
+# CACHE_TTL_EMBEDDING_QUERY=3600
+# CACHE_TTL_VECTOR_RETRIEVE=600
+# CACHE_KEY_PREFIX_EMBEDDING=embed
+# CACHE_KEY_PREFIX_VECTOR=vector
+# VECTOR_STORE_BACKEND=auto
+# SUPABASE_VECTOR_ENABLED=false
+# CHROMA_PERSIST_PATH=.cache/chromadb
+# CHROMA_COLLECTION_NAME=document_chunks
 
 # Logging
 LOG_LEVEL=INFO

@@ -20,7 +20,7 @@ from __future__ import annotations
 import gzip
 import json
 
-from mcp_server.domain.schemas import DocumentHit, VideoResult
+from mcp_server.domain.schemas import ChunkHit, DocumentHit, VideoResult
 
 DOCUMENT_CONTENT_MAX_LEN = 200
 COMPRESS_THRESHOLD_BYTES = 1024
@@ -94,6 +94,19 @@ def deserialize_snippets(payload: bytes) -> list[str]:
     json_bytes = _decode_port_payload(payload)
     raw = json.loads(json_bytes.decode("utf-8"))
     return [str(item) for item in raw]
+
+
+def serialize_chunks(chunks: list[ChunkHit]) -> bytes:
+    """Serialize chunk hits for cache storage."""
+    json_bytes = json.dumps([chunk.model_dump() for chunk in chunks]).encode("utf-8")
+    return _encode_port_payload(json_bytes)
+
+
+def deserialize_chunks(payload: bytes) -> list[ChunkHit]:
+    """Deserialize cached chunk hits, including legacy unprefixed JSON."""
+    json_bytes = _decode_port_payload(payload)
+    raw = json.loads(json_bytes.decode("utf-8"))
+    return [ChunkHit.model_validate(item) for item in raw]
 
 
 def payload_within_cache_limit(payload: bytes) -> bool:
