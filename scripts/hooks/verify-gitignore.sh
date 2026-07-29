@@ -28,6 +28,8 @@ required_patterns=(
   "*.key"
   "*.KEY"
   "changelog/"
+  ".cursor/"
+  "CURSOR.md"
   "mcp.json"
 )
 
