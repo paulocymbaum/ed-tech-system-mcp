@@ -375,6 +375,8 @@ See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for libra
 
 **Vector store default:** `VECTOR_STORE_BACKEND=auto` with `SUPABASE_VECTOR_ENABLED=false` uses **ChromaDB** locally until Supabase migrations are applied; set `SUPABASE_VECTOR_ENABLED=true` (or `VECTOR_STORE_BACKEND=supabase`) to switch.
 
+**ChromaDB version:** locked to `>=0.6.3,<1.0.0` (embedded `PersistentClient` only). Versions `1.0.0`–`1.5.9` are affected by [CVE-2026-45829](https://github.com/advisories/GHSA-f4j7-r4q5-qw2c) (pre-auth code injection in the HTTP server API). This project does not run Chroma in server mode; upgrade to a patched `1.x` release when published.
+
 **Blocked for commercial ed-tech:** `RERANKER_MODEL=jinaai/jina-reranker-v2-base-multilingual` (CC-BY-NC-4.0).
 
 ### Recommended secrets manager (by context)
