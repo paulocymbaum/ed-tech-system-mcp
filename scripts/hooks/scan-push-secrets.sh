@@ -25,7 +25,11 @@ get_push_commits() {
   fi
 
   if [[ "$remote_sha" == "$zero_sha" ]]; then
-    git rev-list "$local_sha" --not --remotes 2>/dev/null || git rev-list "$local_sha"
+    if git rev-list "$local_sha" --not --remotes >/dev/null 2>&1; then
+      git rev-list "$local_sha" --not --remotes
+    else
+      git rev-list -n 1 "$local_sha"
+    fi
   else
     git rev-list "$remote_sha".."$local_sha" 2>/dev/null
   fi
@@ -36,7 +40,11 @@ get_gitleaks_log_range() {
   local remote_sha="$2"
 
   if [[ "$remote_sha" == "$zero_sha" ]]; then
-    printf '%s --not --remotes' "$local_sha"
+    if git rev-list "$local_sha" --not --remotes >/dev/null 2>&1; then
+      printf '%s --not --remotes' "$local_sha"
+    else
+      printf '%s' "$local_sha"
+    fi
   else
     printf '%s..%s' "$remote_sha" "$local_sha"
   fi
@@ -64,6 +72,11 @@ if ((${#push_commits[@]} == 0)); then
   exit 0
 fi
 
+# shellcheck source=scan-allowlist.sh
+source "$hooks_dir/scan-allowlist.sh"
+# shellcheck source=secretlint-helper.sh
+source "$hooks_dir/secretlint-helper.sh"
+
 scan_with_gitleaks() {
   local failed=0
 
@@ -90,7 +103,7 @@ scan_with_gitleaks() {
 }
 
 scan_with_secretlint() {
-  local commit file
+  local commit file secretlint_rc
 
   for commit in "${push_commits[@]}"; do
     while IFS= read -r -d '' file; do
@@ -98,23 +111,16 @@ scan_with_secretlint() {
         continue
       fi
 
-      if ! git show "$commit:$file" 2>/dev/null | node_modules/.bin/secretlint \
-        --secretlintrc .secretlintrc.json \
-        --stdinFileName="$file" >/dev/null 2>&1; then
-        echo "ERROR: secretlint found secrets in commits being pushed." >&2
-        git show "$commit:$file" 2>/dev/null | node_modules/.bin/secretlint \
-          --secretlintrc .secretlintrc.json \
-          --stdinFileName="$file" >&2 || true
-        return 1
+      secretlint_rc=0
+      git show "$commit:$file" 2>/dev/null | run_secretlint_on_stdin "commits being pushed" "$file" || secretlint_rc=$?
+      if ((secretlint_rc != 0)); then
+        return "$secretlint_rc"
       fi
     done < <(git diff-tree --no-commit-id --name-only -r -z "$commit")
   done
 
   return 0
 }
-
-# shellcheck source=scan-allowlist.sh
-source "$hooks_dir/scan-allowlist.sh"
 
 scanners_available=0
 scanners_failed=0
@@ -126,9 +132,11 @@ if command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 
-if [[ -x node_modules/.bin/secretlint ]]; then
+if [[ -x "$SECRETLINT_BIN" ]]; then
   scanners_available=$((scanners_available + 1))
-  if ! scan_with_secretlint; then
+  secretlint_rc=0
+  scan_with_secretlint || secretlint_rc=$?
+  if ((secretlint_rc != 0)); then
     scanners_failed=1
   fi
 fi

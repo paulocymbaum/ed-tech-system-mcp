@@ -5,6 +5,9 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 hooks_dir="$(dirname -- "$0")"
 
+# shellcheck source=secretlint-helper.sh
+source "$hooks_dir/secretlint-helper.sh"
+
 staged_files=()
 while IFS= read -r -d '' file; do
   if [[ -f "$file" ]]; then
@@ -25,15 +28,6 @@ scan_with_gitleaks() {
   return 1
 }
 
-scan_with_secretlint() {
-  if node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${staged_files[@]}" >/dev/null 2>&1; then
-    return 0
-  fi
-  echo "ERROR: secretlint found secrets in staged files." >&2
-  node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${staged_files[@]}" >&2 || true
-  return 1
-}
-
 scanners_available=0
 scanners_failed=0
 
@@ -44,9 +38,13 @@ if command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 
-if [[ -x node_modules/.bin/secretlint ]]; then
+if [[ -x "$SECRETLINT_BIN" ]]; then
   scanners_available=$((scanners_available + 1))
-  if ! scan_with_secretlint; then
+  secretlint_rc=0
+  run_secretlint_on_files "staged files" "${staged_files[@]}" || secretlint_rc=$?
+  if ((secretlint_rc == 1)); then
+    scanners_failed=1
+  elif ((secretlint_rc == 2)); then
     scanners_failed=1
   fi
 fi

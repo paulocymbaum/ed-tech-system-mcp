@@ -6,8 +6,8 @@ cd "$repo_root"
 
 # shellcheck source=scan-allowlist.sh
 source "$(dirname -- "$0")/scan-allowlist.sh"
-
-MAX_FILE_SIZE=51200
+# shellcheck source=scan-patterns.sh
+source "$(dirname -- "$0")/scan-patterns.sh"
 
 staged_files=()
 while IFS= read -r -d '' file; do
@@ -46,16 +46,16 @@ for file in "${staged_files[@]}"; do
   fi
 
   size=$(wc -c <"$file" | tr -d ' ')
-  if ((size > MAX_FILE_SIZE)); then
+  if ((size > MAX_SCAN_FILE_SIZE)); then
     continue
   fi
 
-  if grep -qE 'AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9_]{22,}|sk-[a-zA-Z0-9]{20,}|xox[baprs]-[0-9a-zA-Z-]{10,}' "$file" 2>/dev/null; then
+  if grep -qE "$SECRET_TOKEN_PREFIX_PATTERN" "$file" 2>/dev/null; then
     findings+=("$file: token prefix")
     continue
   fi
 
-  if grep -qiE '(api[_-]?key|secret|password|token|auth)[[:space:]]*[=:][[:space:]]*['\''"]?[a-zA-Z0-9_\-+/=]{24,}' "$file" 2>/dev/null; then
+  if grep -qiE "$SECRET_ASSIGNMENT_PATTERN" "$file" 2>/dev/null; then
     findings+=("$file: suspicious assignment")
   fi
 done

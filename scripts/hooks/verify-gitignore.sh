@@ -18,9 +18,15 @@ required_patterns=(
   "id_rsa"
   "id_ed25519"
   ".npmrc"
+  ".NPMRC"
   ".pypirc"
+  ".PYPIRC"
   "*.p8"
   "*.jks"
+  "*.pem"
+  "*.PEM"
+  "*.key"
+  "*.KEY"
   "changelog/"
   "mcp.json"
 )
@@ -72,5 +78,6 @@ check_ignored_probe() {
 
 check_ignored_probe ".env.husky-probe"
 check_ignored_probe ".ENV.husky-probe"
+check_ignored_probe ".NPMRC"
 check_ignored_probe "secrets.dev.env"
 check_ignored_probe "scripts/doppler/secrets.dev.env"
