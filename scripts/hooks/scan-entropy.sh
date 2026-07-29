@@ -4,8 +4,8 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-# shellcheck source=lib/scan-allowlist.sh
-source "$(dirname -- "$0")/lib/scan-allowlist.sh"
+# shellcheck source=scan-allowlist.sh
+source "$(dirname -- "$0")/scan-allowlist.sh"
 
 MAX_FILE_SIZE=51200
 

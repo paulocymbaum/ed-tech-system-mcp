@@ -42,6 +42,10 @@ htmlcov/
 .env.*
 *.env
 *.env.*
+.ENV
+.ENV.*
+*.ENV
+*.ENV.*
 scripts/doppler/*.env
 *.pem
 *.key
