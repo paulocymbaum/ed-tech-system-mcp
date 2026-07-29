@@ -822,7 +822,7 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 ## CI/CD safety checklist
 
-Use this in GitHub Actions (or equivalent) for every push and PR. When using [Doppler + GitHub integration](#doppler--github-integration), CI secrets are synced from Doppler — no manual GitHub secret entry required.
+Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships [`.github/workflows/repo-safety.yml`](.github/workflows/repo-safety.yml), which runs gitleaks, `npm run hooks:test`, pre-push safety checks, and `tests/test_hooks.py` on `main`, `develop`, and pull requests. When using [Doppler + GitHub integration](#doppler--github-integration), CI secrets are synced from Doppler — no manual GitHub secret entry required.
 
 ```bash
 uv sync --frozen --all-groups
@@ -834,6 +834,7 @@ uv run pytest
 
 | Check | Purpose |
 | :--- | :--- |
+| `.github/workflows/repo-safety.yml` | Server-side gitleaks + Husky hook parity (`hooks:test`, pre-push safety, `test_hooks.py`) |
 | `uv sync --frozen` | Ensures CI uses committed lockfile hashes — no opportunistic upgrades |
 | `npm run lint:architecture` | Enforces Clean Architecture import contracts and boundary anti-patterns |
 | `--no-dev` in production deploy | Shrinks attack surface; runtime image contains only MCP server dependencies |
