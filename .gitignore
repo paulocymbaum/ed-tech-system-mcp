@@ -42,14 +42,29 @@ htmlcov/
 .env.*
 *.env
 *.env.*
+.ENV
+.ENV.*
+*.ENV
+*.ENV.*
 scripts/doppler/*.env
 *.pem
+*.PEM
 *.key
+*.KEY
 *.p12
 *.pfx
+*.p8
+*.jks
+id_rsa
+id_ed25519
+.npmrc
+.NPMRC
+.pypirc
+.PYPIRC
 credentials.json
 secrets.json
 service-account*.json
+mcp.json
 
 # --- Node (Husky toolchain) ---
 node_modules/

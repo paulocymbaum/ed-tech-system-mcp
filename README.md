@@ -169,7 +169,7 @@ npm run lint:architecture   # layer imports + boundary patterns (also runs on gi
 uv run pytest
 ```
 
-**Git hooks:** Husky **pre-commit** blocks secrets and sensitive files only; architecture lint runs on **pre-push** and in pytest — it does not block commits.
+**Git hooks:** Husky **pre-commit** runs public-repo safety checks (sensitive files, tracked leaks, secret scanners); **pre-push** re-checks tracked safety, scans pushed commits for secret content, then runs architecture lint — neither blocks the other tier.
 
 Run quality-gate commands from the **repository root** (`ed-tech-system-mcp/`), not `ui/`. The same scripts are also available inside `ui/` via `npm run hooks:test` and `npm run lint:architecture`.
 
