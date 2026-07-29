@@ -16,7 +16,33 @@ if ((${#push_refs[@]} == 0)); then
   exit 0
 fi
 
-declare -A unique_files=()
+get_push_commits() {
+  local local_sha="$1"
+  local remote_sha="$2"
+
+  if [[ "$local_sha" == "$zero_sha" ]]; then
+    return 0
+  fi
+
+  if [[ "$remote_sha" == "$zero_sha" ]]; then
+    git rev-list "$local_sha" --not --remotes 2>/dev/null || git rev-list "$local_sha"
+  else
+    git rev-list "$remote_sha".."$local_sha" 2>/dev/null
+  fi
+}
+
+get_gitleaks_log_range() {
+  local local_sha="$1"
+  local remote_sha="$2"
+
+  if [[ "$remote_sha" == "$zero_sha" ]]; then
+    printf '%s --not --remotes' "$local_sha"
+  else
+    printf '%s..%s' "$remote_sha" "$local_sha"
+  fi
+}
+
+declare -A unique_commits=()
 for ref_line in "${push_refs[@]}"; do
   IFS='|' read -r local_ref local_sha remote_ref remote_sha <<<"$ref_line"
 
@@ -24,29 +50,17 @@ for ref_line in "${push_refs[@]}"; do
     continue
   fi
 
-  if [[ "$remote_sha" == "$zero_sha" ]]; then
-    while read -r commit; do
-      while IFS= read -r -d '' file; do
-        if [[ -f "$file" ]]; then
-          unique_files["$file"]=1
-        fi
-      done < <(git diff-tree --no-commit-id --name-only -r -z "$commit")
-    done < <(git rev-list "$local_sha")
-  else
-    while IFS= read -r -d '' file; do
-      if [[ -f "$file" ]]; then
-        unique_files["$file"]=1
-      fi
-    done < <(git diff --name-only -z "$remote_sha".."$local_sha")
-  fi
+  while read -r commit; do
+    unique_commits["$commit"]=1
+  done < <(get_push_commits "$local_sha" "$remote_sha")
 done
 
-push_files=()
-for file in "${!unique_files[@]}"; do
-  push_files+=("$file")
+push_commits=()
+for commit in "${!unique_commits[@]}"; do
+  push_commits+=("$commit")
 done
 
-if ((${#push_files[@]} == 0)); then
+if ((${#push_commits[@]} == 0)); then
   exit 0
 fi
 
@@ -61,11 +75,7 @@ scan_with_gitleaks() {
     fi
 
     local range
-    if [[ "$remote_sha" == "$zero_sha" ]]; then
-      range="$local_sha"
-    else
-      range="$remote_sha..$local_sha"
-    fi
+    range="$(get_gitleaks_log_range "$local_sha" "$remote_sha")"
 
     if gitleaks detect --source . --log-opts "$range" --redact --config .gitleaks.toml >/dev/null 2>&1; then
       continue
@@ -80,14 +90,42 @@ scan_with_gitleaks() {
 }
 
 scan_with_secretlint() {
-  if node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${push_files[@]}" >/dev/null 2>&1; then
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' RETURN
+
+  local scan_paths=()
+  local commit file dest
+
+  for commit in "${push_commits[@]}"; do
+    while IFS= read -r -d '' file; do
+      if is_scan_allowlisted_path "$file"; then
+        continue
+      fi
+
+      dest="$tmpdir/${commit}_${file//\//__}"
+      mkdir -p "$(dirname -- "$dest")"
+      if git show "$commit:$file" >"$dest" 2>/dev/null; then
+        scan_paths+=("$dest")
+      fi
+    done < <(git diff-tree --no-commit-id --name-only -r -z "$commit")
+  done
+
+  if ((${#scan_paths[@]} == 0)); then
+    return 0
+  fi
+
+  if node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${scan_paths[@]}" >/dev/null 2>&1; then
     return 0
   fi
 
   echo "ERROR: secretlint found secrets in commits being pushed." >&2
-  node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${push_files[@]}" >&2 || true
+  node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${scan_paths[@]}" >&2 || true
   return 1
 }
+
+# shellcheck source=scan-allowlist.sh
+source "$hooks_dir/scan-allowlist.sh"
 
 scanners_available=0
 scanners_failed=0
@@ -116,4 +154,4 @@ fi
 
 # shellcheck source=scan-file-content.sh
 source "$hooks_dir/scan-file-content.sh"
-scan_files_for_secrets "commits being pushed" "${push_files[@]}"
+scan_git_blobs_for_secrets "commits being pushed" "${push_commits[@]}"

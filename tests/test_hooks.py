@@ -515,6 +515,28 @@ def test_scan_secrets_falls_back_to_staged_content_when_no_scanners(tmp_path: Pa
     assert "potential secrets" in result.stderr.lower()
 
 
+def _zero_sha() -> str:
+    return "0" * 40
+
+
+def _run_scan_push_secrets(
+    repo_dir: Path,
+    local_sha: str,
+    remote_sha: str,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    run_env = os.environ.copy() if env is None else env
+    return subprocess.run(
+        ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-push-secrets.sh")],
+        cwd=repo_dir,
+        input=f"refs/heads/main {local_sha} refs/heads/main {remote_sha}\n",
+        capture_output=True,
+        text=True,
+        env=run_env,
+    )
+
+
 def test_scan_push_secrets_rejects_leaked_token_in_push_range(tmp_path: Path) -> None:
     repo_dir = tmp_path / "repo"
     _init_test_repo(repo_dir)
@@ -551,23 +573,106 @@ def test_scan_push_secrets_rejects_leaked_token_in_push_range(tmp_path: Path) ->
         capture_output=True,
         text=True,
     ).stdout.strip()
-    zero_sha = "0" * 40
 
     env = os.environ.copy()
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()
     env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
 
-    result = subprocess.run(
-        ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-push-secrets.sh")],
-        cwd=repo_dir,
-        input=f"refs/heads/main {local_sha} refs/heads/main {zero_sha}\n",
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
     assert result.returncode == 1, result.stderr or result.stdout
     assert "potential secrets" in result.stderr.lower()
+
+
+def test_scan_push_secrets_allows_clean_branch_over_pushed_main_secret(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    origin_dir = tmp_path / "origin.git"
+    _init_test_repo(repo_dir)
+    subprocess.run(["git", "init", "--bare", str(origin_dir)], check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin_dir)],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed gitignore", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    main_file = repo_dir / "main.py"
+    main_file.write_text(_leaked_groq_token_content(), encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "main.py"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add secret on main", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "branch", "-M", "main"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "push", "-u", "origin", "main"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    subprocess.run(
+        ["git", "checkout", "-b", "feature"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    feature_file = repo_dir / "feature.py"
+    feature_file.write_text("def ok():\n    return True\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "feature.py"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "clean feature", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    local_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    env = os.environ.copy()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+
+    result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.stdout == ""
+    assert result.stderr == ""
 
 
 @pytest.mark.skipif(not PRE_COMMIT.is_file(), reason="pre-commit hook script missing")
@@ -585,9 +690,18 @@ def test_pre_commit_passes_on_clean_tree() -> None:
 
 @pytest.mark.skipif(not PRE_PUSH_SAFETY.is_file(), reason="pre-push safety script missing")
 def test_pre_push_safety_passes_on_clean_tree() -> None:
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
     result = subprocess.run(
         ["bash", str(PRE_PUSH_SAFETY)],
         cwd=REPO_ROOT,
+        input=f"refs/heads/develop {head_sha} refs/heads/develop {head_sha}\n",
         capture_output=True,
         text=True,
     )
