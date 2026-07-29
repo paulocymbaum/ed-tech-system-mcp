@@ -6,6 +6,4 @@ cd "$repo_root"
 
 bash scripts/hooks/verify-gitignore.sh
 bash scripts/hooks/check-tracked-sensitive.sh
-bash scripts/hooks/block-sensitive-files.sh
-bash scripts/hooks/scan-entropy.sh
-bash scripts/hooks/scan-secrets.sh
+bash scripts/hooks/scan-push-secrets.sh

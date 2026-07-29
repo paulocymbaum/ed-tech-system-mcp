@@ -747,8 +747,9 @@ Export secrets in your shell profile or use `${env:VAR}` so Cursor inherits them
 | :--- | :--- |
 | Confirm `.env` is ignored | `git check-ignore -v .env` |
 | Scan repo for committed secrets | `uv run pip install detect-secrets && detect-secrets scan` |
-| Block commits with secrets | Husky pre-commit runs `scan-secrets.sh` (gitleaks or secretlint) |
+| Block commits with secrets | Husky pre-commit runs `scan-secrets.sh` (gitleaks + secretlint when available) |
 | Block sensitive file commits | Husky pre-commit runs `block-sensitive-files.sh` (`.env`, credentials, keys) |
+| Block pushes with secrets | Husky pre-push runs `scan-push-secrets.sh` (catches `git commit --no-verify`; use `git push --no-verify` only with intent — bypasses all push hooks) |
 | Enforce layer boundaries | `npm run lint:architecture` or `uv run lint-imports` (pre-push + CI; does not block commits) |
 | CI secret exposure | Never `print(os.environ)`, log `Settings` dumps, or use `set -x` around secret exports |
 | Rotate on leak | Revoke Supabase service-role key and YouTube API key immediately; re-issue and update the secrets manager |
@@ -804,8 +805,8 @@ If `pyproject.toml` or `uv.lock` changed, this reinstalls the exact locked graph
 
 | Tier | Hook | Blocks | Checks |
 | :--- | :--- | :--- | :--- |
-| **1 — Safety** | Husky `pre-commit` | **Commits** | `.gitignore` probes, sensitive files (`block-sensitive-files.sh`), secret scan (`scan-secrets.sh`) |
-| **2 — Architecture** | Husky `pre-push`, pytest, CI | **Push / CI** (not commits) | `import-linter` layer contracts + `check-boundary-patterns.sh` via `npm run lint:architecture` |
+| **1 — Safety** | Husky `pre-commit` | **Commits** | `.gitignore` probes + tracked violations (`verify-gitignore.sh`), tracked sensitive files (`check-tracked-sensitive.sh`), staged sensitive filenames (`block-sensitive-files.sh`), entropy heuristic (`scan-entropy.sh`), secret scan (`scan-secrets.sh` — gitleaks + secretlint when available) |
+| **2 — Safety + Architecture** | Husky `pre-push`, pytest, CI | **Push / CI** (not commits) | Re-run `verify-gitignore.sh` + `check-tracked-sensitive.sh` + `scan-push-secrets.sh` (`pre-push-safety.sh`), then `import-linter` layer contracts + `check-boundary-patterns.sh` via `npm run lint:architecture` |
 
 Install hooks after cloning (from the **repository root**):
 
@@ -821,7 +822,7 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 ## CI/CD safety checklist
 
-Use this in GitHub Actions (or equivalent) for every push and PR. When using [Doppler + GitHub integration](#doppler--github-integration), CI secrets are synced from Doppler — no manual GitHub secret entry required.
+Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships [`.github/workflows/repo-safety.yml`](.github/workflows/repo-safety.yml), which runs gitleaks, `npm run hooks:test`, pre-push safety checks, and `tests/test_hooks.py` on `main`, `develop`, and pull requests. When using [Doppler + GitHub integration](#doppler--github-integration), CI secrets are synced from Doppler — no manual GitHub secret entry required.
 
 ```bash
 uv sync --frozen --all-groups
@@ -833,6 +834,7 @@ uv run pytest
 
 | Check | Purpose |
 | :--- | :--- |
+| `.github/workflows/repo-safety.yml` | Server-side gitleaks + Husky hook parity (`hooks:test`, pre-push safety, `test_hooks.py`) |
 | `uv sync --frozen` | Ensures CI uses committed lockfile hashes — no opportunistic upgrades |
 | `npm run lint:architecture` | Enforces Clean Architecture import contracts and boundary anti-patterns |
 | `--no-dev` in production deploy | Shrinks attack surface; runtime image contains only MCP server dependencies |
