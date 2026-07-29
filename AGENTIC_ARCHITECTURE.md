@@ -20,7 +20,7 @@ Both documents share the same layer names and restrictions. If they conflict, **
 
 ## High-level execution model
 
-External clients (Cursor, other MCP hosts) call **MCP tools**. MCP tools validate I/O, then delegate to **application workflows** or **LangGraph agents**. Agents may call **LangChain tools**, which invoke **domain ports** implemented in **infrastructure adapters**.
+External MCP clients call **MCP tools**. MCP tools validate I/O, then delegate to **application workflows** or **LangGraph agents**. Agents may call **LangChain tools**, which invoke **domain ports** implemented in **infrastructure adapters**.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -759,33 +759,6 @@ The first graph lived inline in `application/agent.py` (`DocumentVideoState`, `b
 
 **Next packaged agents (planned):** `sql_read/`, `web_enrich/`. MCP `search_web` should delegate through a LangChain tool once `langchain_tools.py` ships.
 
-### Cursor build agents (repository tooling — not runtime)
-
-These live under `.cursor/` and orchestrate **how the codebase is built**, not how the MCP server runs at runtime. They reference `ARCHITECTURE.md` and `AGENTIC_ARCHITECTURE.md` when implementing features.
-
-```text
-.cursor/
-├── agents/
-│   ├── master.md                        # Orchestrates build → review → remediate → homologate
-│   ├── incremental-layer-builder.md     # Investigation + implementation per layer
-│   ├── changelog-code-reviewer.md       # Code review vs changelog plans
-│   └── test-homologator.md              # Test inventory + HOMOLOGATION.md
-├── rules/
-│   ├── changelog-agent-memory.mdc       # changelog/ folder protocol
-│   └── secrets-env-safety.mdc           # Doppler + hook safety rules
-└── skills/
-    └── doppler-env-setup/SKILL.md       # Secrets bootstrap skill for build agents
-```
-
-| Artifact | Couples with |
-| :--- | :--- |
-| `.cursor/agents/master.md` | Subagents in fixed sequence; `changelog/` memory |
-| `.cursor/agents/incremental-layer-builder.md` | `ARCHITECTURE.md`, layer paths under `src/mcp_server/` |
-| `.cursor/skills/*/SKILL.md` | Invoked by agents for specialized setup (e.g. Doppler) |
-| `scripts/hooks/*.sh` | Git pre-commit guards (secrets, `.env` blocks) — not runtime hooks |
-
-Do not confuse **Cursor build agents** (`.cursor/agents/`) with **runtime LangGraph agents** (`application/agents/`). Only the latter execute inside the MCP server process.
-
 ---
 
 ## Settings and secrets (agentic extensions)
@@ -854,7 +827,7 @@ See [Agent file structure](#agent-file-structure) for the full tree. Status snap
 
 ## Implementation order
 
-When building agentic features, follow the layer order from [changelog agent memory](./.cursor/rules/changelog-agent-memory.mdc):
+When building agentic features, follow the layer order from `ARCHITECTURE.md`:
 
 ```text
 domain (ports + policies + entities)
