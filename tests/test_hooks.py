@@ -13,6 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SENSITIVE_FILES = REPO_ROOT / "scripts/hooks/sensitive-files.sh"
 BLOCK_SENSITIVE_FILES = REPO_ROOT / "scripts/hooks/block-sensitive-files.sh"
 SCAN_SECRETS = REPO_ROOT / "scripts/hooks/scan-secrets.sh"
+SCAN_ALLOWLIST = REPO_ROOT / "scripts/hooks/scan-allowlist.sh"
+SCAN_PUSH_SECRETS = REPO_ROOT / "scripts/hooks/scan-push-secrets.sh"
 SCAN_ENTROPY = REPO_ROOT / "scripts/hooks/scan-entropy.sh"
 SCAN_STAGED_CONTENT = REPO_ROOT / "scripts/hooks/scan-staged-content.sh"
 CHECK_TRACKED_SENSITIVE = REPO_ROOT / "scripts/hooks/check-tracked-sensitive.sh"
@@ -65,6 +67,10 @@ def _write_gitignore(repo_dir: Path) -> None:
                 ".env.*",
                 "*.env",
                 "*.env.*",
+                ".ENV",
+                ".ENV.*",
+                "*.ENV",
+                "*.ENV.*",
                 "scripts/doppler/*.env",
                 ".venv/",
                 "id_rsa",
@@ -135,6 +141,18 @@ def test_block_sensitive_files_rejects_dotenv(tmp_path: Path) -> None:
     result = _run_hook_in_repo(tmp_path, BLOCK_SENSITIVE_FILES, ".env")
     assert result.returncode == 1
     assert "sensitive files staged" in result.stderr
+
+
+def test_block_sensitive_files_rejects_uppercase_dotenv(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(tmp_path, BLOCK_SENSITIVE_FILES, ".ENV")
+    assert result.returncode == 1
+    assert ".ENV" in result.stderr
+
+
+def test_block_sensitive_files_rejects_mixed_case_env_extension(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(tmp_path, BLOCK_SENSITIVE_FILES, "config.Env")
+    assert result.returncode == 1
+    assert "config.Env" in result.stderr
 
 
 def test_block_sensitive_files_rejects_credentials_json(tmp_path: Path) -> None:
@@ -223,6 +241,10 @@ def test_verify_gitignore_rejects_missing_required_pattern(tmp_path: Path) -> No
                 ".env.*",
                 "*.env",
                 "*.env.*",
+                ".ENV",
+                ".ENV.*",
+                "*.ENV",
+                "*.ENV.*",
                 "scripts/doppler/*.env",
                 ".venv/",
                 "id_rsa",
@@ -331,6 +353,26 @@ def test_sensitive_files_library_is_not_gitignored() -> None:
         text=True,
     )
     assert result.returncode == 1, "sensitive-files.sh must be committable (not matched by lib/ gitignore)"
+
+
+def test_scan_allowlist_is_not_gitignored() -> None:
+    assert SCAN_ALLOWLIST.is_file(), "scan-allowlist.sh must exist for fresh clones"
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", "scripts/hooks/scan-allowlist.sh"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1, "scan-allowlist.sh must be committable (not matched by lib/ gitignore)"
+
+
+def test_test_hooks_fixture_tokens_avoid_literal_secret_prefixes() -> None:
+    content = (REPO_ROOT / "tests/test_hooks.py").read_text(encoding="utf-8")
+    fixture_section = content.split("def test_block_sensitive_files_rejects_dotenv", maxsplit=1)[0]
+    for literal in ("ghp_", "gsk_", "AKIA"):
+        assert literal not in fixture_section, (
+            f"hook test fixtures must build {literal!r} via concatenation so scanners do not false-positive"
+        )
 
 
 def test_scan_staged_content_rejects_aws_access_key(tmp_path: Path) -> None:
@@ -465,6 +507,61 @@ def test_scan_secrets_falls_back_to_staged_content_when_no_scanners(tmp_path: Pa
     result = subprocess.run(
         ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-secrets.sh")],
         cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 1, result.stderr or result.stdout
+    assert "potential secrets" in result.stderr.lower()
+
+
+def test_scan_push_secrets_rejects_leaked_token_in_push_range(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    _init_test_repo(repo_dir)
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    secret_file = repo_dir / "config.py"
+    secret_file.write_text(_leaked_groq_token_content(), encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "config.py"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "bad secret", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    local_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    zero_sha = "0" * 40
+
+    env = os.environ.copy()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+
+    result = subprocess.run(
+        ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-push-secrets.sh")],
+        cwd=repo_dir,
+        input=f"refs/heads/main {local_sha} refs/heads/main {zero_sha}\n",
         capture_output=True,
         text=True,
         env=env,

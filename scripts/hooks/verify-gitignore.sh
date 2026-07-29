@@ -9,6 +9,10 @@ required_patterns=(
   ".env.*"
   "*.env"
   "*.env.*"
+  ".ENV"
+  ".ENV.*"
+  "*.ENV"
+  "*.ENV.*"
   "scripts/doppler/*.env"
   ".venv/"
   "id_rsa"
@@ -67,5 +71,6 @@ check_ignored_probe() {
 }
 
 check_ignored_probe ".env.husky-probe"
+check_ignored_probe ".ENV.husky-probe"
 check_ignored_probe "secrets.dev.env"
 check_ignored_probe "scripts/doppler/secrets.dev.env"

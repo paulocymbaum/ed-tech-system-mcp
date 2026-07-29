@@ -2,7 +2,8 @@
 # Shared sensitive-file predicates for Husky public-repo safety hooks.
 
 is_sensitive_basename() {
-  local base="$1"
+  local base
+  base="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
 
   case "$base" in
     .env* | *.env | *.env.*)
@@ -27,14 +28,15 @@ is_sensitive_basename() {
 
 is_sensitive_path() {
   local file="$1"
-  local base
+  local base base_lower
   base="$(basename "$file")"
+  base_lower="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
 
   if is_sensitive_basename "$base"; then
     return 0
   fi
 
-  if [[ "$file" == scripts/doppler/* ]] && [[ "$base" == *.env ]]; then
+  if [[ "$file" == scripts/doppler/* ]] && [[ "$base_lower" == *.env ]]; then
     return 0
   fi
 
