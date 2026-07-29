@@ -90,12 +90,7 @@ scan_with_gitleaks() {
 }
 
 scan_with_secretlint() {
-  local tmpdir
-  tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' RETURN
-
-  local scan_paths=()
-  local commit file dest
+  local commit file
 
   for commit in "${push_commits[@]}"; do
     while IFS= read -r -d '' file; do
@@ -103,25 +98,19 @@ scan_with_secretlint() {
         continue
       fi
 
-      dest="$tmpdir/${commit}_${file//\//__}"
-      mkdir -p "$(dirname -- "$dest")"
-      if git show "$commit:$file" >"$dest" 2>/dev/null; then
-        scan_paths+=("$dest")
+      if ! git show "$commit:$file" 2>/dev/null | node_modules/.bin/secretlint \
+        --secretlintrc .secretlintrc.json \
+        --stdinFileName="$file" >/dev/null 2>&1; then
+        echo "ERROR: secretlint found secrets in commits being pushed." >&2
+        git show "$commit:$file" 2>/dev/null | node_modules/.bin/secretlint \
+          --secretlintrc .secretlintrc.json \
+          --stdinFileName="$file" >&2 || true
+        return 1
       fi
     done < <(git diff-tree --no-commit-id --name-only -r -z "$commit")
   done
 
-  if ((${#scan_paths[@]} == 0)); then
-    return 0
-  fi
-
-  if node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${scan_paths[@]}" >/dev/null 2>&1; then
-    return 0
-  fi
-
-  echo "ERROR: secretlint found secrets in commits being pushed." >&2
-  node_modules/.bin/secretlint --secretlintrc .secretlintrc.json "${scan_paths[@]}" >&2 || true
-  return 1
+  return 0
 }
 
 # shellcheck source=scan-allowlist.sh
