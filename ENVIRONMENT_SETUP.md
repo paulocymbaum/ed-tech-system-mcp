@@ -747,8 +747,9 @@ Export secrets in your shell profile or use `${env:VAR}` so Cursor inherits them
 | :--- | :--- |
 | Confirm `.env` is ignored | `git check-ignore -v .env` |
 | Scan repo for committed secrets | `uv run pip install detect-secrets && detect-secrets scan` |
-| Block commits with secrets | Husky pre-commit runs `scan-secrets.sh` (gitleaks or secretlint) |
+| Block commits with secrets | Husky pre-commit runs `scan-secrets.sh` (gitleaks + secretlint when available) |
 | Block sensitive file commits | Husky pre-commit runs `block-sensitive-files.sh` (`.env`, credentials, keys) |
+| Block pushes with secrets | Husky pre-push runs `scan-push-secrets.sh` (catches `git commit --no-verify`; use `git push --no-verify` only with intent — bypasses all push hooks) |
 | Enforce layer boundaries | `npm run lint:architecture` or `uv run lint-imports` (pre-push + CI; does not block commits) |
 | CI secret exposure | Never `print(os.environ)`, log `Settings` dumps, or use `set -x` around secret exports |
 | Rotate on leak | Revoke Supabase service-role key and YouTube API key immediately; re-issue and update the secrets manager |

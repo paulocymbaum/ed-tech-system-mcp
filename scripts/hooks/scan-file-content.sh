@@ -3,20 +3,8 @@
 
 # shellcheck source=scan-allowlist.sh
 source "$(dirname -- "$0")/scan-allowlist.sh"
-
-SECRET_CONTENT_PATTERNS=(
-  '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
-  'gsk_[a-zA-Z0-9]{20,}'
-  'AKIA[0-9A-Z]{16}'
-  'AIza[0-9A-Za-z\-_]{35}'
-  'sk-[a-zA-Z0-9]{20,}'
-  'xox[baprs]-[a-zA-Z0-9-]{10,}'
-  'ghp_[a-zA-Z0-9]{36}'
-  'github_pat_[a-zA-Z0-9_]{20,}'
-  'eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}'
-)
-
-MAX_SCAN_FILE_SIZE=51200
+# shellcheck source=scan-patterns.sh
+source "$(dirname -- "$0")/scan-patterns.sh"
 
 _content_matches_secret_patterns() {
   local content="$1"
@@ -29,6 +17,13 @@ _content_matches_secret_patterns() {
   done
 
   return 1
+}
+
+_content_is_probably_binary() {
+  local content="$1"
+  local nul_count
+  nul_count="$(printf '%s' "$content" | LC_ALL=C tr -cd '\0' | wc -c | tr -d ' ')"
+  ((nul_count > 0))
 }
 
 scan_files_for_secrets() {
@@ -92,6 +87,10 @@ scan_git_blobs_for_secrets() {
 
       local blob_content
       if ! blob_content="$(git show "$commit:$file" 2>/dev/null)"; then
+        continue
+      fi
+
+      if _content_is_probably_binary "$blob_content"; then
         continue
       fi
 

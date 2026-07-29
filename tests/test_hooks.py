@@ -76,9 +76,15 @@ def _write_gitignore(repo_dir: Path) -> None:
                 "id_rsa",
                 "id_ed25519",
                 ".npmrc",
+                ".NPMRC",
                 ".pypirc",
+                ".PYPIRC",
                 "*.p8",
                 "*.jks",
+                "*.pem",
+                "*.PEM",
+                "*.key",
+                "*.KEY",
                 "changelog/",
                 "mcp.json",
             ]
@@ -673,6 +679,125 @@ def test_scan_push_secrets_allows_clean_branch_over_pushed_main_secret(tmp_path:
     assert result.returncode == 0, result.stderr or result.stdout
     assert result.stdout == ""
     assert result.stderr == ""
+
+
+def test_scan_push_secrets_reports_secretlint_scanner_failure(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    _init_test_repo(repo_dir)
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    safe_file = repo_dir / "src/safe.py"
+    safe_file.parent.mkdir(parents=True, exist_ok=True)
+    safe_file.write_text("def ok():\n    return True\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/safe.py"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "safe change", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    local_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    fake_secretlint = tmp_path / "secretlint"
+    fake_secretlint.write_text(
+        "#!/usr/bin/env bash\n"
+        'echo "Error: Path /tmp/example is not in cwd" >&2\n'
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    fake_secretlint.chmod(0o755)
+
+    env = os.environ.copy()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env["SECRETLINT_BIN"] = str(fake_secretlint)
+
+    result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
+    assert result.returncode == 1, result.stderr or result.stdout
+    assert "scanner failed" in result.stderr.lower()
+    assert "found secrets" not in result.stderr.lower()
+
+
+def test_scan_push_secrets_runs_secretlint_stdin_scanner(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    _init_test_repo(repo_dir)
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    safe_file = repo_dir / "src/safe.py"
+    safe_file.parent.mkdir(parents=True, exist_ok=True)
+    safe_file.write_text("def ok():\n    return True\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "src/safe.py"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "safe change", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    local_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    log_file = tmp_path / "secretlint-invocations.log"
+    fake_secretlint = tmp_path / "secretlint"
+    fake_secretlint.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "%s\\n" "$@" >> "{log_file}"\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_secretlint.chmod(0o755)
+
+    env = os.environ.copy()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env["SECRETLINT_BIN"] = str(fake_secretlint)
+
+    result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
+    assert result.returncode == 0, result.stderr or result.stdout
+    log_text = log_file.read_text(encoding="utf-8")
+    assert "--stdinFileName=src/safe.py" in log_text
 
 
 @pytest.mark.skipif(not PRE_COMMIT.is_file(), reason="pre-commit hook script missing")
