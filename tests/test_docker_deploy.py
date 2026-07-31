@@ -18,6 +18,7 @@ def test_dockerfile_uses_python312_and_mcp_server_cmd() -> None:
     content = _read(DOCKERFILE)
     assert "python3.12" in content
     assert "ARCHITECTURE.md" in content
+    assert "config.json" in content
     assert 'CMD ["mcp-server"]' in content
     assert "MCP_TRANSPORT=streamable-http" in content
     assert "MCP_HOST=0.0.0.0" in content

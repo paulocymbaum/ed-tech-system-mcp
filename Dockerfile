@@ -7,7 +7,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
-COPY pyproject.toml uv.lock ARCHITECTURE.md ./
+COPY pyproject.toml uv.lock ARCHITECTURE.md config.json ./
 COPY src ./src
 
 RUN uv sync --frozen --no-dev
