@@ -855,7 +855,7 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 ## CI/CD safety checklist
 
-Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships [`.github/workflows/repo-safety.yml`](.github/workflows/repo-safety.yml), which runs gitleaks, `npm run hooks:test`, pre-push safety checks, and `tests/test_hooks.py` on `main`, `develop`, and pull requests. Production UI deploys use [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (Vercel prebuilt static output from `ui/`). When using [Doppler + GitHub integration](#doppler--github-integration), CI and deploy secrets are synced from Doppler — no manual GitHub secret entry required.
+Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships a single [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pipeline with sequential jobs: **Safety checks** (gitleaks, Husky hook parity, `test_hooks.py`), **Tests & architecture** (full `pytest` + import-linter), and **Deploy workflow UI** to Vercel on `main` only. When using [Doppler + GitHub integration](#doppler--github-integration), CI and deploy secrets are synced from Doppler — no manual GitHub secret entry required.
 
 ### Vercel deployment checklist
 
@@ -865,7 +865,7 @@ Use this in GitHub Actions (or equivalent) for every push and PR. The repository
 | Link Vercel project | `doppler run -- npx vercel link` (writes gitignored `.vercel/project.json`) |
 | Store IDs in Doppler | Set `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` in `github_ci` (+ `dev`/`stg`/`prd`) |
 | GitHub secrets | Enable Doppler sync **or** `./scripts/doppler/sync-vercel-to-github.sh` |
-| Deploy | Push to `main` or `gh workflow run deploy.yml` |
+| Deploy | Push to `main` or `gh workflow run ci.yml` (deploy job runs on `main` only) |
 | Verify | Check workflow run URL; optional `VITE_API_BASE` when API is hosted elsewhere |
 | Rotate token | Update in Doppler only; re-sync or wait for GitHub App sync |
 
@@ -881,7 +881,7 @@ uv run pytest
 
 | Check | Purpose |
 | :--- | :--- |
-| `.github/workflows/repo-safety.yml` | Server-side gitleaks + Husky hook parity (`hooks:test`, pre-push safety, `test_hooks.py`) |
+| `.github/workflows/ci.yml` | Unified pipeline: safety → verify → deploy (Vercel on `main`) |
 | `uv sync --frozen` | Ensures CI uses committed lockfile hashes — no opportunistic upgrades |
 | `npm run lint:architecture` | Enforces Clean Architecture import contracts and boundary anti-patterns |
 | `--no-dev` in production deploy | Shrinks attack surface; runtime image contains only MCP server dependencies |

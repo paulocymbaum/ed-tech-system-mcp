@@ -1,19 +1,94 @@
-name: Deploy workflow UI
+name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - develop
+  pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: vercel-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  safety:
+    name: Safety checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan git history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install hook toolchain
+        run: npm ci
+
+      - name: Tier 1 pre-commit safety checks
+        run: npm run hooks:test
+
+      - name: Tier 2 pre-push safety checks
+        run: |
+          HEAD="$(git rev-parse HEAD)"
+          printf 'refs/heads/ci %s refs/heads/ci %s\n' "$HEAD" "$HEAD" | bash scripts/hooks/pre-push-safety.sh
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Hook contract tests
+        run: |
+          uv sync --frozen
+          uv run pytest tests/test_hooks.py -q
+
+  verify:
+    name: Tests & architecture
+    needs: safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run pytest
+        run: |
+          uv sync --frozen --all-groups
+          uv run pytest -q
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Architecture lint
+        run: |
+          npm ci
+          npm run lint:architecture
+
   deploy:
+    name: Deploy workflow UI
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment:
       name: production

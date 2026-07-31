@@ -66,12 +66,12 @@ Verify (names only): `gh secret list --repo paulocymbaum/ed-tech-system-mcp`
 
 ## 2. Deploy workflow
 
-File: [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
+File: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 
 | Trigger | Action |
 | :--- | :--- |
-| Push to `main` | Build `ui/` → package prebuilt output → `vercel deploy --prebuilt --prod` |
-| `workflow_dispatch` | Re-deploy on demand |
+| Push to `main` | `safety` → `verify` → `deploy` jobs in [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) |
+| `workflow_dispatch` | Same pipeline; deploy runs only on `main` |
 
 The deploy job uses GitHub **`environment: production`** (for deployment URL tracking). Ensure a **production** environment exists in the repo settings (it may auto-create on first run). Repo-level `VERCEL_*` secrets from `sync-vercel-to-github.sh` are available to that environment by default; if you use environment-scoped secrets instead, set the same three keys on **production**.
 
