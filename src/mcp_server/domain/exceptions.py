@@ -15,3 +15,7 @@ class DomainValidationError(DomainError):
     Named ``DomainValidationError`` to avoid collision with Pydantic and FastMCP
     ``ValidationError`` types at the interface boundary.
     """
+
+
+class ExternalRateLimitError(DomainError):
+    """Raised when outbound external API calls exceed the configured per-minute cap."""

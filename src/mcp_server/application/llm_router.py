@@ -11,6 +11,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatResult
 from pydantic import SecretStr
 
+from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
 from mcp_server.domain.llm_routing import (
     IGroqModelRegistry,
     ILLMDebounceGate,
@@ -77,6 +78,7 @@ class LLMRouter:
         model_builder: GroqChatModelBuilder,
         default_complexity: LLMComplexity = LLMComplexity.MEDIUM,
         token_limit_cooldown_seconds: float = TOKEN_LIMIT_COOLDOWN_SECONDS,
+        external_rate_limiter: IExternalRequestRateLimiter | None = None,
     ) -> None:
         self._api_key = api_key
         self._temperature = temperature
@@ -85,6 +87,7 @@ class LLMRouter:
         self._model_builder = model_builder
         self._default_complexity = default_complexity
         self._token_limit_cooldown_seconds = token_limit_cooldown_seconds
+        self._external_rate_limiter = external_rate_limiter
         self._model_cache: dict[str, BaseChatModel] = {}
         self._last_used_model_id: str | None = None
 
@@ -148,6 +151,8 @@ class LLMRouter:
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
+        if self._external_rate_limiter is not None:
+            self._external_rate_limiter.acquire_sync(provider="llm")
         self._debounce_gate.acquire_sync()
         resolved_complexity = complexity or self._default_complexity
         last_error: BaseException | None = None
@@ -190,6 +195,8 @@ class LLMRouter:
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
+        if self._external_rate_limiter is not None:
+            await self._external_rate_limiter.acquire(provider="llm")
         await self._debounce_gate.acquire()
         resolved_complexity = complexity or self._default_complexity
         last_error: BaseException | None = None

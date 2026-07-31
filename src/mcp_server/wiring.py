@@ -45,6 +45,7 @@ from mcp_server.application.workflow_runtime import (
 )
 from mcp_server.application.workflows import DocumentVideoWorkflow
 from mcp_server.domain.cache import ICacheStore
+from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
 from mcp_server.domain.interfaces import (
     IChunkingStrategy,
     IDataRepository,
@@ -67,6 +68,7 @@ from mcp_server.infrastructure.cached_adapters import (
 from mcp_server.infrastructure.cached_llm import CachedChatModel
 from mcp_server.infrastructure.chunking.langchain_chunking_adapter import LangChainChunkingAdapter
 from mcp_server.infrastructure.embeddings.fastembed_adapter import FastEmbedAdapter
+from mcp_server.infrastructure.external_rate_limiter import SlidingWindowExternalRequestRateLimiter
 from mcp_server.infrastructure.groq_adapter import build_groq_chat_model
 from mcp_server.infrastructure.groq_model_catalog import (
     CachingGroqModelCatalogClient,
@@ -76,6 +78,11 @@ from mcp_server.infrastructure.groq_model_catalog_cache import FileGroqModelCata
 from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
 from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
+from mcp_server.infrastructure.rate_limited_adapters import (
+    RateLimitedDataRepository,
+    RateLimitedSearchClient,
+    RateLimitedVideoSearchClient,
+)
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
 from mcp_server.infrastructure.rerank.lazy_reranker import LazyFastEmbedReranker
 from mcp_server.infrastructure.retrieval.chroma_vector_index_writer import ChromaVectorIndexWriter
@@ -103,6 +110,7 @@ _CACHE_STORE_REQUIRED_MSG = (
 )
 
 _wired_llm_router: LLMRouter | None = None
+_wired_external_rate_limiter: IExternalRequestRateLimiter | None = None
 
 
 @dataclass(frozen=True)
@@ -233,15 +241,28 @@ def warm_embedding_provider_on_boot(settings: Settings, cache_store: ICacheStore
         )
 
 
+def build_external_rate_limiter(settings: Settings) -> IExternalRequestRateLimiter:
+    """Return the shared per-minute outbound API rate limiter."""
+    global _wired_external_rate_limiter
+    if _wired_external_rate_limiter is None:
+        _wired_external_rate_limiter = SlidingWindowExternalRequestRateLimiter(
+            settings.external_request_limit_per_minute,
+        )
+    return _wired_external_rate_limiter
+
+
 def build_data_repository(
     settings: Settings,
     cache: ICacheStore | None = None,
+    rate_limiter: IExternalRequestRateLimiter | None = None,
 ) -> IDataRepository:
     """Build the document repository, optionally wrapped with cache-aside."""
     repository: IDataRepository = SupabaseRepository(
         settings.supabase_url,
         settings.supabase_service_role_key.get_secret_value(),
     )
+    limiter = rate_limiter or build_external_rate_limiter(settings)
+    repository = RateLimitedDataRepository(repository, limiter)
     if not settings.cache_enabled or cache is None:
         return repository
     return CachedDataRepository(repository, cache, build_cache_rule_set(settings))
@@ -250,6 +271,7 @@ def build_data_repository(
 def build_search_client(
     settings: Settings,
     cache: ICacheStore | None = None,
+    rate_limiter: IExternalRequestRateLimiter | None = None,
 ) -> ISearchClient:
     """Build the web search client, preferring Tavily when configured."""
     api_key = (
@@ -258,6 +280,8 @@ def build_search_client(
         else ""
     )
     client: ISearchClient = TavilySearchClient(api_key) if api_key else DuckDuckGoSearchClient()
+    limiter = rate_limiter or build_external_rate_limiter(settings)
+    client = RateLimitedSearchClient(client, limiter)
     if not settings.cache_enabled or cache is None:
         return client
     return CachedSearchClient(client, cache, build_cache_rule_set(settings))
@@ -266,10 +290,13 @@ def build_search_client(
 def build_video_client(
     settings: Settings,
     cache: ICacheStore | None = None,
+    rate_limiter: IExternalRequestRateLimiter | None = None,
 ) -> IVideoSearchClient:
     """Build the video search client, optionally wrapped with cache-aside."""
     api_key = settings.youtube_api_key.get_secret_value() if settings.youtube_api_key else ""
     client: IVideoSearchClient = YouTubeDataApiClient(api_key)
+    limiter = rate_limiter or build_external_rate_limiter(settings)
+    client = RateLimitedVideoSearchClient(client, limiter)
     if not settings.cache_enabled or cache is None:
         return client
     return CachedVideoSearchClient(client, cache, build_cache_rule_set(settings))
@@ -315,6 +342,7 @@ def build_llm_router(settings: Settings) -> LLMRouter:
     )
     registry = GroqModelRegistry(catalog_client)
     debounce_gate = IntervalLLMDebounceGate(settings.llm_router_debounce_seconds)
+    rate_limiter = build_external_rate_limiter(settings)
     router = LLMRouter(
         api_key=settings.groq_api_key,
         temperature=settings.llm_temperature,
@@ -322,6 +350,7 @@ def build_llm_router(settings: Settings) -> LLMRouter:
         debounce_gate=debounce_gate,
         model_builder=_build_groq_model,
         default_complexity=LLMComplexity(settings.llm_complexity),
+        external_rate_limiter=rate_limiter,
     )
     router.refresh_registry()
     register_groq_language_models(registry.list_records())

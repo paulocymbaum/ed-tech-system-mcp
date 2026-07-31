@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
+from mcp_server.domain.input_safety import wrap_user_content_for_prompt
 
 
 def lesson_system_prompt() -> str:
@@ -16,8 +17,12 @@ def lesson_system_prompt() -> str:
 
 
 def lesson_user_prompt(*, topic: str, grade_level: str, validation_errors: list[str] | None) -> str:
+    topic_block = wrap_user_content_for_prompt(topic, label="topic")
+    grade_block = wrap_user_content_for_prompt(grade_level, label="grade_level")
     lines = [
-        f"Create a lesson for topic '{topic}' at grade level '{grade_level}'.",
+        "Create a lesson using the topic and grade level provided below.",
+        topic_block,
+        grade_block,
         "Include clear objectives, at least two sections with substantive content, and a summary.",
     ]
     if validation_errors:
@@ -42,7 +47,9 @@ def quiz_user_prompt(
     validation_errors: list[str] | None,
 ) -> str:
     lines = [
-        f"Create a quiz for topic '{topic}' at grade level '{grade_level}'.",
+        "Create a quiz using the topic and grade level provided below.",
+        wrap_user_content_for_prompt(topic, label="topic"),
+        wrap_user_content_for_prompt(grade_level, label="grade_level"),
         f"Base the quiz on this lesson title: {lesson.title}",
         "Objectives:",
         *[f"- {objective}" for objective in lesson.objectives],
@@ -70,10 +77,9 @@ def pbl_user_prompt(
     validation_errors: list[str] | None,
 ) -> str:
     lines = [
-        (
-            f"Design a problem-based learning project for topic '{topic}' "
-            f"at grade level '{grade_level}'."
-        ),
+        "Design a problem-based learning project using the topic and grade level below.",
+        wrap_user_content_for_prompt(topic, label="topic"),
+        wrap_user_content_for_prompt(grade_level, label="grade_level"),
         f"Anchor the project in this lesson: {lesson.title}",
         "Lesson summary:",
         lesson.summary,
