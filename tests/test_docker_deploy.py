@@ -32,6 +32,8 @@ def test_dockerfile_healthcheck_hits_health_route() -> None:
 def test_compose_maps_port_and_cache_volume() -> None:
     content = _read(COMPOSE_FILE)
     assert "${MCP_PORT:-8000}:8000" in content
+    assert "${WORKFLOW_API_PORT:-8877}:8877" in content
+    assert "workflow-api" in content
     assert "mcp-cache:/app/.cache" in content
     assert "SUPABASE_URL" in content
 

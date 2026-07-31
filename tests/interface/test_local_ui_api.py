@@ -118,7 +118,7 @@ class _UiContentModel(BaseChatModel):
 
 def _bootstrap_live_runtime() -> None:
     bootstrap_environment()
-    bootstrap_application_runtime(load_operational_config(), load_settings())
+    bootstrap_application_runtime()
 
 
 def test_list_workflows_returns_langgraph_metadata() -> None:

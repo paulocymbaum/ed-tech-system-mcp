@@ -30,6 +30,7 @@ dependencies = [
 [project.scripts]
 mcp-server = "mcp_server.main:main"
 workflow-ui = "mcp_server.local_ui_main:main"
+workflow-api = "mcp_server.workflow_api_main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_server"]

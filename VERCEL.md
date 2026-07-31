@@ -1,6 +1,54 @@
 # Vercel deployment (workflow UI)
 
-The **workflow explorer UI** (`ui/`) deploys to **Vercel** as a **static SPA**. Production deploys run in GitHub Actions (prebuilt output). The FastAPI workflow API remains **local dev tooling** — see [OBSERVABILITY.md](./OBSERVABILITY.md).
+The **workflow explorer UI** (`ui/`) deploys to **Vercel** as a **static SPA** on every push to `main`. Workflow execution uses a **hosted Python API** (`workflow-api`) — see [DEPLOY.md](./DEPLOY.md).
+
+---
+
+## Split architecture (recommended)
+
+```text
+Vercel (React SPA)  ──VITE_API_BASE──▶  workflow-api :8877  (/api/*)
+Docker / cloud host ──MCP clients───▶  mcp-server  :8000  (/mcp)
+```
+
+| Component | Host | Purpose |
+| :--- | :--- | :--- |
+| React UI (`ui/dist`) | **Vercel** | Graph explorer, run forms, trace replay |
+| Workflow API (`/api/*`) | **Docker** (`workflow-api` service) | LangGraph runs, SSE benchmarks |
+| MCP tools (`/mcp`) | **Docker** (`mcp` service) | IDE / agent MCP clients |
+
+---
+
+## Connect Vercel UI to the hosted API
+
+### 1. Deploy the workflow API
+
+```bash
+# On your server / cloud VM
+export WORKFLOW_UI_CORS_ORIGINS=https://ed-tech-system-mcp.vercel.app
+doppler run --config prd -- docker compose up -d workflow-api
+```
+
+Expose port **8877** with HTTPS (e.g. `https://api.example.com`).
+
+### 2. Set `VITE_API_BASE` for CI builds
+
+GitHub → **Settings → Secrets and variables → Actions → Variables**:
+
+| Variable | Example | Purpose |
+| :--- | :--- | :--- |
+| `VITE_API_BASE` | `https://api.example.com` | Baked into `ui/dist` at deploy time |
+
+Re-run the **Deploy workflow UI** job (push to `main` or `workflow_dispatch`) after the API URL is live.
+
+### 3. CORS on the API
+
+| Variable | Example |
+| :--- | :--- |
+| `WORKFLOW_UI_CORS_ORIGINS` | `https://ed-tech-system-mcp.vercel.app` |
+| `WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS` | `true` (allows `*.vercel.app` preview deploys) |
+
+Store both in Doppler **`prd`** and pass to `workflow-api` via `docker compose`.
 
 ---
 
@@ -8,10 +56,10 @@ The **workflow explorer UI** (`ui/`) deploys to **Vercel** as a **static SPA**. 
 
 | Component | On Vercel | Local dev |
 | :--- | :--- | :--- |
-| React UI (`ui/dist`) | Yes | `npm --prefix ui run dev` |
-| FastAPI `/api` (SSE, runs) | No | `./scripts/dev/run-workflow-ui.sh` |
+| React UI (`ui/dist`) | Yes (auto on `main`) | `npm --prefix ui run dev` |
+| FastAPI `/api` | No — hosted separately | `./scripts/dev/run-workflow-ui.sh` |
 
-To point the hosted UI at a remote API, set **`VITE_API_BASE`** at build time (Doppler `github_ci` → GitHub variable, or workflow env). Empty value uses same-origin `/api` (works locally via Vite proxy only).
+Empty `VITE_API_BASE` uses same-origin `/api` (Vite proxy locally only; **not** on Vercel).
 
 ---
 
@@ -118,7 +166,8 @@ done
 | Issue | Fix |
 | :--- | :--- |
 | Deploy fails: missing `VERCEL_*` | Fill Doppler `github_ci`, run `./scripts/doppler/sync-vercel-to-github.sh` |
-| UI loads but runs fail | Expected without backend — set `VITE_API_BASE` to hosted API URL at build time |
+| UI loads but runs fail | Set GitHub variable `VITE_API_BASE` to your hosted `workflow-api` URL, redeploy UI |
+| CORS errors in browser | Add Vercel URL to `WORKFLOW_UI_CORS_ORIGINS` on `workflow-api` |
 | Wrong team/project | Re-run `vercel link`, update Doppler + sync GitHub |
 | Double deploys | Use either GitHub Action **or** Vercel Git integration for production, not both |
 

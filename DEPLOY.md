@@ -33,6 +33,33 @@ MCP URL for clients: `http://localhost:8000/mcp`
 
 ---
 
+## Docker Compose services
+
+| Service | Port | Role |
+| :--- | :--- | :--- |
+| `mcp` | 8000 | MCP streamable HTTP (`/mcp`) for IDE clients |
+| `workflow-api` | 8877 | Workflow explorer API (`/api/*`) for Vercel UI |
+
+```bash
+doppler run --config prd -- docker compose up --build -d
+```
+
+- MCP clients: `http://localhost:8000/mcp`
+- Workflow API (point `VITE_API_BASE` here): `http://localhost:8877`
+
+---
+
+## Workflow API + Vercel UI
+
+1. Host `workflow-api` with HTTPS (port 8877 behind reverse proxy).
+2. Set `WORKFLOW_UI_CORS_ORIGINS` to your Vercel production URL.
+3. Set GitHub variable `VITE_API_BASE` to the public API URL.
+4. Push to `main` to rebuild the Vercel UI.
+
+See [VERCEL.md](./VERCEL.md) for the full Vercel wiring checklist.
+
+---
+
 ## Environment variables (production)
 
 | Variable | Default (local) | Production |
@@ -41,6 +68,10 @@ MCP URL for clients: `http://localhost:8000/mcp`
 | `MCP_TRANSPORT` | `stdio` | `streamable-http` |
 | `MCP_HOST` | `127.0.0.1` | `0.0.0.0` |
 | `MCP_PORT` | `8000` | `8000` |
+| `WORKFLOW_API_HOST` | `0.0.0.0` | `0.0.0.0` |
+| `WORKFLOW_API_PORT` | `8877` | `8877` |
+| `WORKFLOW_UI_CORS_ORIGINS` | (localhost only) | `https://your-app.vercel.app` |
+| `WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS` | `true` | `true` |
 | `FASTMCP_MASK_ERROR_DETAILS` | `false` | `true` (set in Dockerfile) |
 | `SUPABASE_URL` | required | required |
 | `SUPABASE_SERVICE_ROLE_KEY` | required | required |
@@ -83,15 +114,16 @@ Use HTTPS in production. Terminate TLS at your reverse proxy or platform edge.
 
 ---
 
-## Workflow UI (optional, separate)
+## Verify workflow API
 
-The LangGraph workflow explorer API (`workflow-ui`) is still local-dev oriented. To connect the Vercel UI to a hosted backend later, deploy FastAPI separately and set `VITE_API_BASE` when building `ui/`.
-
-Priority for this repo: **host `mcp-server` first** (this document).
+```bash
+curl -s http://localhost:8877/api/health
+# {"status":"ok","mode":"hosted","workflow_count":...}
+```
 
 ---
 
-## Verify
+## Verify MCP server
 
 ```bash
 curl -s http://localhost:8000/health

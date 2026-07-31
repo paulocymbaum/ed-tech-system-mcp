@@ -14,7 +14,8 @@ def main() -> None:
     try:
         assert_local_development()
         uvicorn.run(
-            "mcp_server.interface.local_ui.api:app",
+            "mcp_server.interface.local_ui.api:create_app",
+            factory=True,
             host=local_ui_host(),
             port=local_ui_port(),
             reload=True,

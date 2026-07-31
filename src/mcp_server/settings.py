@@ -46,6 +46,13 @@ class Settings(BaseSettings):
         alias="MCP_HOST_ORIGIN_PROTECTION",
     )
     mcp_allowed_hosts: str = Field(default="", alias="MCP_ALLOWED_HOSTS")
+    workflow_api_host: str = Field(default="0.0.0.0", alias="WORKFLOW_API_HOST", min_length=1)
+    workflow_api_port: int = Field(default=8877, alias="WORKFLOW_API_PORT", gt=0, le=65535)
+    workflow_ui_cors_origins: str = Field(default="", alias="WORKFLOW_UI_CORS_ORIGINS")
+    workflow_ui_allow_vercel_previews: bool = Field(
+        default=True,
+        alias="WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS",
+    )
 
     @field_validator("mcp_host_origin_protection", mode="before")
     @classmethod

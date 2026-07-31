@@ -95,19 +95,13 @@ from mcp_server.interface.validation import (
     tavily_search_state_to_run_response,
     youtube_search_state_to_run_response,
 )
+from mcp_server.interface.local_ui.cors import resolve_workflow_ui_cors
 from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
-_LOCAL_ORIGINS = {
-    "http://127.0.0.1:4173",
-    "http://localhost:4173",
-    "http://127.0.0.1:8877",
-    "http://localhost:8877",
-}
 
 
 def assert_local_development() -> None:
-    """Refuse to start the workflow UI outside local development."""
     app_env = os.getenv("APP_ENV", "development")
     if app_env not in {"development", "local"}:
         msg = "Workflow UI is only available when APP_ENV is development or local."
@@ -442,21 +436,22 @@ async def _local_ui_lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
-    """Create the local-only FastAPI application."""
-    assert_local_development()
-
+    """Create the FastAPI workflow API (local dev or hosted behind Vercel UI)."""
+    app_env = os.getenv("APP_ENV", "development")
+    cors_origins, cors_origin_regex = resolve_workflow_ui_cors(app_env=app_env)
     lifespan = _local_ui_lifespan if bootstrap_runtime else None
 
     app = FastAPI(
         title="Ed-Tech Workflow UI",
-        description="Local development UI for LangChain and LangGraph workflows.",
+        description="Workflow explorer API for LangChain and LangGraph workflows.",
         version="0.1.0",
         lifespan=lifespan,
     )
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=sorted(_LOCAL_ORIGINS),
+        allow_origins=cors_origins,
+        allow_origin_regex=cors_origin_regex,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
@@ -465,7 +460,7 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     def health() -> dict[str, str | int]:
         return {
             "status": "ok",
-            "mode": "local",
+            "mode": "local" if app_env in {"development", "local"} else "hosted",
             "workflow_count": len(list_registered_workflows()),
         }
 
@@ -589,8 +584,12 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return TestDatasetSummaryView.model_validate(summary.as_dict())
 
+    serve_static = app_env in {"development", "local"} or os.getenv(
+        "WORKFLOW_UI_SERVE_STATIC",
+        "",
+    ).strip().lower() in {"1", "true", "yes", "on"}
     static_dir = Path(__file__).resolve().parents[4] / "ui" / "dist"
-    if static_dir.is_dir():
+    if serve_static and static_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
 
         @app.get("/")
@@ -600,7 +599,9 @@ def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
     return app
 
 
-app = create_local_ui_app(bootstrap_runtime=True)
+def create_app() -> FastAPI:
+    """Uvicorn factory entrypoint for the workflow API."""
+    return create_local_ui_app(bootstrap_runtime=True)
 
 
 def local_ui_host() -> str:
