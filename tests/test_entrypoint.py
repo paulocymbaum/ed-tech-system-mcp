@@ -53,6 +53,12 @@ def test_e01_main_startup_loads_operational_config_before_mcp_server() -> None:
     """Operational config and runtime init must complete before MCP server creation."""
     mock_server = MagicMock()
     mock_settings = MagicMock(spec=Settings)
+    mock_settings.mcp_transport = "stdio"
+    mock_settings.mcp_host = "127.0.0.1"
+    mock_settings.mcp_port = 8000
+    mock_settings.mcp_stateless_http = False
+    mock_settings.mcp_host_origin_protection = None
+    mock_settings.mcp_allowed_hosts = ""
     call_order: list[str] = []
     runtime_args: list[tuple[object, object]] = []
 
@@ -92,7 +98,7 @@ def test_e01_main_startup_loads_operational_config_before_mcp_server() -> None:
     ):
         main()
 
-    mock_server.run.assert_called_once()
+    mock_server.run.assert_called_once_with(transport="stdio")
     assert call_order == [
         "bootstrap_environment",
         "load_settings",
@@ -119,7 +125,7 @@ def test_e02_main_boots_without_groq_key_when_llm_not_invoked(
     with patch("mcp_server.main.create_mcp_server", return_value=mock_server):
         main()
 
-    mock_server.run.assert_called_once()
+    mock_server.run.assert_called_once_with(transport="stdio")
 
 
 def test_e03_configure_logging_applies_log_level_from_settings(
