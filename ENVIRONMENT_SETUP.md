@@ -539,6 +539,13 @@ CACHE_ENABLED=false
 
 # Logging
 LOG_LEVEL=INFO
+
+# Vercel (deploy only — Doppler github_ci / dev; never commit values)
+# VERCEL_TOKEN=
+# VERCEL_ORG_ID=
+# VERCEL_PROJECT_ID=
+# Optional build-time API URL for hosted workflow UI (empty = same-origin /api)
+# VITE_API_BASE=
 ```
 
 ### Injecting secrets without committing them
@@ -612,6 +619,30 @@ The script uploads placeholder values for `dev`, `github_ci`, `stg`, and `prd` c
 | `GitHub` | `github_ci` | Synced to GitHub Actions secrets (`APP_ENV=ci`) |
 | `stg` | `stg` | Staging deploy (`APP_ENV=staging`) |
 | `prd` | `prd` | Production deploy (`APP_ENV=production`) |
+
+**Vercel deploy secrets** (static workflow UI — see [VERCEL.md](./VERCEL.md)):
+
+| Secret | Doppler configs | GitHub secret | Purpose |
+| :--- | :--- | :--- | :--- |
+| `VERCEL_TOKEN` | `dev`, `github_ci`, `stg`, `prd` | `VERCEL_TOKEN` | Vercel CLI authentication |
+| `VERCEL_ORG_ID` | same | `VERCEL_ORG_ID` | Team / account ID from `vercel link` |
+| `VERCEL_PROJECT_ID` | same | `VERCEL_PROJECT_ID` | Project ID from `vercel link` |
+
+Bootstrap placeholders: `./scripts/doppler/bootstrap-from-env-example.sh` (includes empty `VERCEL_*` keys).
+
+**GitHub sync options:**
+
+1. **Doppler → GitHub App sync (recommended)** — sync `github_ci` to repository secrets; rotation in Doppler propagates automatically.
+2. **One-time push** — `./scripts/doppler/sync-vercel-to-github.sh` copies `VERCEL_*` from Doppler `github_ci` to GitHub without printing values.
+
+Verify secrets exist (no values shown):
+
+```bash
+for k in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+  doppler secrets get "$k" --project ed-harness-system --config github_ci --plain >/dev/null \
+    && echo "$k set in Doppler github_ci"
+done
+```
 
 Create the dedicated **GitHub** environment in Doppler: **Project → Options → Create Environment**, name it `GitHub`, place it after `dev`. Store CI-specific values (test Supabase project, read-only keys) in the `github_ci` config under that environment (Doppler requires the `github_` prefix for configs in this environment).
 
@@ -824,7 +855,21 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 ## CI/CD safety checklist
 
-Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships [`.github/workflows/repo-safety.yml`](.github/workflows/repo-safety.yml), which runs gitleaks, `npm run hooks:test`, pre-push safety checks, and `tests/test_hooks.py` on `main`, `develop`, and pull requests. When using [Doppler + GitHub integration](#doppler--github-integration), CI secrets are synced from Doppler — no manual GitHub secret entry required.
+Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships [`.github/workflows/repo-safety.yml`](.github/workflows/repo-safety.yml), which runs gitleaks, `npm run hooks:test`, pre-push safety checks, and `tests/test_hooks.py` on `main`, `develop`, and pull requests. Production UI deploys use [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (Vercel prebuilt static output from `ui/`). When using [Doppler + GitHub integration](#doppler--github-integration), CI and deploy secrets are synced from Doppler — no manual GitHub secret entry required.
+
+### Vercel deployment checklist
+
+| Step | Command / action |
+| :--- | :--- |
+| Bootstrap placeholders | `./scripts/doppler/bootstrap-from-env-example.sh` |
+| Link Vercel project | `doppler run -- npx vercel link` (writes gitignored `.vercel/project.json`) |
+| Store IDs in Doppler | Set `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` in `github_ci` (+ `dev`/`stg`/`prd`) |
+| GitHub secrets | Enable Doppler sync **or** `./scripts/doppler/sync-vercel-to-github.sh` |
+| Deploy | Push to `main` or `gh workflow run deploy.yml` |
+| Verify | Check workflow run URL; optional `VITE_API_BASE` when API is hosted elsewhere |
+| Rotate token | Update in Doppler only; re-sync or wait for GitHub App sync |
+
+Full guide: [VERCEL.md](./VERCEL.md).
 
 ```bash
 uv sync --frozen --all-groups
