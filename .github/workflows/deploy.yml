@@ -1,0 +1,85 @@
+name: Deploy workflow UI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.vercel.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build workflow UI
+        working-directory: ui
+        env:
+          # Empty = same-origin /api (static-only on Vercel; set in Doppler/github_ci when API is hosted)
+          VITE_API_BASE: ${{ vars.VITE_API_BASE || '' }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package static output for Vercel
+        run: |
+          mkdir -p .vercel/output/static
+          cp -r ui/dist/. .vercel/output/static/
+          printf '%s\n' \
+            '{' \
+            '  "version": 3,' \
+            '  "routes": [' \
+            '    { "handle": "filesystem" },' \
+            '    { "src": "/(.*)", "dest": "/index.html" }' \
+            '  ]' \
+            '}' > .vercel/output/config.json
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@58.4.4
+
+      - name: Deploy to Vercel
+        id: vercel
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          deploy_out=$(mktemp)
+          deploy_err=$(mktemp)
+          trap 'rm -f "$deploy_out" "$deploy_err"' EXIT
+
+          if ! vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN" >"$deploy_out" 2>"$deploy_err"; then
+            cat "$deploy_err" >&2
+            exit 1
+          fi
+
+          # stdout is the deployment URL; grep last https line if CLI prints extras
+          url=$(grep -Eo 'https://[^[:space:]]+' "$deploy_out" | tail -n 1 || true)
+          if [ -z "$url" ]; then
+            url=$(tail -n 1 "$deploy_out" | tr -d '[:space:]')
+          fi
+          if [ -z "$url" ]; then
+            echo "Could not parse deployment URL from Vercel CLI output" >&2
+            cat "$deploy_out" >&2
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url"
