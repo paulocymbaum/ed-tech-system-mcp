@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEPLOY_WORKFLOW = REPO_ROOT / ".github/workflows/deploy.yml"
+CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
 VERCEL_JSON = REPO_ROOT / "vercel.json"
 BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/doppler/bootstrap-from-env-example.sh"
 SYNC_SCRIPT = REPO_ROOT / "scripts/doppler/sync-vercel-to-github.sh"
@@ -23,7 +23,7 @@ def _read(path: Path) -> str:
 
 
 def _deploy_step_block(step_name: str) -> str:
-    content = _read(DEPLOY_WORKFLOW)
+    content = _read(CI_WORKFLOW)
     match = re.search(
         rf"- name: {re.escape(step_name)}\n(?:(?!- name: ).*\n)*",
         content,
@@ -78,38 +78,49 @@ def _run_sync_script(
     )
 
 
-def test_T01_deploy_workflow_name() -> None:
-    assert 'name: Deploy workflow UI' in _read(DEPLOY_WORKFLOW)
+def test_T01_ci_workflow_name() -> None:
+    assert "name: CI" in _read(CI_WORKFLOW)
 
 
-def test_T02_deploy_triggers_main_and_dispatch() -> None:
-    content = _read(DEPLOY_WORKFLOW)
+def test_T02_ci_triggers_and_deploy_gate() -> None:
+    content = _read(CI_WORKFLOW)
     on_block = content.split("concurrency:", maxsplit=1)[0]
     assert "workflow_dispatch:" in on_block
-    assert "branches: [main]" in on_block or "branches:\n      - main" in on_block
+    assert "- main" in on_block
+    assert "- develop" in on_block
+    deploy_job = content.split("  deploy:", maxsplit=1)[1]
+    assert "if: github.ref == 'refs/heads/main'" in deploy_job
 
 
-def test_T03_deploy_concurrency_group() -> None:
-    content = _read(DEPLOY_WORKFLOW)
-    assert "group: vercel-${{ github.ref }}" in content
+def test_T03_ci_concurrency_group() -> None:
+    content = _read(CI_WORKFLOW)
+    assert "group: ci-${{ github.workflow }}-${{ github.ref }}" in content
     assert "cancel-in-progress: true" in content
 
 
-def test_T04_deploy_permissions_read_only() -> None:
-    content = _read(DEPLOY_WORKFLOW)
+def test_T04_ci_job_chain() -> None:
+    content = _read(CI_WORKFLOW)
+    verify_job = content.split("  verify:", maxsplit=1)[1].split("  deploy:", maxsplit=1)[0]
+    deploy_job = content.split("  deploy:", maxsplit=1)[1]
+    assert "needs: safety" in verify_job
+    assert "needs: verify" in deploy_job
+
+
+def test_T05_deploy_permissions_read_only() -> None:
+    content = _read(CI_WORKFLOW)
     permissions = content.split("jobs:", maxsplit=1)[0]
     assert "contents: read" in permissions
     assert "contents: write" not in permissions
 
 
-def test_T05_deploy_production_environment() -> None:
-    content = _read(DEPLOY_WORKFLOW)
+def test_T06_deploy_production_environment() -> None:
+    content = _read(CI_WORKFLOW)
     assert "name: production" in content
     assert "url: ${{ steps.vercel.outputs.url }}" in content
 
 
-def test_T06_deploy_node20_ui_build() -> None:
-    content = _read(DEPLOY_WORKFLOW)
+def test_T07_deploy_node20_ui_build() -> None:
+    content = _read(CI_WORKFLOW)
     assert 'node-version: "20"' in content
     build = _deploy_step_block("Build workflow UI")
     assert "working-directory: ui" in build
@@ -117,12 +128,12 @@ def test_T06_deploy_node20_ui_build() -> None:
     assert "npm run build" in build
 
 
-def test_T07_deploy_vite_api_base_var() -> None:
+def test_T08_deploy_vite_api_base_var() -> None:
     build = _deploy_step_block("Build workflow UI")
     assert "VITE_API_BASE: ${{ vars.VITE_API_BASE || '' }}" in build
 
 
-def test_T08_deploy_prebuilt_package_layout() -> None:
+def test_T09_deploy_prebuilt_package_layout() -> None:
     package = _deploy_step_block("Package static output for Vercel")
     assert "mkdir -p .vercel/output/static" in package
     assert "cp -r ui/dist/. .vercel/output/static/" in package
@@ -132,24 +143,24 @@ def test_T08_deploy_prebuilt_package_layout() -> None:
     assert '"dest": "/index.html"' in package
 
 
-def test_T09_deploy_vercel_cli_pinned() -> None:
+def test_T10_deploy_vercel_cli_pinned() -> None:
     install = _deploy_step_block("Install Vercel CLI")
     assert "vercel@58.4.4" in install
     assert "vercel@latest" not in install
 
 
-def test_T10_deploy_uses_prebuilt_prod_flags() -> None:
+def test_T11_deploy_uses_prebuilt_prod_flags() -> None:
     deploy = _deploy_step_block("Deploy to Vercel")
     assert "vercel deploy --prebuilt --prod --yes" in deploy
 
 
-def test_T11_deploy_references_vercel_secrets() -> None:
+def test_T12_deploy_references_vercel_secrets() -> None:
     deploy = _deploy_step_block("Deploy to Vercel")
     for secret_name in VERCEL_SECRET_NAMES:
         assert f"${{{{ secrets.{secret_name} }}}}" in deploy
 
 
-def test_T12_deploy_no_secret_echo() -> None:
+def test_T13_deploy_no_secret_echo() -> None:
     deploy = _deploy_step_block("Deploy to Vercel")
     run_block = deploy.split("run: |", maxsplit=1)[1]
     assert 'echo "$VERCEL_TOKEN"' not in run_block
@@ -158,7 +169,7 @@ def test_T12_deploy_no_secret_echo() -> None:
     assert 'echo "$VERCEL_PROJECT_ID"' not in run_block
 
 
-def test_T13_deploy_url_capture_hardened() -> None:
+def test_T14_deploy_url_capture_hardened() -> None:
     deploy = _deploy_step_block("Deploy to Vercel")
     assert "deploy_out=$(mktemp)" in deploy
     assert "deploy_err=$(mktemp)" in deploy
