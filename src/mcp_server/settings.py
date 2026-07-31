@@ -1,6 +1,8 @@
 """Typed application configuration validated at startup."""
 
-from pydantic import Field, SecretStr
+from typing import Literal
+
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=None,
         extra="ignore",
+        populate_by_name=True,
     )
 
     app_env: str = Field(default="development", alias="APP_ENV")
@@ -31,6 +34,35 @@ class Settings(BaseSettings):
         alias="EXTERNAL_REQUEST_LIMIT_PER_MINUTE",
         ge=1,
     )
+    mcp_transport: Literal["stdio", "http", "sse", "streamable-http"] = Field(
+        default="stdio",
+        alias="MCP_TRANSPORT",
+    )
+    mcp_host: str = Field(default="127.0.0.1", alias="MCP_HOST", min_length=1)
+    mcp_port: int = Field(default=8000, alias="MCP_PORT", gt=0, le=65535)
+    mcp_stateless_http: bool = Field(default=False, alias="MCP_STATELESS_HTTP")
+    mcp_host_origin_protection: bool | Literal["auto"] | None = Field(
+        default=None,
+        alias="MCP_HOST_ORIGIN_PROTECTION",
+    )
+    mcp_allowed_hosts: str = Field(default="", alias="MCP_ALLOWED_HOSTS")
+
+    @field_validator("mcp_host_origin_protection", mode="before")
+    @classmethod
+    def parse_mcp_host_origin_protection(cls, value: object) -> bool | Literal["auto"] | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized == "auto":
+            return "auto"
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        msg = "MCP_HOST_ORIGIN_PROTECTION must be true, false, auto, or empty"
+        raise ValueError(msg)
     groq_model_catalog_cache_path: str = Field(
         default=".cache/groq_model_catalog.json",
         alias="GROQ_MODEL_CATALOG_CACHE_PATH",

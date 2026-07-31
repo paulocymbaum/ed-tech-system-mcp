@@ -13,6 +13,7 @@ from mcp_server.interface.custom_tools import (  # noqa: F401
     run_workflow,
     search_youtube,
 )
+from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.interface.mcp_server import create_mcp_server
 from mcp_server.operational_config import load_operational_config
 from mcp_server.settings import Settings, load_settings
@@ -37,20 +38,30 @@ def configure_logging(settings: Settings) -> None:
     logging.basicConfig(level=level, force=True)
 
 
-def bootstrap_application_runtime() -> None:
+def bootstrap_application_runtime() -> Settings:
     """Load settings, operational config, and wire the composition root."""
     settings = load_settings()
     configure_logging(settings)
     operational_config = load_operational_config()
     initialize_application_runtime(operational_config, settings)
+    return settings
 
 
 def main() -> None:
     """Bootstrap environment, validate settings, and start the MCP server."""
     bootstrap_environment()
-    bootstrap_application_runtime()
+    settings = bootstrap_application_runtime()
     server = create_mcp_server()
-    server.run()
+    server.run(
+        **build_mcp_run_kwargs(
+            transport=settings.mcp_transport,
+            host=settings.mcp_host,
+            port=settings.mcp_port,
+            stateless_http=settings.mcp_stateless_http,
+            host_origin_protection=settings.mcp_host_origin_protection,
+            allowed_hosts=settings.mcp_allowed_hosts,
+        )
+    )
 
 
 if __name__ == "__main__":
