@@ -24,5 +24,32 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  workflow-api:
+    build: .
+    command: ["workflow-api"]
+    ports:
+      - "${WORKFLOW_API_PORT:-8877}:8877"
+    environment:
+      APP_ENV: production
+      WORKFLOW_API_HOST: 0.0.0.0
+      WORKFLOW_API_PORT: 8877
+      WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS: ${WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS:-true}
+      WORKFLOW_UI_CORS_ORIGINS: ${WORKFLOW_UI_CORS_ORIGINS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY is required}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+    volumes:
+      - mcp-cache:/app/.cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8877/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
 volumes:
   mcp-cache:
