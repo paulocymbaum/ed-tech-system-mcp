@@ -50,7 +50,7 @@ def test_file_cache_round_trips_catalog_snapshot(tmp_path: Path) -> None:
         pricing=None,
     )
     snapshot = GroqModelCatalogSnapshot(
-        fetched_at=datetime(2026, 7, 21, 12, 0, tzinfo=UTC),
+        fetched_at=datetime.now(tz=UTC),
         entries=[entry],
     )
 

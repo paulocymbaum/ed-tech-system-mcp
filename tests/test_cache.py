@@ -438,7 +438,7 @@ def test_c11_build_data_repository_without_cache_is_uncached(
     settings = load_settings()
     repository = build_data_repository(settings, create_cache_store(settings))
 
-    assert type(repository).__name__ == "SupabaseRepository"
+    assert type(repository).__name__ == "RateLimitedDataRepository"
 
 
 def test_c19_build_mcp_tool_cache_returns_helper_when_disabled(

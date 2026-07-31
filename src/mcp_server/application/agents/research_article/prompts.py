@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp_server.domain.input_safety import wrap_user_content_for_prompt
+
 
 def orchestrator_system_prompt() -> str:
     return (
@@ -13,7 +15,7 @@ def orchestrator_system_prompt() -> str:
 
 
 def orchestrator_user_prompt(query: str) -> str:
-    return f"Topic to research:\n{query}"
+    return wrap_user_content_for_prompt(query, label="research_topic")
 
 
 def article_system_prompt() -> str:
@@ -29,7 +31,7 @@ def article_system_prompt() -> str:
 
 def article_user_prompt(*, query: str, research_brief: str, merged_context: str) -> str:
     return (
-        f"Topic: {query}\n\n"
+        f"{wrap_user_content_for_prompt(query, label='article_topic')}\n\n"
         f"Editorial brief:\n{research_brief}\n\n"
         f"Merged research context:\n{merged_context}\n\n"
         "Write the journalistic article now."

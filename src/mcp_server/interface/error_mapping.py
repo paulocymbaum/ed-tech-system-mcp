@@ -12,6 +12,7 @@ from mcp.types import ErrorData
 from mcp_server.domain.exceptions import (
     DomainError,
     DomainValidationError,
+    ExternalRateLimitError,
     ResourceNotFoundError,
 )
 
@@ -22,4 +23,6 @@ def raise_as_mcp_error(error: DomainError) -> NoReturn:
         raise FastMcpNotFoundError(str(error)) from error
     if isinstance(error, DomainValidationError):
         raise McpError(ErrorData(code=-32602, message=f"Invalid params: {error}")) from error
+    if isinstance(error, ExternalRateLimitError):
+        raise ToolError(str(error)) from error
     raise ToolError(str(error)) from error

@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_server.application.agent import DocumentVideoState
 from mcp_server.application.agents.content_generation.state import ContentGenerationState
@@ -13,6 +13,7 @@ from mcp_server.application.agents.tavily_search.graph import TavilySearchState
 from mcp_server.application.agents.youtube_search.graph import YouTubeSearchState
 from mcp_server.application.workflow_trace import WorkflowTraceStep
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
+from mcp_server.domain.input_safety import require_safe_user_text
 from mcp_server.domain.schemas import ChunkHit, DocumentHit, VideoResult
 
 
@@ -45,6 +46,11 @@ class DocumentQueryRequest(BaseModel):
     document_limit: int = Field(default=10, ge=1, le=50)
     video_limit: int = Field(default=5, ge=1, le=25)
 
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
+
 
 class DocumentQueryResponse(BaseModel):
     """Validated output for document + video discovery tool calls."""
@@ -61,6 +67,11 @@ class VideoSearchRequest(BaseModel):
     language: str = Field(default="en", min_length=2, max_length=10)
     safe_search: bool = True
 
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
+
 
 class VideoSearchResponse(BaseModel):
     """Validated output for video search tool calls."""
@@ -74,6 +85,11 @@ class WorkflowRunRequest(BaseModel):
     query: str = Field(min_length=1)
     document_limit: int = Field(default=10, ge=1, le=50)
     video_limit: int = Field(default=5, ge=1, le=25)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
 
 
 class WorkflowRunResponse(BaseModel):
@@ -94,6 +110,11 @@ class TavilySearchRunRequest(BaseModel):
     query: str = Field(min_length=1)
     max_results: int = Field(default=5, ge=1, le=25)
 
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
+
 
 class TavilySearchRunResponse(BaseModel):
     """Validated output for Tavily search workflow execution."""
@@ -112,6 +133,11 @@ class YouTubeSearchRunRequest(BaseModel):
     language: str = Field(default="en", min_length=2, max_length=10)
     safe_search: bool = True
 
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
+
 
 class YouTubeSearchRunResponse(BaseModel):
     """Validated output for YouTube search workflow execution."""
@@ -128,6 +154,11 @@ class ResearchArticleRunRequest(BaseModel):
     query: str = Field(min_length=1)
     max_web_results: int = Field(default=5, ge=1, le=25)
     max_video_results: int = Field(default=3, ge=1, le=25)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
 
 
 class ResearchArticleRunResponse(BaseModel):
@@ -151,6 +182,11 @@ class ContentGenerationRunRequest(BaseModel):
 
     topic: str = Field(min_length=1)
     grade_level: str = Field(default="6th grade", min_length=1)
+
+    @field_validator("topic", "grade_level")
+    @classmethod
+    def validate_user_text(cls, value: str) -> str:
+        return require_safe_user_text(value, field="text")
 
 
 class ContentGenerationRunResponse(BaseModel):
@@ -182,6 +218,11 @@ class RagRetrievalRunRequest(BaseModel):
     course_id: str | None = None
     tags: list[str] | None = None
     language: str | None = Field(default=None, min_length=2, max_length=10)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
 
 
 class RagEvaluationContextView(BaseModel):
@@ -228,6 +269,13 @@ class RagValidationRunRequest(BaseModel):
     course_id: str | None = None
     tags: list[str] | None = None
     language: str | None = Field(default="en", min_length=2, max_length=10)
+
+    @field_validator("query", "document_text", "document_title")
+    @classmethod
+    def validate_optional_user_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return require_safe_user_text(value, field="text")
 
 
 class RagValidationDocumentDefaults(BaseModel):

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         alias="LLM_ROUTER_DEBOUNCE_SECONDS",
         ge=0.0,
     )
+    external_request_limit_per_minute: int = Field(
+        default=60,
+        alias="EXTERNAL_REQUEST_LIMIT_PER_MINUTE",
+        ge=1,
+    )
     groq_model_catalog_cache_path: str = Field(
         default=".cache/groq_model_catalog.json",
         alias="GROQ_MODEL_CATALOG_CACHE_PATH",

@@ -304,3 +304,19 @@ def test_T51_vercel_directory_gitignored() -> None:
         text=True,
     )
     assert result.returncode == 0
+
+
+def test_T52_ui_lib_sources_are_not_gitignored() -> None:
+    """CI must ship ui/src/lib — a broad lib/ gitignore pattern broke Vercel builds."""
+    for relative in (
+        "ui/src/lib/traceAnalytics.ts",
+        "ui/src/lib/ragBenchmarks.ts",
+        "ui/src/lib/ragNodeGroups.ts",
+    ):
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", relative],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0, f"{relative} must not be gitignored"
