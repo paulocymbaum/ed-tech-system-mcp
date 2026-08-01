@@ -7,11 +7,13 @@ from mcp_server.domain.schemas import ChunkHit, DocumentHit, VideoResult
 from mcp_server.interface.validation import (
     DocumentQueryRequest,
     DocumentSummary,
-    RagRetrievalRunRequest,
     VideoSearchRequest,
     VideoSearchResponse,
-    WorkflowRunRequest,
     document_hit_to_summary,
+)
+from mcp_server.interface.validation_workflow import (
+    RagRetrievalRunRequest,
+    WorkflowRunRequest,
     rag_retrieval_state_to_run_response,
     workflow_state_to_run_response,
 )

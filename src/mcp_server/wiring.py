@@ -66,8 +66,6 @@ from mcp_server.infrastructure.cached_adapters import (
     CachedVideoSearchClient,
 )
 from mcp_server.infrastructure.cached_llm import CachedChatModel
-from mcp_server.infrastructure.chunking.langchain_chunking_adapter import LangChainChunkingAdapter
-from mcp_server.infrastructure.embeddings.fastembed_adapter import FastEmbedAdapter
 from mcp_server.infrastructure.external_rate_limiter import SlidingWindowExternalRequestRateLimiter
 from mcp_server.infrastructure.groq_adapter import build_groq_chat_model
 from mcp_server.infrastructure.groq_model_catalog import (
@@ -84,9 +82,6 @@ from mcp_server.infrastructure.rate_limited_adapters import (
     RateLimitedVideoSearchClient,
 )
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
-from mcp_server.infrastructure.rerank.lazy_reranker import LazyFastEmbedReranker
-from mcp_server.infrastructure.retrieval.chroma_vector_index_writer import ChromaVectorIndexWriter
-from mcp_server.infrastructure.retrieval.chroma_vector_retriever import ChromaVectorRetriever
 from mcp_server.infrastructure.retrieval.supabase_vector_index_writer import (
     SupabaseVectorIndexWriter,
 )
@@ -95,7 +90,6 @@ from mcp_server.infrastructure.retrieval.vector_store_backend import resolve_vec
 from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
 from mcp_server.infrastructure.supabase_client import SupabaseRepository
 from mcp_server.infrastructure.tavily_search_client import TavilySearchClient
-from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
 from mcp_server.operational_config import OperationalConfig
 
@@ -158,6 +152,8 @@ def build_embedding_provider(
     cache: ICacheStore | None = None,
 ) -> IEmbeddingProvider:
     """Build the local embedding provider, optionally wrapped with cache-aside."""
+    from mcp_server.infrastructure.embeddings.fastembed_adapter import FastEmbedAdapter
+
     provider: IEmbeddingProvider = FastEmbedAdapter(
         model_name=settings.embedding_model,
         dimensions=settings.embedding_dimension,
@@ -180,6 +176,10 @@ def build_vector_retriever(
     """Build vector retriever (Chroma fallback or Supabase pgvector)."""
     backend = resolve_vector_store_backend(settings)
     if backend == "chroma":
+        from mcp_server.infrastructure.retrieval.chroma_vector_retriever import (
+            ChromaVectorRetriever,
+        )
+
         retriever: IVectorRetriever = ChromaVectorRetriever(
             persist_path=settings.chroma_persist_path,
             collection_name=settings.chroma_collection_name,
@@ -203,6 +203,10 @@ def build_vector_index_writer(settings: Settings) -> IVectorIndexWriter:
     """Build vector index writer (Chroma fallback or Supabase pgvector)."""
     backend = resolve_vector_store_backend(settings)
     if backend == "chroma":
+        from mcp_server.infrastructure.retrieval.chroma_vector_index_writer import (
+            ChromaVectorIndexWriter,
+        )
+
         return ChromaVectorIndexWriter(
             persist_path=settings.chroma_persist_path,
             collection_name=settings.chroma_collection_name,
@@ -215,6 +219,8 @@ def build_vector_index_writer(settings: Settings) -> IVectorIndexWriter:
 
 def build_reranker(settings: Settings) -> IReranker:
     """Build lazy cross-encoder reranker; graph ``rerank_enabled`` gates whether it runs."""
+    from mcp_server.infrastructure.rerank.lazy_reranker import LazyFastEmbedReranker
+
     _validate_reranker_model(settings.reranker_model)
     return LazyFastEmbedReranker(
         model_name=settings.reranker_model,
@@ -224,6 +230,10 @@ def build_reranker(settings: Settings) -> IReranker:
 
 def build_chunking_strategy(_settings: Settings) -> IChunkingStrategy:
     """Build the document chunking strategy."""
+    from mcp_server.infrastructure.chunking.langchain_chunking_adapter import (
+        LangChainChunkingAdapter,
+    )
+
     return LangChainChunkingAdapter()
 
 
@@ -432,8 +442,6 @@ def initialize_application_runtime(
     """Initialize application-layer runtime config and wired dependencies."""
     config = build_workflow_execution_config(operational)
     set_workflow_execution_config(config)
-    set_token_counter(TiktokenTokenCounter())
-
     if settings is None:
         cache_store: ICacheStore = NoOpCacheStore()
         configure_lazy_chat_model(None)
@@ -448,6 +456,9 @@ def initialize_application_runtime(
             mcp_tool_cache=None,
         )
 
+    from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
+
+    set_token_counter(TiktokenTokenCounter())
     cache_store = create_cache_store(settings)
     configure_lazy_chat_model(settings, cache_store)
     configure_lazy_document_video_workflow(settings, cache_store)

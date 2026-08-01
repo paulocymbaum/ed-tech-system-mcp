@@ -1161,20 +1161,6 @@ wheels = [
 ]
 
 [[package]]
-name = "langchain"
-version = "1.3.14"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/29/68/a6dbad9c22df4087a0f9e79ddd46226c442b30128bfeee538d5889492a73/langchain-1.3.14.tar.gz", hash = "sha256:1b6696c72ba3bbbce54d745e0180742c9f6ece8bbc59ed5a46c3e20b9a435929", size = 645181, upload-time = "2026-07-16T13:28:18.29Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/ec/0f942e78a621f8e3162ff1ed24284f469aaf51fb4607ee5831c626f2b2bc/langchain-1.3.14-py3-none-any.whl", hash = "sha256:4d10dbe91005952cddd56d0dc77aa108964da6bae90ab20063653957e901f782", size = 139560, upload-time = "2026-07-16T13:28:16.498Z" },
-]
-
-[[package]]
 name = "langchain-core"
 version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1417,22 +1403,42 @@ name = "mcp-server"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "chromadb" },
-    { name = "duckduckgo-search" },
-    { name = "fastembed" },
     { name = "fastmcp" },
     { name = "google-api-python-client" },
     { name = "httpx" },
-    { name = "langchain" },
-    { name = "langchain-groq" },
-    { name = "langchain-text-splitters" },
-    { name = "langgraph" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "redis" },
     { name = "supabase" },
+]
+
+[package.optional-dependencies]
+full = [
+    { name = "chromadb" },
+    { name = "duckduckgo-search" },
+    { name = "fastapi" },
+    { name = "fastembed" },
+    { name = "langchain-core" },
+    { name = "langchain-groq" },
+    { name = "langchain-text-splitters" },
+    { name = "langgraph" },
     { name = "tiktoken" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+rag = [
+    { name = "chromadb" },
+    { name = "fastembed" },
+    { name = "langchain-text-splitters" },
+    { name = "tiktoken" },
+]
+workflow = [
+    { name = "duckduckgo-search" },
+    { name = "fastapi" },
+    { name = "langchain-core" },
+    { name = "langchain-groq" },
+    { name = "langgraph" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.dev-dependencies]
@@ -1449,23 +1455,36 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chromadb", specifier = ">=0.6.3,<1.0.0" },
-    { name = "duckduckgo-search" },
-    { name = "fastembed" },
+    { name = "chromadb", marker = "extra == 'full'", specifier = ">=0.6.3,<1.0.0" },
+    { name = "chromadb", marker = "extra == 'rag'", specifier = ">=0.6.3,<1.0.0" },
+    { name = "duckduckgo-search", marker = "extra == 'full'" },
+    { name = "duckduckgo-search", marker = "extra == 'workflow'" },
+    { name = "fastapi", marker = "extra == 'full'" },
+    { name = "fastapi", marker = "extra == 'workflow'" },
+    { name = "fastembed", marker = "extra == 'full'" },
+    { name = "fastembed", marker = "extra == 'rag'" },
     { name = "fastmcp", specifier = "==3.4.4" },
     { name = "google-api-python-client" },
     { name = "httpx" },
-    { name = "langchain" },
-    { name = "langchain-groq", specifier = ">=1.1.3" },
-    { name = "langchain-text-splitters" },
-    { name = "langgraph" },
+    { name = "langchain-core", marker = "extra == 'full'" },
+    { name = "langchain-core", marker = "extra == 'workflow'" },
+    { name = "langchain-groq", marker = "extra == 'full'", specifier = ">=1.1.3" },
+    { name = "langchain-groq", marker = "extra == 'workflow'", specifier = ">=1.1.3" },
+    { name = "langchain-text-splitters", marker = "extra == 'full'" },
+    { name = "langchain-text-splitters", marker = "extra == 'rag'" },
+    { name = "langgraph", marker = "extra == 'full'" },
+    { name = "langgraph", marker = "extra == 'workflow'" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "redis" },
     { name = "supabase" },
-    { name = "tiktoken" },
+    { name = "tiktoken", marker = "extra == 'full'" },
+    { name = "tiktoken", marker = "extra == 'rag'" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'full'" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'workflow'" },
 ]
+provides-extras = ["workflow", "rag", "full"]
 
 [package.metadata.requires-dev]
 dev = [

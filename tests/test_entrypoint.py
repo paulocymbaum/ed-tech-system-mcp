@@ -12,14 +12,14 @@ from mcp_server.settings import Settings, load_settings
 
 def test_t21_bootstrap_skips_dotenv_outside_development(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "production")
-    with patch("mcp_server.main.load_dotenv") as mock_load:
+    with patch("mcp_server.env_bootstrap.load_dotenv") as mock_load:
         bootstrap_environment()
         mock_load.assert_not_called()
 
 
 def test_t22_bootstrap_loads_dotenv_in_development(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "development")
-    with patch("mcp_server.main.load_dotenv") as mock_load:
+    with patch("mcp_server.env_bootstrap.load_dotenv") as mock_load:
         bootstrap_environment()
         mock_load.assert_called_once()
         _, kwargs = mock_load.call_args

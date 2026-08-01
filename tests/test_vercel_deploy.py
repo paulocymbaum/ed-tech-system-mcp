@@ -211,6 +211,23 @@ def test_T33_pyproject_vercel_entrypoint() -> None:
     assert 'entrypoint = "mcp_server.vercel_app:app"' in content
 
 
+def test_T34_pyproject_slim_base_dependencies() -> None:
+    content = _read(REPO_ROOT / "pyproject.toml")
+    deps_block = content.split("dependencies = [", maxsplit=1)[1].split("]", maxsplit=1)[0]
+    for heavy in ("langgraph", "chromadb", "fastembed", "langchain-text-splitters", "tiktoken"):
+        assert heavy not in deps_block
+    assert '"langgraph"' in content
+    assert "[project.optional-dependencies]" in content
+
+
+def test_T35_vercel_wiring_module_exists() -> None:
+    path = REPO_ROOT / "src/mcp_server/vercel_wiring.py"
+    content = _read(path)
+    assert "initialize_vercel_runtime" in content
+    assert "configure_lazy_document_video_workflow" in content
+    assert "configure_lazy_retrieval_clients" not in content
+
+
 def test_T40_sync_script_required_keys() -> None:
     content = _read(SYNC_SCRIPT)
     assert "VERCEL_KEYS=(VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID)" in content

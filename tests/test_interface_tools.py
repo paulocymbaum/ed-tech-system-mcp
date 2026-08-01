@@ -32,9 +32,9 @@ from mcp_server.interface.custom_tools import (
     _cached_tool_invoke,
     find_documents,
     health_check,
-    run_workflow,
     search_youtube,
 )
+from mcp_server.interface.custom_tools_workflow import run_workflow
 
 
 class InMemoryCacheStore(ICacheStore):

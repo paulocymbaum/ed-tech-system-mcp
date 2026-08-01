@@ -11,7 +11,6 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
-from mcp_server.application.agent import run_document_video_graph
 from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
 from mcp_server.application.workflow_runtime import get_document_video_workflow
 from mcp_server.domain.exceptions import DomainError, ResourceNotFoundError
@@ -22,10 +21,7 @@ from mcp_server.interface.validation import (
     DocumentQueryResponse,
     VideoSearchRequest,
     VideoSearchResponse,
-    WorkflowRunRequest,
-    WorkflowRunResponse,
     document_hits_to_summaries,
-    workflow_state_to_run_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,15 +57,6 @@ async def _invoke_find_documents(request: DocumentQueryRequest) -> DocumentQuery
         documents=document_hits_to_summaries(documents),
         videos=videos,
     )
-
-
-async def _invoke_run_workflow(request: WorkflowRunRequest) -> WorkflowRunResponse:
-    result = await run_document_video_graph(
-        request.query,
-        document_limit=request.document_limit,
-        video_limit=request.video_limit,
-    )
-    return workflow_state_to_run_response(result)
 
 
 async def _cached_tool_invoke[T](
@@ -155,24 +142,4 @@ async def find_documents(
         "find_documents",
         args,
         lambda: _invoke_find_documents(request),
-    )
-
-
-@mcp.tool
-async def run_workflow(
-    query: str,
-    document_limit: int = 10,
-    video_limit: int = 5,
-) -> WorkflowRunResponse:
-    """Execute the document + video discovery LangGraph workflow."""
-    request = WorkflowRunRequest(
-        query=query,
-        document_limit=document_limit,
-        video_limit=video_limit,
-    )
-    args = request.model_dump()
-    return await _cached_tool_invoke(
-        "run_workflow",
-        args,
-        lambda: _invoke_run_workflow(request),
     )

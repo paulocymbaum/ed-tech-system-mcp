@@ -11,7 +11,8 @@ from mcp_server.domain.input_safety import (
     sanitize_user_text,
     wrap_user_content_for_prompt,
 )
-from mcp_server.interface.validation import DocumentQueryRequest, WorkflowRunRequest
+from mcp_server.interface.validation import DocumentQueryRequest
+from mcp_server.interface.validation_workflow import WorkflowRunRequest
 
 
 def test_sanitize_user_text_strips_control_characters() -> None:

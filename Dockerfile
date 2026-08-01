@@ -10,7 +10,7 @@ ENV UV_LINK_MODE=copy
 COPY pyproject.toml uv.lock ARCHITECTURE.md config.json ./
 COPY src ./src
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra full
 
 FROM python:3.12-slim-bookworm
 

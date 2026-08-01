@@ -12,18 +12,18 @@ os.environ.setdefault("APP_ENV", "production")
 from mcp_server.interface.custom_tools import (  # noqa: F401
     find_documents,
     health_check,
-    run_workflow,
     search_youtube,
 )
 from mcp_server.interface.mcp_server import create_mcp_server
-from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
+from mcp_server.env_bootstrap import bootstrap_environment
+from mcp_server.vercel_wiring import initialize_vercel_runtime
 
 
 def _bootstrap_or_warn() -> None:
-    """Wire runtime on cold start; graph browsing may work even if secrets are missing."""
+    """Wire slim MCP runtime on cold start."""
     bootstrap_environment()
     try:
-        bootstrap_application_runtime()
+        initialize_vercel_runtime()
     except Exception as exc:
         logger.warning("MCP runtime partially initialized on Vercel: %s", exc)
 

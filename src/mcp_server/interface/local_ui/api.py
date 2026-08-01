@@ -74,7 +74,7 @@ from mcp_server.interface.local_ui.benchmark_schemas import (
     TestDatasetSummaryView,
 )
 from mcp_server.interface.local_ui.schemas import WorkflowListResponse
-from mcp_server.interface.validation import (
+from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
     RagRetrievalRunRequest,
