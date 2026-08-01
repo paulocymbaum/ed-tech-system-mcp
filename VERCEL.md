@@ -36,7 +36,7 @@ Health checks               ──▶  https://<project>.vercel.app/health
 | Workflow API (`/api/*`) | **Docker** (`workflow-api`) | LangGraph runs, SSE benchmarks (optional) |
 | React UI (`ui/dist`) | Secondary | Graph explorer — deploy separately if needed |
 
-Entrypoint: `mcp_server.vercel_app:app` (see `pyproject.toml` `[tool.vercel]`).
+Entrypoint: `src.mcp_server.vercel_app:app` (see `pyproject.toml` `[tool.vercel]`).
 
 ---
 
