@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ed-Tech MCP — Status</title>
+  <link rel="stylesheet" href="/status/status.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">System status</p>
+      <h1>Ed-Tech MCP</h1>
+      <p id="overall-label" class="overall operational">Loading…</p>
+      <p id="generated-at" class="meta"></p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Test coverage</h2>
+      <div id="coverage" class="coverage-grid">
+        <p class="muted">No snapshot yet.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Services by layer</h2>
+      <div id="components" class="component-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Incident history</h2>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <section class="panel">
+      <h2>History by layer</h2>
+      <div id="by-layer" class="layer-grid"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+  <p>Pareto incident types only — 5 classes cover ~80% of operational risk.</p>
+  </footer>
+
+  <script src="/status/status.js"></script>
+</body>
+</html>

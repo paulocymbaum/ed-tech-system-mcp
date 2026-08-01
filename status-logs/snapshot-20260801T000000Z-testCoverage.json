@@ -1,0 +1,1 @@
+{"schemaVersion":1,"recordKind":"snapshot","id":"snapshot-bootstrap-testCoverage","layer":"ci","component":"verifyPipeline","state":"operational","severity":"low","title":"Test coverage snapshot","summary":"Initial status log bootstrap","source":"bootstrap","timestamp":"2026-08-01T00:00:00Z","testCoverage":{"percent":null,"passed":0,"failed":0,"skipped":0},"transitions":[]}
