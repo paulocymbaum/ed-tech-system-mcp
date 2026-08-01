@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from mcp_server.interface.validation import RagValidationRunResponse
+from mcp_server.interface.validation_workflow import RagValidationRunResponse
 
 BenchmarkStage = Literal["indexing", "embedding", "retrieving", "validating", "complete", "error"]
 OptimizationStage = Literal["baseline", "searching", "saving", "after", "complete", "error"]

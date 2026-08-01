@@ -1,6 +1,25 @@
 # Vercel deployment (Python MCP)
 
-The **MCP server** deploys to **Vercel** as a **Python serverless function** on every push to `main`. The workflow UI (`ui/`) is optional and can be hosted separately or added later under `public/`.
+The **MCP server** deploys to **Vercel** as a **Python serverless function** on every push to `main`. The workflow UI (`ui/`) is optional and can be hosted separately.
+
+Vercel installs only the **slim base dependencies** from `pyproject.toml` (no LangGraph, Chroma, or fastembed). Heavy workflow/RAG stacks install via the `full` extra for Docker only.
+
+---
+
+## Dependency split
+
+| Install target | Command | Includes |
+| :--- | :--- | :--- |
+| **Vercel MCP** (auto) | `pip install .` from `pyproject.toml` base deps | fastmcp, supabase, YouTube client, redis |
+| **Docker / local full** | `uv sync --extra full` | + langgraph, langchain-core, fastembed, chromadb, tiktoken |
+
+### fastembed on Vercel?
+
+**No — not on the MCP layer.** Your RAG vectors live in **Supabase pgvector**; embeddings are produced at ingest time (Docker/`rag` extra), not on each Vercel cold start. fastembed pulls ~100MB ONNX models and is a poor fit for serverless. If you later need query-time embeddings on Vercel, use a hosted embedding API (e.g. Supabase AI / external HTTP) rather than bundling ONNX.
+
+### LangGraph on Vercel?
+
+**No.** `run_workflow` is registered only in Docker/local (`custom_tools_workflow.py`). Vercel exposes `health_check`, `search_youtube`, and `find_documents` only.
 
 ---
 

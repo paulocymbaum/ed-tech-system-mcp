@@ -55,7 +55,7 @@ jobs:
 
       - name: Hook contract tests
         run: |
-          uv sync --frozen
+          uv sync --frozen --extra full
           uv run pytest tests/test_hooks.py -q
 
   verify:
@@ -71,7 +71,7 @@ jobs:
 
       - name: Run pytest
         run: |
-          uv sync --frozen --all-groups
+          uv sync --frozen --all-groups --extra full
           uv run pytest -q
 
       - name: Setup Node

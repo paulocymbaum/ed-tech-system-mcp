@@ -3,30 +3,19 @@
 import logging
 import os
 import sys
-from pathlib import Path
 
-from dotenv import load_dotenv
-
+from mcp_server.env_bootstrap import bootstrap_environment
 from mcp_server.interface.custom_tools import (  # noqa: F401
     find_documents,
     health_check,
-    run_workflow,
     search_youtube,
 )
+from mcp_server.interface.custom_tools_workflow import run_workflow  # noqa: F401
 from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.interface.mcp_server import create_mcp_server
 from mcp_server.operational_config import load_operational_config
 from mcp_server.settings import Settings, load_settings
 from mcp_server.wiring import initialize_application_runtime
-
-
-def bootstrap_environment() -> None:
-    """Load local .env in development only. OS environment always wins."""
-    app_env = os.getenv("APP_ENV", "development")
-
-    if app_env == "development":
-        env_path = Path(__file__).resolve().parents[2] / ".env"
-        load_dotenv(dotenv_path=env_path, override=False)
 
 
 def configure_logging(settings: Settings) -> None:
