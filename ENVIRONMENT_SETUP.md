@@ -205,7 +205,7 @@ Secrets must **never** be committed to the repository. This section defines how 
 | Rule | Detail |
 | :--- | :--- |
 | **No env files in git** | Never commit `.env`, `.env.*`, `*.env`, or Doppler template files — use Doppler or a local gitignored `.env` only |
-| **Single load point** | Load configuration **only** in `main.py` (Entrypoint). No `load_dotenv()` in Domain, Application, Interface, or Infrastructure |
+| **Single load point** | Load configuration **only** in `env_bootstrap.py` (Entrypoint). No `load_dotenv()` in Domain, Application, Interface, or Infrastructure |
 | **Inject, don't import** | Pass secrets into Infrastructure adapters via constructors or a typed `Settings` object — never `os.getenv()` scattered across the codebase |
 | **OS env wins** | When both a `.env` file and a real environment variable exist, the real environment variable must take precedence |
 | **No secrets in MCP config** | MCP host / `mcp.json` may reference `${env:VAR}` placeholders — never paste literal keys into version-controlled JSON |
@@ -265,8 +265,9 @@ def bootstrap_environment() -> None:
     app_env = os.getenv("APP_ENV", "development")
 
     if app_env == "development":
-        env_path = Path(__file__).resolve().parents[2] / ".env"
-        load_dotenv(dotenv_path=env_path, override=False)
+        env_path = Path(__file__).resolve().parents[2]
+        for env_name in (".env", ".env.local"):
+            load_dotenv(dotenv_path=env_path / env_name, override=False)
 
     # override=False → existing os.environ values always win.
     # CI, production, and MCP hosts that inject vars are never overwritten by .env.
@@ -403,15 +404,26 @@ Avoid storing production secrets in `.env` files on servers. Production containe
 
 ### Local setup (never committed)
 
+| File | Purpose | How to create |
+| :--- | :--- | :--- |
+| **`.env`** | App secrets for local MCP (`SUPABASE_*`, `GROQ_*`, …) | `./scripts/doppler/pull-local-env.sh` or hand-edit |
+| **`.env.local`** | Machine overlays (Vercel CLI `VERCEL_*`, local ports) | `vercel link` / `vercel env pull` — optional |
+
+In `APP_ENV=development`, bootstrap loads **`.env` first**, then **`.env.local`** (`override=False` — first file wins on duplicate keys; second fills gaps).
+
 Create a private local `.env` in the project root (gitignored) with the [required environment variables](#required-environment-variables) below, or use Doppler:
 
 ```bash
-# Option A — Doppler (recommended for teams)
+# Option A — Doppler inject (no file on disk)
 doppler login
 ./scripts/doppler/setup-local.sh
 doppler run -- uv run mcp-server
 
-# Option B — local .env file (solo dev)
+# Option B — restore .env from Doppler (recommended after clone or lost file)
+./scripts/doppler/pull-local-env.sh
+uv run mcp-server
+
+# Option C — hand-edit .env (solo dev)
 $EDITOR .env
 ```
 
@@ -789,8 +801,8 @@ Export secrets in your shell profile or use `${env:VAR}` so the MCP host inherit
 
 ### Loading rules (summary)
 
-1. `bootstrap_environment()` in `main.py` is the **only** place that calls `load_dotenv()`.
-2. Use `load_dotenv(override=False)` and only when `APP_ENV=development`.
+1. `bootstrap_environment()` in `env_bootstrap.py` is the **only** place that calls `load_dotenv()`.
+2. Use `load_dotenv(override=False)` and only when `APP_ENV=development` (loads `.env` then `.env.local`).
 3. Validate all required keys through Pydantic `Settings` before starting the MCP server.
 4. Pass `Settings` into Infrastructure constructors — Domain and Application layers never touch `os.environ` or `.env`.
 5. Use the **Supabase service role key** only in server-side MCP processes, never in client-facing config.
