@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-01T03:09:10.065232+00:00",
+  "overallState": "operational",
+  "paretoIncidentTypes": [
+    "securityGateFailure",
+    "qualityGateFailure",
+    "deployFailure",
+    "availabilityLoss",
+    "dependencyUnavailable"
+  ],
+  "testCoverage": {
+    "percent": null,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0
+  },
+  "components": [
+    {
+      "id": "mcpHttp",
+      "layer": "interface",
+      "label": "MCP HTTP (/mcp, /health)",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "safetyPipeline",
+      "layer": "ci",
+      "label": "Safety pipeline",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "verifyPipeline",
+      "layer": "ci",
+      "label": "Tests & architecture",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "vercelMcp",
+      "layer": "deploy",
+      "label": "Vercel MCP deploy",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "externalIntegration",
+      "layer": "infrastructure",
+      "label": "Supabase / YouTube / Groq",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "workflowApi",
+      "layer": "application",
+      "label": "Workflow API (Docker)",
+      "health": "operational",
+      "lastIncidentId": null
+    },
+    {
+      "id": "dockerMcp",
+      "layer": "deploy",
+      "label": "Docker MCP image",
+      "health": "operational",
+      "lastIncidentId": null
+    }
+  ],
+  "incidents": [],
+  "snapshots": [
+    {
+      "schemaVersion": 1,
+      "recordKind": "snapshot",
+      "id": "snapshot-bootstrap-testCoverage",
+      "incidentType": null,
+      "layer": "ci",
+      "component": "verifyPipeline",
+      "state": "operational",
+      "severity": "low",
+      "title": "Test coverage snapshot",
+      "summary": "Initial status log bootstrap",
+      "source": "bootstrap",
+      "runId": null,
+      "gitRef": null,
+      "gitSha": null,
+      "timestamp": "2026-08-01T00:00:00Z",
+      "resolvedAt": null,
+      "testCoverage": {
+        "percent": null,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "transitions": []
+    }
+  ],
+  "historyByLayer": {}
+}

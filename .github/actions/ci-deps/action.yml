@@ -1,0 +1,77 @@
+name: CI dependency cache
+description: Restore, install, and save a hash-keyed CI dependency group.
+
+inputs:
+  group:
+    description: Dependency group (python-hooks, python-dev, npm-root, vercel-cli)
+    required: true
+
+outputs:
+  cache-hit:
+    description: Whether the dependency cache was restored successfully
+    value: ${{ steps.cache.outputs.cache-hit }}
+  cache-key:
+    description: Full cache key used for this group
+    value: ${{ steps.key.outputs.key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute cache key
+      id: key
+      shell: bash
+      run: |
+        key="$(bash scripts/ci/dependency-cache.sh cache-key "${{ inputs.group }}")"
+        echo "key=${key}" >> "$GITHUB_OUTPUT"
+
+    - name: Resolve cache paths
+      id: paths
+      shell: bash
+      run: |
+        mapfile -t paths < <(bash scripts/ci/dependency-cache.sh cache-paths "${{ inputs.group }}")
+        if ((${#paths[@]} == 0)); then
+          echo "has_paths=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        {
+          echo "paths<<EOF"
+          printf '%s\n' "${paths[@]}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        echo "has_paths=true" >> "$GITHUB_OUTPUT"
+
+    - name: Setup uv
+      if: startsWith(inputs.group, 'python-')
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          pyproject.toml
+          uv.lock
+
+    - name: Setup Node
+      if: inputs.group == 'npm-root' || inputs.group == 'vercel-cli'
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Restore dependency cache
+      id: cache
+      if: steps.paths.outputs.has_paths == 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.paths.outputs.paths }}
+        key: ci-deps-${{ steps.key.outputs.key }}
+        restore-keys: |
+          ci-deps-${{ inputs.group }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: bash scripts/ci/dependency-cache.sh install "${{ inputs.group }}"
+
+    - name: Save dependency cache
+      if: steps.paths.outputs.has_paths == 'true' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.paths.outputs.paths }}
+        key: ci-deps-${{ steps.key.outputs.key }}

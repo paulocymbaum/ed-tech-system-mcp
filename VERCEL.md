@@ -28,6 +28,7 @@ Vercel installs only the **slim base dependencies** from `pyproject.toml` (no La
 ```text
 MCP clients (IDE / agents)  ──▶  https://<project>.vercel.app/mcp
 Health checks               ──▶  https://<project>.vercel.app/health
+Status page (static)        ──▶  https://<project>.vercel.app/status/
 ```
 
 | Component | Host | Purpose |

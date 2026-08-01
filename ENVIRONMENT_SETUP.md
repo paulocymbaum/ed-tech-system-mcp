@@ -869,6 +869,10 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships a single [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pipeline with sequential jobs: **Safety checks** (gitleaks, Husky hook parity, `test_hooks.py`), **Tests & architecture** (full `pytest` + import-linter), and **Deploy workflow UI** to Vercel on `main` only. When using [Doppler + GitHub integration](#doppler--github-integration), CI and deploy secrets are synced from Doppler — no manual GitHub secret entry required.
 
+### CI dependency caching
+
+CI installs are keyed by [`scripts/ci/dependency-cache.sh`](scripts/ci/dependency-cache.sh). Each dependency group (`python-hooks`, `python-dev`, `npm-root`, `vercel-cli`, `docker-mcp`) gets a deterministic `{group}-{sha256-short}` key from its lockfiles and install flags. The [`.github/actions/ci-deps`](.github/actions/ci-deps) composite action restores `actions/cache` paths, runs an idempotent `install` on miss, and saves the cache. Python groups also use `setup-uv` with `enable-cache: true`; the `mcp-image` job uses Docker BuildKit GHA cache scoped to the `docker-mcp` key. When lockfiles are unchanged, install steps are skipped or near-instant on cache hit.
+
 ### Vercel deployment checklist
 
 | Step | Command / action |

@@ -10,6 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
+DEPENDENCY_CACHE_SCRIPT = REPO_ROOT / "scripts/ci/dependency-cache.sh"
 VERCEL_JSON = REPO_ROOT / "vercel.json"
 BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/doppler/bootstrap-from-env-example.sh"
 SYNC_SCRIPT = REPO_ROOT / "scripts/doppler/sync-vercel-to-github.sh"
@@ -89,7 +90,8 @@ def test_T02_ci_triggers_and_deploy_gate() -> None:
     assert "- main" in on_block
     assert "- develop" in on_block
     deploy_job = content.split("  deploy:", maxsplit=1)[1]
-    assert "if: github.ref == 'refs/heads/main'" in deploy_job
+    assert "if: always()" in deploy_job
+    assert "github.ref == 'refs/heads/main'" in deploy_job
 
 
 def test_T03_ci_concurrency_group() -> None:
@@ -103,7 +105,7 @@ def test_T04_ci_job_chain() -> None:
     verify_job = content.split("  verify:", maxsplit=1)[1].split("  deploy:", maxsplit=1)[0]
     deploy_job = content.split("  deploy:", maxsplit=1)[1]
     assert "needs: safety" in verify_job
-    assert "needs: verify" in deploy_job
+    assert "needs: [safety, verify, mcp-image]" in deploy_job
 
 
 def test_T05_deploy_permissions_read_only() -> None:
@@ -142,8 +144,11 @@ def test_T09_deploy_no_prebuilt_packaging() -> None:
 
 def test_T10_deploy_vercel_cli_pinned() -> None:
     install = _deploy_step_block("Install Vercel CLI")
-    assert "vercel@58.4.4" in install
-    assert "vercel@latest" not in install
+    assert "uses: ./.github/actions/ci-deps" in install
+    assert "group: vercel-cli" in install
+    cache_script = _read(DEPENDENCY_CACHE_SCRIPT)
+    assert "vercel@58.4.4" in cache_script
+    assert "vercel@latest" not in cache_script
 
 
 def test_T11_deploy_uses_native_prod_flags() -> None:
