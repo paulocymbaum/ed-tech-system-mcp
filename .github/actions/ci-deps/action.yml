@@ -9,7 +9,7 @@ inputs:
 outputs:
   cache-hit:
     description: Whether the dependency cache was restored successfully
-    value: ${{ steps.cache.outputs.cache-hit }}
+    value: ${{ steps.paths.outputs.has_paths == 'true' && steps.cache.outputs.cache-hit == 'true' && 'true' || 'false' }}
   cache-key:
     description: Full cache key used for this group
     value: ${{ steps.key.outputs.key }}

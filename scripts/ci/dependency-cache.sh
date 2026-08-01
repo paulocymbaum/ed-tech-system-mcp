@@ -103,6 +103,19 @@ cmd_cache_key() {
   printf '%s-%s\n' "$group" "$short_hash"
 }
 
+vercel_cli_cache_paths() {
+  printf '%s\n' "${NPM_CONFIG_CACHE:-$HOME/.npm}"
+  if command -v npm >/dev/null 2>&1; then
+    local npm_prefix npm_root
+    npm_prefix="$(npm prefix -g 2>/dev/null || true)"
+    npm_root="$(npm root -g 2>/dev/null || true)"
+    [[ -n "$npm_root" ]] && printf '%s\n' "$npm_root"
+    if [[ -n "$npm_prefix" ]]; then
+      printf '%s\n' "$npm_prefix/bin"
+    fi
+  fi
+}
+
 cmd_cache_paths() {
   local group="$1"
   validate_group "$group"
@@ -115,7 +128,7 @@ cmd_cache_paths() {
       printf '%s\n' "$REPO_ROOT/node_modules"
       ;;
     vercel-cli)
-      printf '%s\n' "${NPM_CONFIG_CACHE:-$HOME/.npm}"
+      vercel_cli_cache_paths
       ;;
     docker-mcp)
       # Docker BuildKit GHA cache is configured in the workflow.
