@@ -2,6 +2,8 @@
 
 Production hosting targets the **MCP HTTP transport** (`streamable-http`), not stdio. Local IDE integrations keep using `uv run mcp-server` with the default `MCP_TRANSPORT=stdio`.
 
+**Recommended for MCP:** deploy to **Vercel** (native Python ASGI) — see [VERCEL.md](./VERCEL.md). **Docker** remains the fallback for workflow-api and when Vercel bundle limits apply.
+
 ---
 
 ## What runs in production
@@ -49,14 +51,13 @@ doppler run --config prd -- docker compose up --build -d
 
 ---
 
-## Workflow API + Vercel UI
+## Workflow API + optional UI
 
 1. Host `workflow-api` with HTTPS (port 8877 behind reverse proxy).
-2. Set `WORKFLOW_UI_CORS_ORIGINS` to your Vercel production URL.
-3. Set GitHub variable `VITE_API_BASE` to the public API URL.
-4. Push to `main` to rebuild the Vercel UI.
+2. Set `WORKFLOW_UI_CORS_ORIGINS` to your UI origin if you host the React app separately.
+3. MCP on Vercel: `https://<project>.vercel.app/mcp` (no Docker required for MCP).
 
-See [VERCEL.md](./VERCEL.md) for the full Vercel wiring checklist.
+See [VERCEL.md](./VERCEL.md) for MCP deployment and env sync.
 
 ---
 

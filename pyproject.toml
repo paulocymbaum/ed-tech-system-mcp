@@ -136,6 +136,9 @@ ignore_missing_imports = true
 module = "chromadb.*"
 ignore_missing_imports = true
 
+[tool.vercel]
+entrypoint = "mcp_server.vercel_app:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
