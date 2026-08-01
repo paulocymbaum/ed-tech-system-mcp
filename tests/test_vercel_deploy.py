@@ -208,7 +208,7 @@ def test_T32_vercel_no_spa_rewrite() -> None:
 def test_T33_pyproject_vercel_entrypoint() -> None:
     content = _read(REPO_ROOT / "pyproject.toml")
     assert '[tool.vercel]' in content
-    assert 'entrypoint = "mcp_server.vercel_app:app"' in content
+    assert 'entrypoint = "src.mcp_server.vercel_app:app"' in content
 
 
 def test_T34_pyproject_slim_base_dependencies() -> None:
