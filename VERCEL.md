@@ -6,6 +6,21 @@ Vercel installs only the **slim base dependencies** from `pyproject.toml` (no La
 
 ---
 
+## Secrets model (current stage)
+
+**Doppler `dev` is the single source of truth** for app secrets (local MCP and Vercel MCP).
+
+| Secret type | Doppler config | Destination |
+| :--- | :--- | :--- |
+| App runtime (`SUPABASE_*`, `GROQ_*`, …) | **`dev`** | Local `.env` + **Vercel production** |
+| Deploy CLI (`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`) | **`github_ci`** | GitHub Actions + Vercel sync script auth |
+
+`prd` / `stg` are reserved for a later environment split. Do not use them for Vercel until documented otherwise.
+
+Full script reference: [scripts/doppler/README.md](./scripts/doppler/README.md)
+
+---
+
 ## Dependency split
 
 | Install target | Command | Includes |
@@ -15,7 +30,7 @@ Vercel installs only the **slim base dependencies** from `pyproject.toml` (no La
 
 ### fastembed on Vercel?
 
-**No — not on the MCP layer.** Your RAG vectors live in **Supabase pgvector**; embeddings are produced at ingest time (Docker/`rag` extra), not on each Vercel cold start. fastembed pulls ~100MB ONNX models and is a poor fit for serverless. If you later need query-time embeddings on Vercel, use a hosted embedding API (e.g. Supabase AI / external HTTP) rather than bundling ONNX.
+**No — not on the MCP layer.** Your RAG vectors live in **Supabase pgvector**; embeddings are produced at ingest time (Docker/`rag` extra), not on each Vercel cold start.
 
 ### LangGraph on Vercel?
 
@@ -26,9 +41,13 @@ Vercel installs only the **slim base dependencies** from `pyproject.toml` (no La
 ## Architecture
 
 ```text
-MCP clients (IDE / agents)  ──▶  https://<project>.vercel.app/mcp
-Health checks               ──▶  https://<project>.vercel.app/health
-Status page (static)        ──▶  https://<project>.vercel.app/status/
+Doppler dev ──sync-dev-to-vercel.sh──▶  Vercel production env vars
+     │
+     └── pull-local-env.sh ──▶  .env (local)
+
+MCP clients  ──▶  https://<project>.vercel.app/mcp
+Health       ──▶  https://<project>.vercel.app/health
+Status page  ──▶  https://<project>.vercel.app/status/
 ```
 
 | Component | Host | Purpose |
@@ -43,7 +62,7 @@ Entrypoint: `src.mcp_server.vercel_app:app` (see `pyproject.toml` `[tool.vercel]
 
 ## 1. One-time setup (Doppler-first)
 
-### A. Bootstrap placeholders (if not done)
+### A. Bootstrap placeholders (first time only)
 
 ```bash
 doppler login
@@ -51,37 +70,44 @@ doppler login
 ./scripts/doppler/bootstrap-from-env-example.sh
 ```
 
-### B. Create / link the Vercel project
+**Warning:** Do not re-run bootstrap after filling `dev` — it uploads empty placeholders and wipes real values.
+
+### B. Fill secrets in Doppler `dev`
+
+Use the [Doppler dashboard](https://dashboard.doppler.com) or push from a local `.env`:
 
 ```bash
-export VERCEL_TOKEN="$(doppler secrets get VERCEL_TOKEN --plain)"
-doppler run -- npx vercel link --yes
+./scripts/doppler/upload-local-env.sh   # .env → dev
 ```
 
-Copy `orgId` and `projectId` into Doppler (`dev`, `github_ci`, `stg`, `prd`).
+Required for Vercel sync: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
 
-### C. Sync runtime secrets to Vercel
-
-MCP needs Supabase, Groq, etc. at **runtime** on Vercel. Sync from Doppler `prd`:
-
-```bash
-./scripts/doppler/sync-prd-to-vercel.sh
-```
-
-The script reads `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from Doppler **`github_ci`** and runtime keys from **`prd`** — no local `vercel link` required.
-
-If you prefer linking once locally instead:
+### C. Link Vercel + store deploy credentials
 
 ```bash
 export VERCEL_TOKEN="$(doppler secrets get VERCEL_TOKEN --project ed-harness-system --config github_ci --plain)"
 doppler run -- npx vercel link --yes
 ```
 
-This pushes `SUPABASE_URL`, `GROQ_API_KEY`, and other runtime keys to Vercel **production**. Deploy credentials (`VERCEL_*`) stay in Doppler `github_ci` only.
+Store `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` in Doppler **`github_ci`** (and `dev` if you use them locally).
 
-Alternatively, use [Doppler → Vercel integration](https://docs.doppler.com/docs/vercel) for ongoing sync.
+### D. Sync `dev` secrets to Vercel production
 
-### D. GitHub Actions secrets (deploy only)
+```bash
+./scripts/doppler/sync-dev-to-vercel.sh
+```
+
+- Reads app secrets from Doppler **`dev`** (preflight — no partial writes)
+- Reads `VERCEL_*` from **`github_ci`** for CLI auth
+- Sets `APP_ENV=production` on Vercel (even though `dev` uses `development` locally)
+- **Required in `dev`:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- **Optional API keys** (`TAVILY_*`, `YOUTUBE_*`, `GROQ_*`): synced only when set in `dev`; empty values are skipped
+- **Optional with defaults** (`MCP_TRANSPORT`, `VECTOR_STORE_BACKEND`, …): applied when missing in `dev`
+- No local `vercel link` required if `github_ci` has `VERCEL_*`
+
+Legacy name `sync-prd-to-vercel.sh` delegates to the same script.
+
+### E. GitHub Actions deploy credentials
 
 ```bash
 ./scripts/doppler/sync-vercel-to-github.sh
@@ -104,20 +130,20 @@ File: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
 | Push to `main` | `safety` → `verify` → `deploy` (native Python build on Vercel) |
 | `workflow_dispatch` | Same; deploy runs only on `main` |
 
-The deploy job runs `vercel deploy --prod --yes` (no `--prebuilt`). Vercel installs Python deps from `pyproject.toml` and routes all traffic to the ASGI app.
+**After changing Doppler `dev` secrets**, re-run `sync-dev-to-vercel.sh` and redeploy.
 
 ---
 
 ## 3. Local preview
 
 ```bash
-doppler run --config prd -- vercel dev
+doppler run --config dev -- vercel dev
 ```
 
-Production:
+Production CLI deploy:
 
 ```bash
-doppler run --config prd -- vercel deploy --prod
+doppler run --config dev -- vercel deploy --prod
 ```
 
 ---
@@ -126,9 +152,8 @@ doppler run --config prd -- vercel deploy --prod
 
 ```bash
 curl -sS "https://<project>.vercel.app/health"
-# {"status":"ok",...}
 
-# MCP clients: point streamable HTTP transport at https://<project>.vercel.app/mcp
+# MCP clients: https://<project>.vercel.app/mcp
 ```
 
 ---
@@ -137,17 +162,16 @@ curl -sS "https://<project>.vercel.app/health"
 
 | Issue | Fix |
 | :--- | :--- |
+| Sync fails: empty `SUPABASE_URL` in `dev` | Fill secrets in Doppler **`dev`** (not `prd`) |
 | Deploy fails: missing `VERCEL_*` | Fill Doppler `github_ci`, run `sync-vercel-to-github.sh` |
-| `/health` OK but tools fail | Run `sync-prd-to-vercel.sh`; check Vercel → Settings → Environment Variables |
-| `vercel env pull` created `.env.local` | Expected — Vercel CLI metadata. App secrets: `./scripts/doppler/pull-local-env.sh` → `.env` |
-| Lost or missing `.env` | `./scripts/doppler/pull-local-env.sh` (from Doppler `dev`) |
-| Build timeout / size limit | Heavy deps (`chromadb`, `langgraph`) may exceed Vercel limits — use Docker MCP as fallback ([DEPLOY.md](./DEPLOY.md)) |
-| Cold start slow | Expected on serverless; consider Pro plan for longer `maxDuration` (60s configured in `vercel.json`) |
+| `/health` 500 after deploy | Re-run `sync-dev-to-vercel.sh`, redeploy; check Vercel function logs |
+| `vercel env pull` → `.env.local` | Vercel CLI metadata only; app secrets: `pull-local-env.sh` from **`dev`** |
+| Partial Vercel env (only `APP_ENV`) | Old sync aborted mid-run; run `sync-dev-to-vercel.sh` (preflight fixes this) |
 
 ---
 
 ## 6. Security
 
 - Never commit `.env`, `.vercel/`, or token values
-- Runtime secrets live in Vercel env vars (synced from Doppler `prd`)
-- Deploy tokens live in Doppler `github_ci` → GitHub Secrets only
+- App secrets: Doppler **`dev`** only (synced to Vercel by script)
+- Deploy tokens: Doppler **`github_ci`** → GitHub Secrets only

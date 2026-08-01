@@ -632,7 +632,15 @@ The script uploads placeholder values for `dev`, `github_ci`, `stg`, and `prd` c
 | `stg` | `stg` | Staging deploy (`APP_ENV=staging`) |
 | `prd` | `prd` | Production deploy (`APP_ENV=production`) |
 
-**Vercel deploy secrets** (static workflow UI — see [VERCEL.md](./VERCEL.md)):
+**Vercel MCP runtime secrets** (at this stage — single source: Doppler **`dev`**):
+
+| Step | Command |
+| :--- | :--- |
+| Fill `dev` | Doppler dashboard or `./scripts/doppler/upload-local-env.sh` |
+| Sync to Vercel | `./scripts/doppler/sync-dev-to-vercel.sh` |
+| Docs | [scripts/doppler/README.md](./scripts/doppler/README.md), [VERCEL.md](./VERCEL.md) |
+
+**Vercel deploy credentials** (CLI + GitHub Actions — Doppler `github_ci`):
 
 | Secret | Doppler configs | GitHub secret | Purpose |
 | :--- | :--- | :--- | :--- |
