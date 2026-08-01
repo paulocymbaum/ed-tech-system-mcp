@@ -161,8 +161,10 @@ jobs:
           git add status-logs public/status/manifest.json
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore(status): update incident logs and manifest [skip ci]"
-          git push
+              commit -m "chore(status): update incident logs and manifest [skip ci]" || true
+          if ! git push; then
+            echo "::warning::Could not push status history (branch protection may require a PAT). Deploy continues with in-job manifest."
+          fi
 
       - name: Install Vercel CLI
         if: needs.verify.result == 'success'
