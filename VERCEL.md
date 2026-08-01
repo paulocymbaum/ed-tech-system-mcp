@@ -138,6 +138,8 @@ curl -sS "https://<project>.vercel.app/health"
 | :--- | :--- |
 | Deploy fails: missing `VERCEL_*` | Fill Doppler `github_ci`, run `sync-vercel-to-github.sh` |
 | `/health` OK but tools fail | Run `sync-prd-to-vercel.sh`; check Vercel → Settings → Environment Variables |
+| `vercel env pull` created `.env.local` | Expected — Vercel CLI metadata. App secrets: `./scripts/doppler/pull-local-env.sh` → `.env` |
+| Lost or missing `.env` | `./scripts/doppler/pull-local-env.sh` (from Doppler `dev`) |
 | Build timeout / size limit | Heavy deps (`chromadb`, `langgraph`) may exceed Vercel limits — use Docker MCP as fallback ([DEPLOY.md](./DEPLOY.md)) |
 | Cold start slow | Expected on serverless; consider Pro plan for longer `maxDuration` (60s configured in `vercel.json`) |
 
