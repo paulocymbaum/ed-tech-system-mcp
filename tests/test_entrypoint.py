@@ -21,9 +21,13 @@ def test_t22_bootstrap_loads_dotenv_in_development(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("APP_ENV", "development")
     with patch("mcp_server.env_bootstrap.load_dotenv") as mock_load:
         bootstrap_environment()
-        mock_load.assert_called_once()
-        _, kwargs = mock_load.call_args
-        assert kwargs.get("override") is False
+        assert mock_load.call_count == 2
+        first_path = mock_load.call_args_list[0].kwargs["dotenv_path"]
+        second_path = mock_load.call_args_list[1].kwargs["dotenv_path"]
+        assert first_path.name == ".env"
+        assert second_path.name == ".env.local"
+        for call in mock_load.call_args_list:
+            assert call.kwargs.get("override") is False
 
 
 def test_t23_settings_requires_supabase_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
