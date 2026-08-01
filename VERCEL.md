@@ -67,6 +67,15 @@ MCP needs Supabase, Groq, etc. at **runtime** on Vercel. Sync from Doppler `prd`
 ./scripts/doppler/sync-prd-to-vercel.sh
 ```
 
+The script reads `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from Doppler **`github_ci`** and runtime keys from **`prd`** — no local `vercel link` required.
+
+If you prefer linking once locally instead:
+
+```bash
+export VERCEL_TOKEN="$(doppler secrets get VERCEL_TOKEN --project ed-harness-system --config github_ci --plain)"
+doppler run -- npx vercel link --yes
+```
+
 This pushes `SUPABASE_URL`, `GROQ_API_KEY`, and other runtime keys to Vercel **production**. Deploy credentials (`VERCEL_*`) stay in Doppler `github_ci` only.
 
 Alternatively, use [Doppler → Vercel integration](https://docs.doppler.com/docs/vercel) for ongoing sync.
