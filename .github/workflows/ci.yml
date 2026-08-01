@@ -100,7 +100,7 @@ jobs:
         run: docker build -t ed-tech-system-mcp:ci .
 
   deploy:
-    name: Deploy workflow UI
+    name: Deploy MCP to Vercel
     needs: verify
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -110,34 +110,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-
-      - name: Build workflow UI
-        working-directory: ui
-        env:
-          # Empty = same-origin /api (static-only on Vercel; set in Doppler/github_ci when API is hosted)
-          VITE_API_BASE: ${{ vars.VITE_API_BASE || '' }}
-        run: |
-          npm ci
-          npm run build
-
-      - name: Package static output for Vercel
-        run: |
-          mkdir -p .vercel/output/static
-          cp -r ui/dist/. .vercel/output/static/
-          printf '%s\n' \
-            '{' \
-            '  "version": 3,' \
-            '  "routes": [' \
-            '    { "handle": "filesystem" },' \
-            '    { "src": "/(.*)", "dest": "/index.html" }' \
-            '  ]' \
-            '}' > .vercel/output/config.json
 
       - name: Install Vercel CLI
         run: npm install --global vercel@58.4.4
@@ -154,12 +126,11 @@ jobs:
           deploy_err=$(mktemp)
           trap 'rm -f "$deploy_out" "$deploy_err"' EXIT
 
-          if ! vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN" >"$deploy_out" 2>"$deploy_err"; then
+          if ! vercel deploy --prod --yes --token="$VERCEL_TOKEN" >"$deploy_out" 2>"$deploy_err"; then
             cat "$deploy_err" >&2
             exit 1
           fi
 
-          # stdout is the deployment URL; grep last https line if CLI prints extras
           url=$(grep -Eo 'https://[^[:space:]]+' "$deploy_out" | tail -n 1 || true)
           if [ -z "$url" ]; then
             url=$(tail -n 1 "$deploy_out" | tr -d '[:space:]')

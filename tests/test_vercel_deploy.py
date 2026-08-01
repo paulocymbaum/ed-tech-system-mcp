@@ -119,28 +119,25 @@ def test_T06_deploy_production_environment() -> None:
     assert "url: ${{ steps.vercel.outputs.url }}" in content
 
 
-def test_T07_deploy_node20_ui_build() -> None:
+def test_T07_deploy_native_python_mcp() -> None:
     content = _read(CI_WORKFLOW)
-    assert 'node-version: "20"' in content
-    build = _deploy_step_block("Build workflow UI")
-    assert "working-directory: ui" in build
-    assert "npm ci" in build
-    assert "npm run build" in build
+    deploy_job = content.split("  deploy:", maxsplit=1)[1]
+    assert "Deploy MCP to Vercel" in deploy_job
+    assert "Build workflow UI" not in deploy_job
+    assert "Package static output for Vercel" not in deploy_job
 
 
-def test_T08_deploy_vite_api_base_var() -> None:
-    build = _deploy_step_block("Build workflow UI")
-    assert "VITE_API_BASE: ${{ vars.VITE_API_BASE || '' }}" in build
+def test_T08_deploy_no_ui_vite_var() -> None:
+    content = _read(CI_WORKFLOW)
+    deploy_job = content.split("  deploy:", maxsplit=1)[1]
+    assert "VITE_API_BASE" not in deploy_job
 
 
-def test_T09_deploy_prebuilt_package_layout() -> None:
-    package = _deploy_step_block("Package static output for Vercel")
-    assert "mkdir -p .vercel/output/static" in package
-    assert "cp -r ui/dist/. .vercel/output/static/" in package
-    assert '.vercel/output/config.json' in package
-    assert '"version": 3' in package
-    assert '"handle": "filesystem"' in package
-    assert '"dest": "/index.html"' in package
+def test_T09_deploy_no_prebuilt_packaging() -> None:
+    content = _read(CI_WORKFLOW)
+    deploy_job = content.split("  deploy:", maxsplit=1)[1]
+    assert ".vercel/output/static" not in deploy_job
+    assert "ui/dist" not in deploy_job
 
 
 def test_T10_deploy_vercel_cli_pinned() -> None:
@@ -149,9 +146,10 @@ def test_T10_deploy_vercel_cli_pinned() -> None:
     assert "vercel@latest" not in install
 
 
-def test_T11_deploy_uses_prebuilt_prod_flags() -> None:
+def test_T11_deploy_uses_native_prod_flags() -> None:
     deploy = _deploy_step_block("Deploy to Vercel")
-    assert "vercel deploy --prebuilt --prod --yes" in deploy
+    assert "vercel deploy --prod --yes" in deploy
+    assert "--prebuilt" not in deploy
 
 
 def test_T12_deploy_references_vercel_secrets() -> None:
@@ -194,24 +192,23 @@ def test_T30_vercel_json_valid() -> None:
     assert isinstance(payload, dict)
 
 
-def test_T31_vercel_output_directory_ui_dist() -> None:
+def test_T31_vercel_python_function_entry() -> None:
     payload = json.loads(_read(VERCEL_JSON))
-    assert payload["outputDirectory"] == "ui/dist"
+    functions = payload["functions"]
+    assert "src/mcp_server/vercel_app.py" in functions
+    assert functions["src/mcp_server/vercel_app.py"]["maxDuration"] >= 60
 
 
-def test_T32_vercel_spa_rewrite() -> None:
+def test_T32_vercel_no_spa_rewrite() -> None:
     payload = json.loads(_read(VERCEL_JSON))
-    rewrites = payload["rewrites"]
-    assert any(
-        rewrite.get("source") == "/(.*)" and rewrite.get("destination") == "/index.html"
-        for rewrite in rewrites
-    )
+    assert "rewrites" not in payload
+    assert "outputDirectory" not in payload
 
 
-def test_T33_vercel_build_commands_reference_ui() -> None:
-    payload = json.loads(_read(VERCEL_JSON))
-    assert "ui" in payload["buildCommand"]
-    assert "ui" in payload["installCommand"]
+def test_T33_pyproject_vercel_entrypoint() -> None:
+    content = _read(REPO_ROOT / "pyproject.toml")
+    assert '[tool.vercel]' in content
+    assert 'entrypoint = "mcp_server.vercel_app:app"' in content
 
 
 def test_T40_sync_script_required_keys() -> None:
