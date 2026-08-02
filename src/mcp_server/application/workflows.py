@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 
 from mcp_server.domain.interfaces import IDataRepository, IVideoSearchClient
-from mcp_server.domain.schemas import DocumentHit, VideoResult
+from mcp_server.domain.schemas import ChunkRetrievalFilter, DocumentHit, VideoResult
 
 
 class DocumentVideoWorkflow:
@@ -18,9 +18,16 @@ class DocumentVideoWorkflow:
         self._repository = repository
         self._video_client = video_client
 
-    async def fetch_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def fetch_documents(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        tenant_id: str | None = None,
+    ) -> list[DocumentHit]:
         """Fetch documents matching the query."""
-        return await self._repository.find_documents(query, limit=limit)
+        filters = ChunkRetrievalFilter(tenant_id=tenant_id) if tenant_id else None
+        return await self._repository.find_documents(query, limit=limit, filters=filters)
 
     @staticmethod
     def derive_search_terms(query: str, documents: list[DocumentHit]) -> str:
@@ -50,6 +57,8 @@ class DocumentVideoWorkflow:
         query: str,
         document_limit: int = 10,
         video_limit: int = 5,
+        *,
+        tenant_id: str | None = None,
     ) -> tuple[list[DocumentHit], list[VideoResult]]:
         """Fetch documents and enrich with related educational videos.
 
@@ -62,7 +71,9 @@ class DocumentVideoWorkflow:
         For per-node graph observability or workflow timeout enforcement, use
         ``run_document_video_graph`` instead (sequential port calls per node).
         """
-        documents_task = asyncio.create_task(self.fetch_documents(query, document_limit))
+        documents_task = asyncio.create_task(
+            self.fetch_documents(query, document_limit, tenant_id=tenant_id),
+        )
         videos_task = asyncio.create_task(self.search_videos(query, video_limit))
         documents = await documents_task
 

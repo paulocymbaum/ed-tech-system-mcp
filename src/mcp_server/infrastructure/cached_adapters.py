@@ -50,17 +50,24 @@ class CachedDataRepository(IDataRepository):
         self._cache = cache
         self._rules = rules
 
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> list[DocumentHit]:
         operation = CacheOperationType.SUPABASE_FIND_DOCUMENTS
+        filter_payload = (filters or ChunkRetrievalFilter()).model_dump(exclude_none=True)
         async with port_call_span(operation.value) as span:
             rule = self._rules.for_operation(operation)
             if rule is None or not rule.enabled:
                 span.cache = "disabled"
-                return await self._inner.find_documents(query, limit=limit)
+                return await self._inner.find_documents(query, limit=limit, filters=filters)
 
             key = build_cache_key(
                 operation,
-                {"query": query, "limit": limit},
+                {"query": query, "limit": limit, "filters": filter_payload},
                 prefix=rule.key_prefix,
             )
             return await run_cache_aside(
@@ -71,7 +78,7 @@ class CachedDataRepository(IDataRepository):
                 span=span,
                 serialize=serialize_documents,
                 deserialize=deserialize_documents,
-                loader=lambda: self._inner.find_documents(query, limit=limit),
+                loader=lambda: self._inner.find_documents(query, limit=limit, filters=filters),
             )
 
 

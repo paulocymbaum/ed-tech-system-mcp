@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
 from mcp_server.domain.interfaces import IDataRepository, ISearchClient, IVideoSearchClient
-from mcp_server.domain.schemas import DocumentHit, VideoResult
+from mcp_server.domain.schemas import ChunkHit, ChunkRetrievalFilter, DocumentHit, VideoResult
 
 
 class RateLimitedDataRepository(IDataRepository):
@@ -21,9 +21,15 @@ class RateLimitedDataRepository(IDataRepository):
         self._limiter = limiter
         self._provider = provider
 
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> list[DocumentHit]:
         await self._limiter.acquire(provider=self._provider)
-        return await self._inner.find_documents(query, limit=limit)
+        return await self._inner.find_documents(query, limit=limit, filters=filters)
 
 
 class RateLimitedSearchClient(ISearchClient):

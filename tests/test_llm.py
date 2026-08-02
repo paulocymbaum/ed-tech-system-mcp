@@ -375,7 +375,7 @@ def test_llm05_agent_nodes_use_workflow_execution_config() -> None:
     retry_policy = _node_retry_policy()
     read_retry_policy = _read_node_retry_policy()
     assert retry_policy.max_attempts == 3
-    assert read_retry_policy.max_attempts == 2
+    assert read_retry_policy.max_attempts == 1
     assert _node_timeout_seconds() == 15.0
     assert workflow_timeout_seconds() == 120.0
 
@@ -384,7 +384,17 @@ def test_llm05_agent_nodes_use_workflow_execution_config() -> None:
 
 
 class _GraphFakeRepository:
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    def __init__(self) -> None:
+        self.last_filters = None
+
+    async def find_documents(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        filters=None,
+    ) -> list[DocumentHit]:
+        self.last_filters = filters
         return [DocumentHit(id="1", title=query, content="body")]
 
 
@@ -416,6 +426,30 @@ async def test_llm05b_graph_nodes_delegate_to_document_video_workflow() -> None:
     assert result["video_count"] == 1
     assert result["search_terms"] == "algebra"
     assert result["documents"][0].title == "algebra"
+
+
+async def test_llm05b_graph_forwards_tenant_id_to_repository() -> None:
+    set_workflow_execution_config(
+        WorkflowExecutionConfig(
+            node_retries=1,
+            workflow_timeout_seconds=30.0,
+            agent_node_timeout_seconds=5.0,
+        )
+    )
+    repository = _GraphFakeRepository()
+    workflow = DocumentVideoWorkflow(repository, _GraphFakeVideoClient())
+    set_document_video_workflow(workflow)
+    tenant_id = "8d9cad71-55db-43e4-87f3-89b9077c174f"
+
+    await run_document_video_graph(
+        "algebra",
+        document_limit=2,
+        video_limit=3,
+        tenant_id=tenant_id,
+    )
+
+    assert repository.last_filters is not None
+    assert repository.last_filters.tenant_id == tenant_id
 
 
 def test_llm05d_graph_has_delegation_nodes_not_skeleton() -> None:

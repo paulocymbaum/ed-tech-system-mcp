@@ -15,6 +15,8 @@ from mcp_server.infrastructure.retrieval.chunk_hit_mapping import row_to_chunk_h
 
 def _filter_payload(filters: ChunkRetrievalFilter) -> dict[str, Any]:
     payload: dict[str, Any] = {}
+    if filters.tenant_id is not None:
+        payload["tenant_id"] = filters.tenant_id
     if filters.course_id is not None:
         payload["course_id"] = filters.course_id
     if filters.language is not None:
