@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "recordKind": "incident",
+  "id": "incident-20260802T234438Z-deployFailure",
+  "incidentType": "deployFailure",
+  "layer": "deploy",
+  "component": "renderMcp",
+  "state": "open",
+  "severity": "critical",
+  "title": "Production deploy failed",
+  "summary": "Render production deploy failed.",
+  "source": "github-actions",
+  "runId": null,
+  "gitRef": null,
+  "gitSha": null,
+  "timestamp": "2026-08-02T23:44:38.126154Z",
+  "resolvedAt": null,
+  "testCoverage": null,
+  "transitions": [
+    {
+      "fromState": "detected",
+      "toState": "open",
+      "at": "2026-08-02T23:44:38.126154Z"
+    }
+  ]
+}
