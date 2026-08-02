@@ -52,6 +52,7 @@ async def _invoke_find_documents(request: DocumentQueryRequest) -> DocumentQuery
         request.query,
         document_limit=request.document_limit,
         video_limit=request.video_limit,
+        tenant_id=request.tenant_id,
     )
     return DocumentQueryResponse(
         documents=document_hits_to_summaries(documents),
@@ -130,12 +131,14 @@ async def find_documents(
     query: str,
     document_limit: int = 10,
     video_limit: int = 5,
+    tenant_id: str | None = None,
 ) -> DocumentQueryResponse:
     """Retrieve educational documents enriched with complementary videos."""
     request = DocumentQueryRequest(
         query=query,
         document_limit=document_limit,
         video_limit=video_limit,
+        tenant_id=tenant_id,
     )
     args = request.model_dump()
     return await _cached_tool_invoke(
