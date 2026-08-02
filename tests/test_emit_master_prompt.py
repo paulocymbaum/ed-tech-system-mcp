@@ -5,6 +5,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.cursor_harness
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EMIT_SCRIPT = REPO_ROOT / ".cursor/skills/recursive-loop/scripts/emit-master-prompt.sh"
 

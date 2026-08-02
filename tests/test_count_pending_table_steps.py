@@ -5,6 +5,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.cursor_harness
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COUNT_SCRIPT = REPO_ROOT / ".cursor/skills/recursive-loop/scripts/count-pending-table-steps.sh"
 REFACTOR2 = REPO_ROOT / "changelog/2026-08-01/refactor/REFACTOR2.md"

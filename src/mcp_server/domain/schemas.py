@@ -39,9 +39,53 @@ class TextChunk(BaseModel):
 class ChunkRetrievalFilter(BaseModel):
     """Optional filters applied during vector or hybrid chunk retrieval."""
 
+    tenant_id: str | None = None
     course_id: str | None = None
     tags: list[str] | None = None
     language: str | None = None
+
+
+class DocumentListFilter(BaseModel):
+    """Optional filters for listing documents from Supabase."""
+
+    course_id: str | None = None
+    tags: list[str] | None = None
+    language: str | None = None
+
+
+class DocumentListItem(BaseModel):
+    """Pruned document row for list responses."""
+
+    id: str
+    title: str
+    course_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    language: str | None = None
+    updated_at: str | None = None
+    content_preview: str
+
+
+class DocumentDetail(BaseModel):
+    """Full document row for single-document reads."""
+
+    id: str
+    title: str
+    content: str
+    course_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    language: str | None = None
+    updated_at: str | None = None
+
+
+class DocumentChunkRecord(BaseModel):
+    """Active document chunk row (no embeddings or soft-deleted rows)."""
+
+    id: str
+    document_id: str
+    content: str
+    chunk_index: int = Field(ge=0)
+    language: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class ChunkHit(BaseModel):

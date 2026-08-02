@@ -38,6 +38,7 @@ from mcp_server.application.workflow_config import (
     DEFAULT_WORKFLOW_EXECUTION_CONFIG,
     WorkflowExecutionConfig,
     get_workflow_execution_config,
+    read_node_retry_policy,
 )
 from mcp_server.application.workflow_graph import RegisteredWorkflow
 from mcp_server.application.workflow_runtime import get_document_video_workflow
@@ -59,6 +60,7 @@ class DocumentVideoState(TypedDict):
     search_terms: str
     document_count: int
     video_count: int
+    tenant_id: NotRequired[str | None]
     documents: NotRequired[list[DocumentHit]]
     videos: NotRequired[list[VideoResult]]
 
@@ -78,8 +80,8 @@ def _node_retry_policy() -> RetryPolicy:
 
 
 def _read_node_retry_policy() -> RetryPolicy:
-    """Lower retry budget for idempotent read-only external port calls."""
-    return RetryPolicy(max_attempts=2)
+    """Read-only external port nodes fail fast — no automatic retries."""
+    return read_node_retry_policy()
 
 
 def _node_timeout_seconds() -> float:
@@ -95,7 +97,11 @@ def _require_workflow() -> DocumentVideoWorkflow:
 
 async def _fetch_documents(state: DocumentVideoState) -> dict[str, object]:
     workflow = _require_workflow()
-    documents = await workflow.fetch_documents(state["query"], state["document_limit"])
+    documents = await workflow.fetch_documents(
+        state["query"],
+        state["document_limit"],
+        tenant_id=state.get("tenant_id"),
+    )
     return {
         "documents": documents,
         "document_count": len(documents),
@@ -219,9 +225,10 @@ def initial_document_video_state(
     *,
     document_limit: int = 10,
     video_limit: int = 5,
+    tenant_id: str | None = None,
 ) -> DocumentVideoState:
     """Build the initial graph state for document + video discovery."""
-    return DocumentVideoState(
+    state = DocumentVideoState(
         query=query,
         document_limit=document_limit,
         video_limit=video_limit,
@@ -229,6 +236,9 @@ def initial_document_video_state(
         document_count=0,
         video_count=0,
     )
+    if tenant_id is not None:
+        state["tenant_id"] = tenant_id
+    return state
 
 
 def get_document_video_graph() -> DocumentVideoGraph:
@@ -241,6 +251,7 @@ async def run_document_video_graph(
     *,
     document_limit: int = 10,
     video_limit: int = 5,
+    tenant_id: str | None = None,
 ) -> DocumentVideoState:
     """Run the document-video graph with workflow timeout enforcement.
 
@@ -253,6 +264,7 @@ async def run_document_video_graph(
         query,
         document_limit=document_limit,
         video_limit=video_limit,
+        tenant_id=tenant_id,
     )
     return cast(
         DocumentVideoState,
@@ -300,7 +312,7 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             name="RAG Retrieval",
             description=(
                 "Embed a query, retrieve document chunks via the configured vector store "
-                "(Chroma or Supabase pgvector), optionally rerank, and merge context."
+                "(Supabase pgvector), optionally rerank, and merge context."
             ),
             graph=get_rag_retrieval_graph(),
         ),

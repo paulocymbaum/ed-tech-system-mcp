@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from langgraph.types import RetryPolicy
+
 from mcp_server.operational_config import load_operational_config
 
 _runtime_config: WorkflowExecutionConfig | None = None
+
+READ_NODE_RETRY_POLICY = RetryPolicy(max_attempts=1)
+
+
+def read_node_retry_policy() -> RetryPolicy:
+    """Read-only external port nodes fail fast — no automatic retries."""
+    return READ_NODE_RETRY_POLICY
 
 
 @dataclass(frozen=True, slots=True)

@@ -66,7 +66,7 @@ class CountingRepository(IDataRepository):
         self._documents = documents
         self.calls = 0
 
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
         self.calls += 1
         return self._documents
 
@@ -77,7 +77,7 @@ class SlowCountingRepository(IDataRepository):
         self._delay_seconds = delay_seconds
         self.calls = 0
 
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
         self.calls += 1
         await asyncio.sleep(self._delay_seconds)
         return self._documents
