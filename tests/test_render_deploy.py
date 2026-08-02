@@ -90,7 +90,7 @@ def test_render_deploy_script_contract() -> None:
     assert "sync-dev-to-render.sh" in content
     for secret_name in RENDER_SECRET_NAMES:
         assert secret_name in content
-    assert "curl -fsS -X POST" in content
+    assert "api.render.com/v1/services" in content
     assert "secrets.DOPPLER_TOKEN" not in content
 
 
@@ -98,6 +98,7 @@ def test_trigger_render_deploy_step() -> None:
     step = _deploy_step_block("Sync secrets and trigger Render deploy")
     assert "scripts/ci/render-deploy.sh" in step
     assert "DOPPLER_TOKEN" in step
+    assert "DOPPLER_GITHUB_CI_TOKEN" in step
 
 
 def test_gitignore_vercel_pattern() -> None:

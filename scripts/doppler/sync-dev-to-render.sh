@@ -49,16 +49,19 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! doppler me >/dev/null 2>&1; then
-  echo "ERROR: Not authenticated. Run: doppler login" >&2
+if [[ -z "${DOPPLER_TOKEN:-}" ]] && ! doppler me >/dev/null 2>&1; then
+  echo "ERROR: Not authenticated. Set DOPPLER_TOKEN or run doppler login." >&2
   exit 1
 fi
+
+# shellcheck source=doppler-ci-auth.sh
+source "$(dirname "${BASH_SOURCE[0]}")/doppler-ci-auth.sh"
 
 declare -A RUNTIME_VALUES=()
 declare -A RENDER_CREDENTIALS=()
 
 for key in "${RENDER_CREDENTIAL_KEYS[@]}"; do
-  if ! value="$(doppler secrets get "$key" --project "$PROJECT" --config "$RENDER_CREDENTIALS_CONFIG" --plain 2>/dev/null)"; then
+  if ! value="$(doppler_get_github_ci_secret "$key" 2>/dev/null)"; then
     echo "ERROR: Missing Doppler secret $key in $PROJECT / $RENDER_CREDENTIALS_CONFIG" >&2
     exit 1
   fi
@@ -70,7 +73,7 @@ for key in "${RENDER_CREDENTIAL_KEYS[@]}"; do
 done
 
 for key in "${REQUIRED_DEV_KEYS[@]}"; do
-  if ! value="$(doppler secrets get "$key" --project "$PROJECT" --config "$CONFIG" --plain 2>/dev/null)"; then
+  if ! value="$(doppler_get_dev_secret "$key" 2>/dev/null)"; then
     echo "ERROR: Missing required secret $key in $PROJECT / $CONFIG" >&2
     exit 1
   fi
@@ -82,7 +85,7 @@ for key in "${REQUIRED_DEV_KEYS[@]}"; do
 done
 
 for key in "${OPTIONAL_RUNTIME_KEYS[@]}"; do
-  value="$(doppler secrets get "$key" --project "$PROJECT" --config "$CONFIG" --plain 2>/dev/null || true)"
+  value="$(doppler_get_dev_secret "$key" 2>/dev/null || true)"
   if [[ -z "$value" ]]; then
     default="${RUNTIME_DEFAULTS[$key]:-}"
     if [[ -z "$default" ]]; then
