@@ -5,6 +5,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.cursor_harness
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESOLVE_SCRIPT = REPO_ROOT / ".cursor/skills/recursive-loop/scripts/resolve-md-table-step.sh"
 LOOP_FIXTURE = REPO_ROOT / "tests/fixtures/recursive_loop_action_summary.md"

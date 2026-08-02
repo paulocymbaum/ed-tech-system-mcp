@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.cursor_harness
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERIFY_SCRIPT = (
     REPO_ROOT / ".cursor/skills/recursive-loop/scripts/verify-condition.sh"

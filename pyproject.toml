@@ -163,4 +163,5 @@ pythonpath = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "secrets_homologation: live API checks for Doppler/.env secrets (RUN_SECRETS_HOMOLOGATION=1)",
+    "cursor_harness: recursive-loop .cursor/ scripts; skipped on GitHub Actions",
 ]

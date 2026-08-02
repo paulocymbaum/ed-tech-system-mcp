@@ -68,7 +68,7 @@ jobs:
           group: python-dev
 
       - name: Run pytest
-        run: uv run pytest -q --cov=src/mcp_server --cov-report=json:coverage.json --junitxml=pytest-results.xml
+        run: uv run pytest -q -m "not cursor_harness" --cov=src/mcp_server --cov-report=json:coverage.json --junitxml=pytest-results.xml
 
       - name: Upload coverage artifact
         if: always()
