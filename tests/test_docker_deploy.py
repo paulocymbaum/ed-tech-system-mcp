@@ -24,6 +24,17 @@ def test_dockerfile_uses_python312_and_mcp_server_cmd() -> None:
     assert "MCP_HOST=0.0.0.0" in content
 
 
+def test_dockerfile_sets_writable_cache_paths() -> None:
+    content = _read(DOCKERFILE)
+    assert "ENV EMBEDDING_CACHE_DIR=/tmp/fastembed" in content
+    assert "ENV GROQ_MODEL_CATALOG_CACHE_PATH=/tmp/app-cache/groq_model_catalog.json" in content
+    assert "mkdir -p /tmp/fastembed /tmp/app-cache" in content
+    assert "chown -R appuser:appuser /tmp/fastembed /tmp/app-cache" in content
+    user_line = content.index("USER appuser")
+    mkdir_line = content.index("mkdir -p /tmp/fastembed")
+    assert mkdir_line < user_line
+
+
 def test_dockerfile_healthcheck_hits_health_route() -> None:
     content = _read(DOCKERFILE)
     assert "/health" in content

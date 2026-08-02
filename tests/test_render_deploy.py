@@ -61,6 +61,19 @@ def test_render_yaml_valid() -> None:
     assert payload["services"][0]["healthCheckPath"] == "/health"
 
 
+def test_render_yaml_sets_writable_embedding_cache_dir() -> None:
+    import yaml
+
+    payload = yaml.safe_load(_read(RENDER_YAML))
+    env_vars = {
+        item["key"]: item["value"]
+        for item in payload["services"][0]["envVars"]
+        if "value" in item
+    }
+    assert env_vars["EMBEDDING_CACHE_DIR"] == "/tmp/fastembed"
+    assert env_vars["GROQ_MODEL_CATALOG_CACHE_PATH"] == "/tmp/app-cache/groq_model_catalog.json"
+
+
 def test_render_md_exists() -> None:
     assert RENDER_MD.is_file()
     assert "onrender.com" in _read(RENDER_MD)
