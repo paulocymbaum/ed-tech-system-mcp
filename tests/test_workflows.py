@@ -15,7 +15,7 @@ class FakeRepository(IDataRepository):
         self.in_flight = 0
         self.max_in_flight = 0
 
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
         self.last_query = query
         self.last_limit = limit
         self.in_flight += 1
@@ -119,7 +119,7 @@ async def test_t19b_parallel_io_when_no_documents() -> None:
     tracker = ParallelTracker()
 
     class TrackingRepository(IDataRepository):
-        async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+        async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
             tracker.doc_started = True
             await asyncio.sleep(0.05)
             tracker.doc_finished = True

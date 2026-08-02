@@ -475,7 +475,7 @@ async def test_llm05c_workflow_timeout_enforced() -> None:
     )
 
     class SlowRepository:
-        async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+        async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
             await asyncio.sleep(0.2)
             return []
 

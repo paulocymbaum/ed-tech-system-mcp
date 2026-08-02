@@ -53,7 +53,7 @@ class InMemoryCacheStore(ICacheStore):
 
 
 class FakeRepository:
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
         return [
             DocumentHit(
                 id="doc-1",
@@ -174,7 +174,7 @@ async def test_t26_run_workflow_enforces_workflow_timeout() -> None:
     )
 
     class SlowRepository:
-        async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+        async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
             await asyncio.sleep(0.2)
             return []
 
