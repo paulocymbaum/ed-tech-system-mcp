@@ -2,7 +2,7 @@
 
 Production hosting targets the **MCP HTTP transport** (`streamable-http`), not stdio. Local IDE integrations keep using `uv run mcp-server` with the default `MCP_TRANSPORT=stdio`.
 
-**Recommended for MCP:** deploy to **Vercel** (native Python ASGI) — see [VERCEL.md](./VERCEL.md). **Docker** remains the fallback for workflow-api and when Vercel bundle limits apply.
+**Recommended for MCP:** deploy to **Render** (Docker Web Service) — see [RENDER.md](./RENDER.md).
 
 ---
 
@@ -10,7 +10,7 @@ Production hosting targets the **MCP HTTP transport** (`streamable-http`), not s
 
 | Endpoint | Purpose |
 | :--- | :--- |
-| `GET /health` | Liveness probe (load balancers, Docker, Fly, Railway) |
+| `GET /health` | Liveness probe (load balancers, Docker, Render, Fly) |
 | `POST /mcp` | MCP streamable HTTP transport (FastMCP default path) |
 
 Tools exposed: `health_check`, `find_documents`, `search_youtube`, `run_workflow`.
@@ -22,7 +22,7 @@ Tools exposed: `health_check`, `find_documents`, `search_youtube`, `run_workflow
 Secrets via Doppler (recommended):
 
 ```bash
-doppler run --config prd -- docker compose up --build
+doppler run --config dev -- docker compose up --build
 ```
 
 Or export `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then:
@@ -40,10 +40,10 @@ MCP URL for clients: `http://localhost:8000/mcp`
 | Service | Port | Role |
 | :--- | :--- | :--- |
 | `mcp` | 8000 | MCP streamable HTTP (`/mcp`) for IDE clients |
-| `workflow-api` | 8877 | Workflow explorer API (`/api/*`) for Vercel UI |
+| `workflow-api` | 8877 | Workflow explorer API (`/api/*`) |
 
 ```bash
-doppler run --config prd -- docker compose up --build -d
+doppler run --config dev -- docker compose up --build -d
 ```
 
 - MCP clients: `http://localhost:8000/mcp`
@@ -53,11 +53,11 @@ doppler run --config prd -- docker compose up --build -d
 
 ## Workflow API + optional UI
 
-1. Host `workflow-api` with HTTPS (port 8877 behind reverse proxy).
+1. Host `workflow-api` with HTTPS (port 8877 behind reverse proxy or second Render service).
 2. Set `WORKFLOW_UI_CORS_ORIGINS` to your UI origin if you host the React app separately.
-3. MCP on Vercel: `https://<project>.vercel.app/mcp` (no Docker required for MCP).
+3. MCP on Render: `https://<service>.onrender.com/mcp`
 
-See [VERCEL.md](./VERCEL.md) for MCP deployment and env sync.
+See [RENDER.md](./RENDER.md) for MCP deployment and env sync.
 
 ---
 
@@ -71,8 +71,8 @@ See [VERCEL.md](./VERCEL.md) for MCP deployment and env sync.
 | `MCP_PORT` | `8000` | `8000` |
 | `WORKFLOW_API_HOST` | `0.0.0.0` | `0.0.0.0` |
 | `WORKFLOW_API_PORT` | `8877` | `8877` |
-| `WORKFLOW_UI_CORS_ORIGINS` | (localhost only) | `https://your-app.vercel.app` |
-| `WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS` | `true` | `true` |
+| `WORKFLOW_UI_CORS_ORIGINS` | (localhost only) | `https://your-app.onrender.com` |
+| `WORKFLOW_UI_ALLOW_PREVIEW_DEPLOYMENTS` | `true` | `true` |
 | `FASTMCP_MASK_ERROR_DETAILS` | `false` | `true` (set in Dockerfile) |
 | `SUPABASE_URL` | required | required |
 | `SUPABASE_SERVICE_ROLE_KEY` | required | required |
@@ -80,7 +80,7 @@ See [VERCEL.md](./VERCEL.md) for MCP deployment and env sync.
 | `TAVILY_API_KEY` | optional | recommended |
 | `YOUTUBE_API_KEY` | optional | recommended |
 
-Store values in Doppler config **`prd`**; never commit `.env`.
+Store values in Doppler config **`dev`**; never commit `.env`.
 
 ---
 
@@ -88,12 +88,10 @@ Store values in Doppler config **`prd`**; never commit `.env`.
 
 | Platform | Approach |
 | :--- | :--- |
+| **Render** (recommended) | Connect repo, use `render.yaml` / Dockerfile, set secrets |
 | **Any VPS** | `docker compose up -d` behind nginx/Caddy TLS |
 | **Fly.io** | `fly launch` using repo `Dockerfile`, set secrets, expose port 8000 |
-| **Railway / Render** | Connect repo, use Dockerfile, inject Doppler or platform secrets |
-| **Kubernetes** | Deployment + Service on port 8000, probe `GET /health` |
-
-You do **not** need Kubernetes for a single instance. Docker (or a managed container platform) is enough.
+| **Railway** | Connect repo, use Dockerfile, inject Doppler or platform secrets |
 
 ---
 
@@ -105,7 +103,7 @@ Point MCP clients that support HTTP transport at your hosted URL:
 {
   "mcpServers": {
     "ed-tech-system": {
-      "url": "https://api.example.com/mcp"
+      "url": "https://<service>.onrender.com/mcp"
     }
   }
 }
@@ -133,4 +131,4 @@ curl -s http://localhost:8000/health
 docker compose ps
 ```
 
-CI builds the Docker image on every `main` push (`Build MCP Docker image` job) to catch Dockerfile regressions.
+CI builds the Docker image on every `main` push (`Build MCP Docker image` job) and triggers Render deploy when `RENDER_DEPLOY_HOOK_URL` is configured.

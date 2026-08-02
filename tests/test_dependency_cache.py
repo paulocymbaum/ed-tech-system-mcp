@@ -15,10 +15,10 @@ CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
 CI_DEPS_ACTION = REPO_ROOT / ".github/actions/ci-deps/action.yml"
 
 CACHE_KEY_PATTERN = re.compile(
-    r"^(python-hooks|python-dev|npm-root|vercel-cli|docker-mcp)-[0-9a-f]{12}$"
+    r"^(python-hooks|python-dev|npm-root|docker-mcp)-[0-9a-f]{12}$"
 )
 
-GROUPS = ("python-hooks", "python-dev", "npm-root", "vercel-cli", "docker-mcp")
+GROUPS = ("python-hooks", "python-dev", "npm-root", "docker-mcp")
 
 
 def _run(
@@ -201,55 +201,6 @@ def test_cache_paths_docker_mcp_empty() -> None:
     assert result.returncode == 0
     assert result.stdout.strip() == ""
 
-
-def test_cache_paths_vercel_cli_includes_npm_global_dirs() -> None:
-    result = _run("cache-paths", "vercel-cli")
-    assert result.returncode == 0
-    paths = result.stdout.strip().splitlines()
-    assert any(path.endswith(".npm") or "/.npm" in path for path in paths)
-
-    npm_root = subprocess.run(
-        ["npm", "root", "-g"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if npm_root.returncode == 0:
-        assert npm_root.stdout.strip() in paths
-
-    npm_prefix = subprocess.run(
-        ["npm", "prefix", "-g"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if npm_prefix.returncode == 0:
-        assert f"{npm_prefix.stdout.strip()}/bin" in paths
-
-
-def test_restore_vercel_cli_hits_with_pinned_binary(tmp_path: Path) -> None:
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    vercel = fake_bin / "vercel"
-    vercel.write_text("#!/usr/bin/env bash\necho 'Vercel CLI 58.4.4'\n", encoding="utf-8")
-    vercel.chmod(0o755)
-
-    fake_repo = tmp_path / "repo"
-    fake_repo.mkdir()
-
-    env = os.environ.copy()
-    env["PATH"] = f"{fake_bin}:/usr/bin:/bin"
-    env["DEPENDENCY_CACHE_ROOT"] = str(fake_repo)
-    result = subprocess.run(
-        ["/usr/bin/bash", str(CACHE_SCRIPT), "restore", "vercel-cli"],
-        cwd=fake_repo,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert result.returncode == 0
-
-
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -293,7 +244,8 @@ def test_ci_workflow_verify_ci_deps_groups() -> None:
 def test_ci_workflow_deploy_ci_deps_groups() -> None:
     block = _job_block("deploy")
     _assert_ci_deps_group(block, "python-hooks")
-    _assert_ci_deps_group(block, "vercel-cli")
+    assert "Deploy MCP to Render" in block
+    assert "RENDER_DEPLOY_HOOK_URL" in block
 
 
 def test_ci_workflow_mcp_image_docker_cache_key() -> None:

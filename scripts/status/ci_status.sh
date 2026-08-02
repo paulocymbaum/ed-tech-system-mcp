@@ -38,7 +38,7 @@ if [[ "$MCP_IMAGE_RESULT" == "failure" ]]; then
 fi
 
 if [[ "$DEPLOY_RESULT" == "failure" ]]; then
-  record_incident deployFailure "Vercel production deploy failed."
+  record_incident deployFailure "Render production deploy failed."
 elif [[ "$DEPLOY_RESULT" == "success" && -n "$DEPLOY_URL" ]]; then
   if ! curl -fsS --max-time 20 "${DEPLOY_URL%/}/health" >/dev/null; then
     record_incident availabilityLoss "Production /health probe failed after deploy."

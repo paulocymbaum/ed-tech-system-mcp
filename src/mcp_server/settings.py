@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -49,9 +49,13 @@ class Settings(BaseSettings):
     workflow_api_host: str = Field(default="0.0.0.0", alias="WORKFLOW_API_HOST", min_length=1)
     workflow_api_port: int = Field(default=8877, alias="WORKFLOW_API_PORT", gt=0, le=65535)
     workflow_ui_cors_origins: str = Field(default="", alias="WORKFLOW_UI_CORS_ORIGINS")
-    workflow_ui_allow_vercel_previews: bool = Field(
+    workflow_ui_allow_preview_deployments: bool = Field(
         default=True,
-        alias="WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS",
+        alias="WORKFLOW_UI_ALLOW_PREVIEW_DEPLOYMENTS",
+        validation_alias=AliasChoices(
+            "WORKFLOW_UI_ALLOW_PREVIEW_DEPLOYMENTS",
+            "WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS",
+        ),
     )
 
     @field_validator("mcp_host_origin_protection", mode="before")

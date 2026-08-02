@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-01T03:09:10.065232+00:00",
+  "generatedAt": "2026-08-01T05:16:09.228926+00:00",
   "overallState": "operational",
   "paretoIncidentTypes": [
     "securityGateFailure",
@@ -38,9 +38,9 @@
       "lastIncidentId": null
     },
     {
-      "id": "vercelMcp",
+      "id": "renderMcp",
       "layer": "deploy",
-      "label": "Vercel MCP deploy",
+      "label": "Render MCP deploy",
       "health": "operational",
       "lastIncidentId": null
     },

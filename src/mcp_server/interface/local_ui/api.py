@@ -436,7 +436,7 @@ async def _local_ui_lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_local_ui_app(*, bootstrap_runtime: bool = False) -> FastAPI:
-    """Create the FastAPI workflow API (local dev or hosted behind Vercel UI)."""
+    """Create the FastAPI workflow API (local dev or hosted UI backend)."""
     app_env = os.getenv("APP_ENV", "development")
     cors_origins, cors_origin_regex = resolve_workflow_ui_cors(app_env=app_env)
     lifespan = _local_ui_lifespan if bootstrap_runtime else None

@@ -3,7 +3,7 @@ description: Restore, install, and save a hash-keyed CI dependency group.
 
 inputs:
   group:
-    description: Dependency group (python-hooks, python-dev, npm-root, vercel-cli)
+    description: Dependency group (python-hooks, python-dev, npm-root, docker-mcp)
     required: true
 
 outputs:
@@ -50,7 +50,7 @@ runs:
           uv.lock
 
     - name: Setup Node
-      if: inputs.group == 'npm-root' || inputs.group == 'vercel-cli'
+      if: inputs.group == 'npm-root'
       uses: actions/setup-node@v4
       with:
         node-version: "20"

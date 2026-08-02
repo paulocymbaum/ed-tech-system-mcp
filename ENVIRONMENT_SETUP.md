@@ -407,7 +407,7 @@ Avoid storing production secrets in `.env` files on servers. Production containe
 | File | Purpose | How to create |
 | :--- | :--- | :--- |
 | **`.env`** | App secrets for local MCP (`SUPABASE_*`, `GROQ_*`, …) | `./scripts/doppler/pull-local-env.sh` or hand-edit |
-| **`.env.local`** | Machine overlays (Vercel CLI `VERCEL_*`, local ports) | `vercel link` / `vercel env pull` — optional |
+| **`.env.local`** | Machine overlays (Render deploy metadata, local ports) | optional local overrides |
 
 In `APP_ENV=development`, bootstrap loads **`.env` first**, then **`.env.local`** (`override=False` — first file wins on duplicate keys; second fills gaps).
 
@@ -552,10 +552,11 @@ CACHE_ENABLED=false
 # Logging
 LOG_LEVEL=INFO
 
-# Vercel (deploy only — Doppler github_ci / dev; never commit values)
-# VERCEL_TOKEN=
-# VERCEL_ORG_ID=
-# VERCEL_PROJECT_ID=
+# Render (deploy only — Doppler github_ci / dev; never commit values)
+# RENDER_DEPLOY_HOOK_URL=
+# RENDER_SERVICE_URL=
+# RENDER_API_KEY=
+# RENDER_SERVICE_ID=
 # Optional build-time API URL for hosted workflow UI (empty = same-origin /api)
 # VITE_API_BASE=
 ```
@@ -632,33 +633,34 @@ The script uploads placeholder values for `dev`, `github_ci`, `stg`, and `prd` c
 | `stg` | `stg` | Staging deploy (`APP_ENV=staging`) |
 | `prd` | `prd` | Production deploy (`APP_ENV=production`) |
 
-**Vercel MCP runtime secrets** (at this stage — single source: Doppler **`dev`**):
+**Render MCP runtime secrets** (at this stage — single source: Doppler **`dev`**):
 
 | Step | Command |
 | :--- | :--- |
 | Fill `dev` | Doppler dashboard or `./scripts/doppler/upload-local-env.sh` |
-| Sync to Vercel | `./scripts/doppler/sync-dev-to-vercel.sh` |
-| Docs | [scripts/doppler/README.md](./scripts/doppler/README.md), [VERCEL.md](./VERCEL.md) |
+| Sync to Render | `./scripts/doppler/sync-dev-to-render.sh` |
+| Docs | [scripts/doppler/README.md](./scripts/doppler/README.md), [RENDER.md](./RENDER.md) |
 
-**Vercel deploy credentials** (CLI + GitHub Actions — Doppler `github_ci`):
+**Render deploy credentials** (CI + sync script — Doppler `github_ci`):
 
 | Secret | Doppler configs | GitHub secret | Purpose |
 | :--- | :--- | :--- | :--- |
-| `VERCEL_TOKEN` | `dev`, `github_ci`, `stg`, `prd` | `VERCEL_TOKEN` | Vercel CLI authentication |
-| `VERCEL_ORG_ID` | same | `VERCEL_ORG_ID` | Team / account ID from `vercel link` |
-| `VERCEL_PROJECT_ID` | same | `VERCEL_PROJECT_ID` | Project ID from `vercel link` |
+| `RENDER_DEPLOY_HOOK_URL` | `github_ci` | `RENDER_DEPLOY_HOOK_URL` | CI deploy trigger |
+| `RENDER_SERVICE_URL` | `github_ci` | `RENDER_SERVICE_URL` | Post-deploy health probe |
+| `RENDER_API_KEY` | `github_ci` | — | Render API (env sync) |
+| `RENDER_SERVICE_ID` | `github_ci` | — | Render service target |
 
-Bootstrap placeholders: `./scripts/doppler/bootstrap-from-env-example.sh` (includes empty `VERCEL_*` keys).
+Bootstrap placeholders: `./scripts/doppler/bootstrap-from-env-example.sh` (includes empty `RENDER_*` keys).
 
 **GitHub sync options:**
 
 1. **Doppler → GitHub App sync (recommended)** — sync `github_ci` to repository secrets; rotation in Doppler propagates automatically.
-2. **One-time push** — `./scripts/doppler/sync-vercel-to-github.sh` copies `VERCEL_*` from Doppler `github_ci` to GitHub without printing values.
+2. **One-time push** — `./scripts/doppler/sync-render-to-github.sh` copies `RENDER_*` from Doppler `github_ci` to GitHub without printing values.
 
 Verify secrets exist (no values shown):
 
 ```bash
-for k in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+for k in RENDER_DEPLOY_HOOK_URL RENDER_SERVICE_URL; do
   doppler secrets get "$k" --project ed-harness-system --config github_ci --plain >/dev/null \
     && echo "$k set in Doppler github_ci"
 done
@@ -875,25 +877,25 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 ## CI/CD safety checklist
 
-Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships a single [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pipeline with sequential jobs: **Safety checks** (gitleaks, Husky hook parity, `test_hooks.py`), **Tests & architecture** (full `pytest` + import-linter), and **Deploy workflow UI** to Vercel on `main` only. When using [Doppler + GitHub integration](#doppler--github-integration), CI and deploy secrets are synced from Doppler — no manual GitHub secret entry required.
+Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships a single [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pipeline with sequential jobs: **Safety checks**, **Tests & architecture**, **Docker image build**, and **Deploy MCP to Render** on `main` only.
 
 ### CI dependency caching
 
-CI installs are keyed by [`scripts/ci/dependency-cache.sh`](scripts/ci/dependency-cache.sh). Each dependency group (`python-hooks`, `python-dev`, `npm-root`, `vercel-cli`, `docker-mcp`) gets a deterministic `{group}-{sha256-short}` key from its lockfiles and install flags. The [`.github/actions/ci-deps`](.github/actions/ci-deps) composite action restores `actions/cache` paths, runs an idempotent `install` on miss, and saves the cache. Python groups also use `setup-uv` with `enable-cache: true`; the `mcp-image` job uses Docker BuildKit GHA cache scoped to the `docker-mcp` key. When lockfiles are unchanged, install steps are skipped or near-instant on cache hit.
+CI installs are keyed by [`scripts/ci/dependency-cache.sh`](scripts/ci/dependency-cache.sh). Each dependency group (`python-hooks`, `python-dev`, `npm-root`, `docker-mcp`) gets a deterministic `{group}-{sha256-short}` key from its lockfiles and install flags.
 
-### Vercel deployment checklist
+### Render deployment checklist
 
 | Step | Command / action |
 | :--- | :--- |
 | Bootstrap placeholders | `./scripts/doppler/bootstrap-from-env-example.sh` |
-| Link Vercel project | `doppler run -- npx vercel link` (writes gitignored `.vercel/project.json`) |
-| Store IDs in Doppler | Set `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` in `github_ci` (+ `dev`/`stg`/`prd`) |
-| GitHub secrets | Enable Doppler sync **or** `./scripts/doppler/sync-vercel-to-github.sh` |
+| Create Render Web Service | Dashboard → Docker, port `8000`, health `/health` |
+| Store deploy hook in Doppler | Set `RENDER_DEPLOY_HOOK_URL`, `RENDER_SERVICE_URL` in `github_ci` |
+| GitHub secrets | Enable Doppler sync **or** `./scripts/doppler/sync-render-to-github.sh` |
 | Deploy | Push to `main` or `gh workflow run ci.yml` (deploy job runs on `main` only) |
-| Verify | Check workflow run URL; optional `VITE_API_BASE` when API is hosted elsewhere |
-| Rotate token | Update in Doppler only; re-sync or wait for GitHub App sync |
+| Verify | Check workflow run URL; `curl $RENDER_SERVICE_URL/health` |
+| Rotate hook | Update in Doppler only; re-sync or wait for GitHub App sync |
 
-Full guide: [VERCEL.md](./VERCEL.md).
+Full guide: [RENDER.md](./RENDER.md).
 
 ```bash
 uv sync --frozen --all-groups
@@ -905,7 +907,7 @@ uv run pytest
 
 | Check | Purpose |
 | :--- | :--- |
-| `.github/workflows/ci.yml` | Unified pipeline: safety → verify → deploy (Vercel on `main`) |
+| `.github/workflows/ci.yml` | Unified pipeline: safety → verify → deploy (Render on `main`) |
 | `uv sync --frozen` | Ensures CI uses committed lockfile hashes — no opportunistic upgrades |
 | `npm run lint:architecture` | Enforces Clean Architecture import contracts and boundary anti-patterns |
 | `--no-dev` in production deploy | Shrinks attack surface; runtime image contains only MCP server dependencies |

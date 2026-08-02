@@ -40,4 +40,4 @@ trap - EXIT
 chmod 600 "$ENV_FILE"
 
 echo "✓ Wrote $ENV_FILE from Doppler $PROJECT / $CONFIG (values not shown)"
-echo "  Machine overlays (Vercel CLI, etc.) can live in .env.local — loaded after .env."
+echo "  Machine overlays (Render deploy metadata, etc.) can live in .env.local — loaded after .env."

@@ -115,7 +115,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ steps.docker_cache.outputs.key }}
 
   deploy:
-    name: Deploy MCP to Vercel
+    name: Deploy MCP to Render
     needs: [safety, verify, mcp-image]
     if: always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.safety.result != 'cancelled' && needs.verify.result != 'cancelled'
     runs-on: ubuntu-latest
@@ -123,7 +123,7 @@ jobs:
       contents: write
     environment:
       name: production
-      url: ${{ steps.vercel.outputs.url }}
+      url: ${{ steps.render.outputs.url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -166,51 +166,31 @@ jobs:
             echo "::warning::Could not push status history (branch protection may require a PAT). Deploy continues with in-job manifest."
           fi
 
-      - name: Install Vercel CLI
-        if: needs.verify.result == 'success'
-        uses: ./.github/actions/ci-deps
-        with:
-          group: vercel-cli
-
-      - name: Deploy to Vercel
-        if: needs.verify.result == 'success'
-        id: vercel
+      - name: Trigger Render deploy
+        if: needs.verify.result == 'success' && secrets.RENDER_DEPLOY_HOOK_URL != ''
+        id: render
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          DEPLOY_RESULT: pending
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
         run: |
           set -euo pipefail
-          deploy_out=$(mktemp)
-          deploy_err=$(mktemp)
-          trap 'rm -f "$deploy_out" "$deploy_err"' EXIT
-
-          if ! vercel deploy --prod --yes --token="$VERCEL_TOKEN" >"$deploy_out" 2>"$deploy_err"; then
-            cat "$deploy_err" >&2
+          if ! curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"; then
             uv run python scripts/status/record_incident.py incident deployFailure \
-              --summary "Vercel production deploy failed."
+              --summary "Render production deploy failed."
             uv run python scripts/status/build_manifest.py
             exit 1
           fi
-
-          url=$(grep -Eo 'https://[^[:space:]]+' "$deploy_out" | tail -n 1 || true)
-          if [ -z "$url" ]; then
-            url=$(tail -n 1 "$deploy_out" | tr -d '[:space:]')
+          if [ -n "${RENDER_SERVICE_URL:-}" ]; then
+            echo "url=${RENDER_SERVICE_URL}" >> "$GITHUB_OUTPUT"
+            echo "Triggered Render deploy; service URL ${RENDER_SERVICE_URL}"
+          else
+            echo "Triggered Render deploy (set RENDER_SERVICE_URL for health probe URL)"
           fi
-          if [ -z "$url" ]; then
-            echo "Could not parse deployment URL from Vercel CLI output" >&2
-            cat "$deploy_out" >&2
-            exit 1
-          fi
-
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Deployed to $url"
 
       - name: Post-deploy health probe
-        if: needs.verify.result == 'success' && steps.vercel.outputs.url != ''
+        if: needs.verify.result == 'success' && steps.render.outputs.url != ''
         env:
-          DEPLOY_URL: ${{ steps.vercel.outputs.url }}
+          DEPLOY_URL: ${{ steps.render.outputs.url }}
         run: |
           if ! curl -fsS --max-time 20 "${DEPLOY_URL%/}/health" >/dev/null; then
             uv run python scripts/status/record_incident.py incident availabilityLoss \
