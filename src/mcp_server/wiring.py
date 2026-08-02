@@ -267,9 +267,15 @@ def build_data_repository(
     rate_limiter: IExternalRequestRateLimiter | None = None,
 ) -> IDataRepository:
     """Build the document repository, optionally wrapped with cache-aside."""
+    retrieval_mode = settings.retrieval_mode
+    if retrieval_mode not in ("vector", "hybrid"):
+        retrieval_mode = "hybrid"
     repository: IDataRepository = SupabaseRepository(
         settings.supabase_url,
         settings.supabase_service_role_key.get_secret_value(),
+        embedding_provider=build_embedding_provider(settings, cache),
+        vector_retriever=build_vector_retriever(settings, cache),
+        retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
     )
     limiter = rate_limiter or build_external_rate_limiter(settings)
     repository = RateLimitedDataRepository(repository, limiter)
