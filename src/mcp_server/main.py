@@ -10,6 +10,10 @@ from mcp_server.interface.custom_tools import (  # noqa: F401
     health_check,
     search_youtube,
 )
+from mcp_server.interface.custom_tools_agent_workflows import (  # noqa: F401
+    content_generation,
+    research_article,
+)
 from mcp_server.interface.custom_tools_workflow import run_workflow  # noqa: F401
 from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.interface.mcp_server import create_mcp_server
