@@ -167,13 +167,17 @@ jobs:
           fi
 
       - name: Trigger Render deploy
-        if: needs.verify.result == 'success' && secrets.RENDER_DEPLOY_HOOK_URL != ''
+        if: needs.verify.result == 'success'
         id: render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
           RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL not configured; skipping Render deploy trigger"
+            exit 0
+          fi
           if ! curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"; then
             uv run python scripts/status/record_incident.py incident deployFailure \
               --summary "Render production deploy failed."
