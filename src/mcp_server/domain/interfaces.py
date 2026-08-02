@@ -6,7 +6,11 @@ from typing import Literal
 from mcp_server.domain.schemas import (
     ChunkHit,
     ChunkRetrievalFilter,
+    DocumentChunkRecord,
+    DocumentDetail,
     DocumentHit,
+    DocumentListFilter,
+    DocumentListItem,
     TextChunk,
     VideoResult,
 )
@@ -16,8 +20,42 @@ class IDataRepository(ABC):
     """Port for structured document storage and retrieval."""
 
     @abstractmethod
-    async def find_documents(self, query: str, limit: int = 10) -> list[DocumentHit]:
+    async def find_documents(
+        self,
+        query: str,
+        limit: int = 10,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> list[DocumentHit]:
         """Return documents matching the given query."""
+
+
+class ISupabaseReadClient(ABC):
+    """Port for allowlisted, read-only Supabase table access via PostgREST."""
+
+    @abstractmethod
+    async def get_document(self, document_id: str) -> DocumentDetail | None:
+        """Return one document by id, or None when not found."""
+
+    @abstractmethod
+    async def list_documents(
+        self,
+        *,
+        filters: DocumentListFilter,
+        limit: int,
+        offset: int,
+    ) -> list[DocumentListItem]:
+        """Return documents matching optional structured filters."""
+
+    @abstractmethod
+    async def list_document_chunks(
+        self,
+        document_id: str,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[DocumentChunkRecord]:
+        """Return active chunks for a document, ordered by chunk index."""
 
 
 class ISearchClient(ABC):
