@@ -26,7 +26,7 @@ COMPONENTS = [
     {"id": "mcpHttp", "layer": "interface", "label": "MCP HTTP (/mcp, /health)"},
     {"id": "safetyPipeline", "layer": "ci", "label": "Safety pipeline"},
     {"id": "verifyPipeline", "layer": "ci", "label": "Tests & architecture"},
-    {"id": "vercelMcp", "layer": "deploy", "label": "Vercel MCP deploy"},
+    {"id": "renderMcp", "layer": "deploy", "label": "Render MCP deploy"},
     {"id": "externalIntegration", "layer": "infrastructure", "label": "Supabase / YouTube / Groq"},
     {"id": "workflowApi", "layer": "application", "label": "Workflow API (Docker)"},
     {"id": "dockerMcp", "layer": "deploy", "label": "Docker MCP image"},

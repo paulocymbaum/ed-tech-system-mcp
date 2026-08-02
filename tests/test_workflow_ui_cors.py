@@ -1,4 +1,4 @@
-"""Tests for workflow UI CORS when the SPA is hosted on Vercel."""
+"""Tests for workflow UI CORS when the SPA is hosted on a remote platform."""
 
 from __future__ import annotations
 
@@ -11,20 +11,20 @@ def test_development_includes_localhost_origins() -> None:
     assert regex is None
 
 
-def test_production_allows_vercel_preview_regex() -> None:
+def test_production_allows_hosted_preview_regex() -> None:
     origins, regex = resolve_workflow_ui_cors(
         app_env="production",
-        configured_origins="https://ed-tech-system-mcp.vercel.app",
-        allow_vercel_previews=True,
+        configured_origins="https://ed-tech-system-mcp.onrender.com",
+        allow_preview_deployments=True,
     )
-    assert "https://ed-tech-system-mcp.vercel.app" in origins
-    assert regex == r"https://.*\.vercel\.app"
+    assert "https://ed-tech-system-mcp.onrender.com" in origins
+    assert regex == r"https://.*\.(onrender|vercel)\.app"
 
 
-def test_production_can_disable_vercel_preview_regex() -> None:
+def test_production_can_disable_hosted_preview_regex() -> None:
     _origins, regex = resolve_workflow_ui_cors(
         app_env="production",
-        configured_origins="https://ed-tech-system-mcp.vercel.app",
-        allow_vercel_previews=False,
+        configured_origins="https://ed-tech-system-mcp.onrender.com",
+        allow_preview_deployments=False,
     )
     assert regex is None

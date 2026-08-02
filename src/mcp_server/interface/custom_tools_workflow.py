@@ -1,4 +1,4 @@
-"""MCP tool for LangGraph workflow execution (Docker / local only — not on Vercel)."""
+"""MCP tool for LangGraph workflow execution (Docker / Render / local — requires full stack)."""
 
 from __future__ import annotations
 

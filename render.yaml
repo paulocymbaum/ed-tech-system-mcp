@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ed-tech-system-mcp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: MCP_STATELESS_HTTP
+        value: "true"
+      - key: VECTOR_STORE_BACKEND
+        value: supabase
+      # Set runtime secrets in the Render dashboard or via scripts/doppler/sync-dev-to-render.sh
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

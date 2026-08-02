@@ -19,7 +19,7 @@ def bootstrap_environment() -> None:
     Load order (``override=False`` — first file wins on duplicate keys):
 
     1. ``.env`` — Doppler download or hand-edited app secrets
-    2. ``.env.local`` — machine-specific overlays (e.g. Vercel CLI)
+    2. ``.env.local`` — machine-specific overlays (e.g. Render deploy metadata, local ports)
     """
     app_env = os.getenv("APP_ENV", "development")
 

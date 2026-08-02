@@ -27,7 +27,7 @@ INCIDENT_TYPES: dict[str, dict[str, str]] = {
     },
     "deployFailure": {
         "layer": "deploy",
-        "component": "vercelMcp",
+        "component": "renderMcp",
         "severity": "critical",
         "title": "Production deploy failed",
     },

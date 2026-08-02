@@ -1,4 +1,4 @@
-"""Production entrypoint for the hosted workflow API (Vercel UI backend)."""
+"""Production entrypoint for the hosted workflow API (optional UI backend)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
 
 
 def main() -> None:
-    """Start the workflow API for cross-origin Vercel UI clients."""
+    """Start the workflow API for cross-origin hosted UI clients."""
     try:
         bootstrap_environment()
         settings = bootstrap_application_runtime()

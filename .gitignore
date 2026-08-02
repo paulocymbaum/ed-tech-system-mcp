@@ -68,7 +68,7 @@ secrets.json
 service-account*.json
 mcp.json
 
-# --- Vercel (local link metadata; never commit) ---
+# --- Local deploy metadata (never commit) ---
 .vercel/
 
 # --- Node (Husky toolchain) ---

@@ -6,13 +6,10 @@ set -euo pipefail
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_ROOT="${DEPENDENCY_CACHE_ROOT:-$SCRIPT_ROOT}"
 
-VERCEL_CLI_VERSION="58.4.4"
-
 VALID_GROUPS=(
   python-hooks
   python-dev
   npm-root
-  vercel-cli
   docker-mcp
 )
 
@@ -31,7 +28,6 @@ Groups:
   python-hooks  uv sync --frozen --extra full
   python-dev    uv sync --frozen --all-groups --extra full
   npm-root      npm ci
-  vercel-cli    npm install --global vercel@58.4.4
   docker-mcp    Docker build inputs (cache key only; build in workflow)
 EOF
   exit 1
@@ -80,9 +76,6 @@ cache_key_material() {
         cat "$REPO_ROOT/package-lock.json"
       }
       ;;
-    vercel-cli)
-      printf '%s\n' "vercel-cli" "$VERCEL_CLI_VERSION"
-      ;;
     docker-mcp)
       {
         printf '%s\n' "docker-mcp"
@@ -103,19 +96,6 @@ cmd_cache_key() {
   printf '%s-%s\n' "$group" "$short_hash"
 }
 
-vercel_cli_cache_paths() {
-  printf '%s\n' "${NPM_CONFIG_CACHE:-$HOME/.npm}"
-  if command -v npm >/dev/null 2>&1; then
-    local npm_prefix npm_root
-    npm_prefix="$(npm prefix -g 2>/dev/null || true)"
-    npm_root="$(npm root -g 2>/dev/null || true)"
-    [[ -n "$npm_root" ]] && printf '%s\n' "$npm_root"
-    if [[ -n "$npm_prefix" ]]; then
-      printf '%s\n' "$npm_prefix/bin"
-    fi
-  fi
-}
-
 cmd_cache_paths() {
   local group="$1"
   validate_group "$group"
@@ -126,9 +106,6 @@ cmd_cache_paths() {
       ;;
     npm-root)
       printf '%s\n' "$REPO_ROOT/node_modules"
-      ;;
-    vercel-cli)
-      vercel_cli_cache_paths
       ;;
     docker-mcp)
       # Docker BuildKit GHA cache is configured in the workflow.
@@ -149,10 +126,6 @@ cmd_restore() {
       ;;
     npm-root)
       [[ -d "$REPO_ROOT/node_modules" ]] && [[ -f "$REPO_ROOT/node_modules/.package-lock.json" ]]
-      ;;
-    vercel-cli)
-      command -v vercel >/dev/null 2>&1 \
-        && vercel --version 2>/dev/null | grep -q "$VERCEL_CLI_VERSION"
       ;;
     docker-mcp)
       return 1
@@ -180,9 +153,6 @@ cmd_install() {
     npm-root)
       npm ci
       ;;
-    vercel-cli)
-      npm install --global "vercel@${VERCEL_CLI_VERSION}"
-      ;;
     docker-mcp)
       die "docker-mcp install is handled by the CI workflow docker build step"
       ;;
@@ -192,7 +162,6 @@ cmd_install() {
 cmd_save() {
   local group="$1"
   validate_group "$group"
-  # actions/cache persists paths after install; nothing to do here.
   :
 }
 

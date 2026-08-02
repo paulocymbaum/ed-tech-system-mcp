@@ -62,7 +62,7 @@ done < <(search_python_files 'load_dotenv' "$lint_root")
 while IFS= read -r match; do
   file="${match%%:*}"
   base="$(basename "$file")"
-  if [[ "$base" != "main.py" && "$base" != "wiring.py" && "$base" != "vercel_wiring.py" ]]; then
+  if [[ "$base" != "main.py" && "$base" != "wiring.py" ]]; then
     violations+=("[settings-import-outside-entrypoint] $match")
   fi
 done < <(search_python_files 'from mcp_server\.settings import|import mcp_server\.settings' "$lint_root")
