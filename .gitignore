@@ -115,3 +115,4 @@ chroma_data/
 .cache/
 .tmp/
 temp/
+.integration.md
