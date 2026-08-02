@@ -102,7 +102,6 @@ cmd_cache_paths() {
   case "$group" in
     python-hooks | python-dev)
       printf '%s\n' "$REPO_ROOT/.venv"
-      printf '%s\n' "${UV_CACHE_DIR:-$HOME/.cache/uv}"
       ;;
     npm-root)
       printf '%s\n' "$REPO_ROOT/node_modules"
@@ -137,8 +136,10 @@ cmd_install() {
   local group="$1"
   validate_group "$group"
 
-  if cmd_restore "$group"; then
-    echo "dependency-cache: $group cache valid, skipping install"
+  # Skip install only on an exact actions/cache match — partial restore-keys hits
+  # can leave a stale .venv/node_modules that still passes local restore checks.
+  if [[ "${CI_DEPS_CACHE_HIT:-}" == "true" ]] && cmd_restore "$group"; then
+    echo "dependency-cache: $group exact cache hit, skipping install"
     return 0
   fi
 

@@ -58,28 +58,37 @@ Entrypoint: `mcp-server` CLI via `Dockerfile` `CMD`.
 
 ## 2. GitHub Actions deploy
 
-On push to `main`, CI triggers a Render deploy when these GitHub secrets are set:
+On push to `main`, CI (after tests pass):
 
-| Secret | Purpose |
+1. Authenticates to Doppler via `DOPPLER_TOKEN` (synced from Doppler `github_ci`).
+2. Runs `scripts/doppler/sync-dev-to-render.sh` — pushes runtime secrets from Doppler `dev` to the Render Web Service.
+3. POSTs the deploy hook from `RENDER_DEPLOY_HOOK_URL` in Doppler `github_ci`.
+4. Probes `/health` at `RENDER_SERVICE_URL` when configured.
+
+Orchestration script: `scripts/ci/render-deploy.sh`
+
+| Doppler config | Keys used in deploy |
 | :--- | :--- |
-| `RENDER_DEPLOY_HOOK_URL` | POST URL from Render service → Settings → Deploy Hook |
-| `RENDER_SERVICE_URL` | Base URL for post-deploy `/health` probe (e.g. `https://ed-tech-system-mcp.onrender.com`) |
+| `dev` | `SUPABASE_*`, API keys, runtime tuning (→ Render env vars) |
+| `github_ci` | `DOPPLER_TOKEN`, `RENDER_API_KEY`, `RENDER_SERVICE_ID`, `RENDER_DEPLOY_HOOK_URL`, `RENDER_SERVICE_URL` |
 
-Sync from Doppler (when ready):
+One-time GitHub setup: enable Doppler → GitHub sync for config `github_ci`, or run:
 
 ```bash
 ./scripts/doppler/sync-render-to-github.sh
 ```
 
+`DOPPLER_TOKEN` must be available to the deploy job (via Doppler sync integration).
+
 ---
 
-## 3. Sync `dev` secrets to Render (deferred until approved)
+## 3. Sync `dev` secrets to Render
 
 ```bash
 ./scripts/doppler/sync-dev-to-render.sh
 ```
 
-Requires `RENDER_API_KEY` and `RENDER_SERVICE_ID` in Doppler `github_ci`. **Do not run until Render service exists and credentials are stored in Doppler.**
+Requires `RENDER_API_KEY` and `RENDER_SERVICE_ID` in Doppler `github_ci`. CI runs this automatically on every successful `main` deploy via `scripts/ci/render-deploy.sh`.
 
 ---
 

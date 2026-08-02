@@ -13,6 +13,7 @@ RENDER_YAML = REPO_ROOT / "render.yaml"
 RENDER_MD = REPO_ROOT / "RENDER.md"
 BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/doppler/bootstrap-from-env-example.sh"
 SYNC_SCRIPT = REPO_ROOT / "scripts/doppler/sync-render-to-github.sh"
+RENDER_DEPLOY_SCRIPT = REPO_ROOT / "scripts/ci/render-deploy.sh"
 GITIGNORE = REPO_ROOT / ".gitignore"
 
 RENDER_SECRET_NAMES = ("RENDER_DEPLOY_HOOK_URL", "RENDER_SERVICE_URL")
@@ -48,7 +49,8 @@ def test_ci_deploy_job_targets_render() -> None:
     deploy_job = _read(CI_WORKFLOW).split("  deploy:", maxsplit=1)[1]
     assert "Deploy MCP to Render" in deploy_job
     assert "vercel deploy" not in deploy_job
-    assert "RENDER_DEPLOY_HOOK_URL" in deploy_job
+    assert "dopplerhq/cli-action" in deploy_job
+    assert "scripts/ci/render-deploy.sh" in deploy_job
 
 
 def test_render_yaml_valid() -> None:
@@ -83,11 +85,19 @@ def test_sync_script_required_keys() -> None:
     assert "RENDER_KEYS=(RENDER_DEPLOY_HOOK_URL RENDER_SERVICE_URL)" in content
 
 
-def test_trigger_render_deploy_step() -> None:
-    step = _deploy_step_block("Trigger Render deploy")
-    assert "curl -fsS -X POST" in step
+def test_render_deploy_script_contract() -> None:
+    content = _read(RENDER_DEPLOY_SCRIPT)
+    assert "sync-dev-to-render.sh" in content
     for secret_name in RENDER_SECRET_NAMES:
-        assert secret_name in step or f"secrets.{secret_name}" in step
+        assert secret_name in content
+    assert "curl -fsS -X POST" in content
+    assert "secrets.DOPPLER_TOKEN" not in content
+
+
+def test_trigger_render_deploy_step() -> None:
+    step = _deploy_step_block("Sync secrets and trigger Render deploy")
+    assert "scripts/ci/render-deploy.sh" in step
+    assert "DOPPLER_TOKEN" in step
 
 
 def test_gitignore_vercel_pattern() -> None:

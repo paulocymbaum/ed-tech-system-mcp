@@ -879,9 +879,9 @@ The same `hooks:test` and `lint:architecture` scripts are available from `ui/` w
 
 Use this in GitHub Actions (or equivalent) for every push and PR. The repository ships a single [`.github/workflows/ci.yml`](.github/workflows/ci.yml) pipeline with sequential jobs: **Safety checks**, **Tests & architecture**, **Docker image build**, and **Deploy MCP to Render** on `main` only.
 
-### CI dependency caching
+# CI dependency caching
 
-CI installs are keyed by [`scripts/ci/dependency-cache.sh`](scripts/ci/dependency-cache.sh). Each dependency group (`python-hooks`, `python-dev`, `npm-root`, `docker-mcp`) gets a deterministic `{group}-{sha256-short}` key from its lockfiles and install flags.
+CI installs are keyed by [`scripts/ci/dependency-cache.sh`](scripts/ci/dependency-cache.sh). Each dependency group (`python-hooks`, `python-dev`, `npm-root`, `docker-mcp`) gets a deterministic `{group}-{sha256-short}` key from its lockfiles and install flags. Install skips only on an **exact** `actions/cache` hit (`CI_DEPS_CACHE_HIT=true`); partial `restore-keys` matches always re-run `uv sync` / `npm ci`. Python groups cache `.venv` only; `setup-uv` handles the uv download cache.
 
 ### Render deployment checklist
 

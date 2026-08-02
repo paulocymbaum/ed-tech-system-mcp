@@ -141,6 +141,9 @@ jobs:
         with:
           group: python-hooks
 
+      - name: Setup Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
       - name: Update status logs and manifest
         if: always()
         env:
@@ -166,30 +169,13 @@ jobs:
             echo "::warning::Could not push status history (branch protection may require a PAT). Deploy continues with in-job manifest."
           fi
 
-      - name: Trigger Render deploy
+      - name: Sync secrets and trigger Render deploy
         if: needs.verify.result == 'success'
         id: render
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "${RENDER_DEPLOY_HOOK_URL:-}" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL not configured; skipping Render deploy trigger"
-            exit 0
-          fi
-          if ! curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"; then
-            uv run python scripts/status/record_incident.py incident deployFailure \
-              --summary "Render production deploy failed."
-            uv run python scripts/status/build_manifest.py
-            exit 1
-          fi
-          if [ -n "${RENDER_SERVICE_URL:-}" ]; then
-            echo "url=${RENDER_SERVICE_URL}" >> "$GITHUB_OUTPUT"
-            echo "Triggered Render deploy; service URL ${RENDER_SERVICE_URL}"
-          else
-            echo "Triggered Render deploy (set RENDER_SERVICE_URL for health probe URL)"
-          fi
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          DOPPLER_PROJECT: ed-harness-system
+        run: bash scripts/ci/render-deploy.sh
 
       - name: Post-deploy health probe
         if: needs.verify.result == 'success' && steps.render.outputs.url != ''

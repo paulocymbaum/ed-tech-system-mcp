@@ -185,6 +185,7 @@ def test_install_skips_when_restore_succeeds(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PATH"] = "/usr/bin:/bin"
     env["DEPENDENCY_CACHE_ROOT"] = str(fake_repo)
+    env["CI_DEPS_CACHE_HIT"] = "true"
     result = subprocess.run(
         ["/usr/bin/bash", str(CACHE_SCRIPT), "install", "npm-root"],
         cwd=fake_repo,
@@ -194,6 +195,30 @@ def test_install_skips_when_restore_succeeds(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert "skipping install" in result.stdout
+
+
+def test_install_runs_when_cache_hit_false_despite_valid_venv(tmp_path: Path) -> None:
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    venv_bin = fake_repo / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python").write_text("", encoding="utf-8")
+    (venv_bin / "python").chmod(0o755)
+    (fake_repo / ".venv" / "pyvenv.cfg").write_text("home = .venv", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["DEPENDENCY_CACHE_ROOT"] = str(fake_repo)
+    env["CI_DEPS_CACHE_HIT"] = "false"
+    env["PATH"] = "/usr/bin:/bin"
+    result = subprocess.run(
+        ["/usr/bin/bash", str(CACHE_SCRIPT), "install", "python-hooks"],
+        cwd=fake_repo,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    # Without uv in PATH install may fail; we only assert it did not skip on partial restore.
+    assert "exact cache hit, skipping install" not in result.stdout
 
 
 def test_cache_paths_docker_mcp_empty() -> None:
@@ -226,6 +251,7 @@ def test_ci_deps_action_structure() -> None:
     assert "uses: actions/cache/restore@v4" in content
     assert "uses: actions/cache/save@v4" in content
     assert "dependency-cache.sh install" in content
+    assert "CI_DEPS_CACHE_HIT" in content
     assert "has_paths == 'true' && steps.cache.outputs.cache-hit == 'true'" in content
 
 
@@ -245,7 +271,8 @@ def test_ci_workflow_deploy_ci_deps_groups() -> None:
     block = _job_block("deploy")
     _assert_ci_deps_group(block, "python-hooks")
     assert "Deploy MCP to Render" in block
-    assert "RENDER_DEPLOY_HOOK_URL" in block
+    assert "dopplerhq/cli-action" in block
+    assert "scripts/ci/render-deploy.sh" in block
 
 
 def test_ci_workflow_mcp_image_docker_cache_key() -> None:
