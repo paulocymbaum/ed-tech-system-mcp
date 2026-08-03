@@ -54,8 +54,12 @@ def test_sync_dev_script_uses_dev_config_by_default() -> None:
 def test_sync_dev_script_includes_writable_cache_defaults() -> None:
     content = SYNC_DEV.read_text(encoding="utf-8")
     assert "EMBEDDING_CACHE_DIR" in content
+    assert "EMBEDDING_WARM_ON_BOOT" in content
+    assert "HF_HOME" in content
     assert "GROQ_MODEL_CATALOG_CACHE_PATH" in content
-    assert '[EMBEDDING_CACHE_DIR]="/tmp/fastembed"' in content
+    assert '[EMBEDDING_CACHE_DIR]="/app/model-cache/fastembed"' in content
+    assert '[EMBEDDING_WARM_ON_BOOT]="true"' in content
+    assert '[HF_HOME]="/tmp/hf"' in content
     assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
 
 

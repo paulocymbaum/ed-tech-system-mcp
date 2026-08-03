@@ -6,6 +6,7 @@ from typing import Protocol
 
 from mcp_server.domain.cache import (
     DEFAULT_CACHE_RULES,
+    RAG_REDIS_CACHE_OPERATIONS,
     CacheOperationType,
     CacheRule,
     CacheRuleSet,
@@ -59,9 +60,10 @@ def build_cache_rule_set(settings: CacheSettings) -> CacheRuleSet:
     for operation, default_rule in DEFAULT_CACHE_RULES.items():
         ttl_override = getattr(settings, _TTL_OVERRIDES[operation])
         prefix_override = getattr(settings, _PREFIX_OVERRIDES[operation])
+        cache_enabled = settings.cache_enabled and operation not in RAG_REDIS_CACHE_OPERATIONS
         rules[operation] = default_rule.model_copy(
             update={
-                "enabled": settings.cache_enabled,
+                "enabled": cache_enabled,
                 "ttl_seconds": (
                     ttl_override if ttl_override is not None else default_rule.ttl_seconds
                 ),

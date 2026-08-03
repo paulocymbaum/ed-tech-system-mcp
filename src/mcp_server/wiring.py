@@ -59,10 +59,7 @@ from mcp_server.domain.interfaces import (
 from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.infrastructure.cache_config import build_cache_rule_set
 from mcp_server.infrastructure.cached_adapters import (
-    CachedDataRepository,
-    CachedEmbeddingProvider,
     CachedSearchClient,
-    CachedVectorRetriever,
     CachedVideoSearchClient,
 )
 from mcp_server.infrastructure.cached_llm import CachedChatModel
@@ -151,21 +148,14 @@ def build_embedding_provider(
     settings: Settings,
     cache: ICacheStore | None = None,
 ) -> IEmbeddingProvider:
-    """Build the local embedding provider, optionally wrapped with cache-aside."""
+    """Build the local embedding provider (ONNX model file cache only — no Redis query vectors)."""
     from mcp_server.infrastructure.embeddings.fastembed_adapter import FastEmbedAdapter
 
-    provider: IEmbeddingProvider = FastEmbedAdapter(
+    _ = cache
+    return FastEmbedAdapter(
         model_name=settings.embedding_model,
         dimensions=settings.embedding_dimension,
         cache_dir=settings.embedding_cache_dir,
-    )
-    if not settings.cache_enabled or cache is None:
-        return provider
-    return CachedEmbeddingProvider(
-        provider,
-        cache,
-        build_cache_rule_set(settings),
-        model_id=settings.embedding_model,
     )
 
 
@@ -189,14 +179,8 @@ def build_vector_retriever(
             settings.supabase_url,
             settings.supabase_service_role_key.get_secret_value(),
         )
-    if not settings.cache_enabled or cache is None:
-        return retriever
-    return CachedVectorRetriever(
-        retriever,
-        cache,
-        build_cache_rule_set(settings),
-        model_id=settings.embedding_model,
-    )
+    _ = cache
+    return retriever
 
 
 def build_vector_index_writer(settings: Settings) -> IVectorIndexWriter:
@@ -278,10 +262,8 @@ def build_data_repository(
         retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
     )
     limiter = rate_limiter or build_external_rate_limiter(settings)
-    repository = RateLimitedDataRepository(repository, limiter)
-    if not settings.cache_enabled or cache is None:
-        return repository
-    return CachedDataRepository(repository, cache, build_cache_rule_set(settings))
+    _ = cache
+    return RateLimitedDataRepository(repository, limiter)
 
 
 def build_search_client(

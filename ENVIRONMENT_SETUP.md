@@ -332,11 +332,11 @@ When `CACHE_ENABLED=false`, adapters are not wrapped and no Redis connection is 
 
 #### Production cache requirement
 
-In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), enable the shared cache store so Supabase, YouTube, web search, MCP tool I/O, and LLM completions share one Redis instance at the composition root:
+In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), enable the shared Redis cache store for **LLM completions, YouTube, web search, and MCP tool I/O** at the composition root. **Do not** use Redis to cache RAG chunks, document hits, or query embeddings on this MCP layer — retrieval freshness belongs in **Supabase/pgvector** (backend).
 
 | Variable | Production value | Notes |
 | :--- | :--- | :--- |
-| `CACHE_ENABLED` | `true` | Required for production deployments |
+| `CACHE_ENABLED` | `true` | Optional; enables Redis for LLM / integration ports (not RAG chunks) |
 | `REDIS_URL` | Managed Redis endpoint | Prefer a single URL (e.g. `redis://:password@host:6379/0`) |
 | `REDIS_HOST` / `REDIS_PORT` | Fallback when `REDIS_URL` unset | Use only when your platform injects host/port separately |
 
@@ -354,25 +354,32 @@ Local development may keep `CACHE_ENABLED=false` (default). CI tests run with ca
 
 See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for library and port design.
 
-| Variable | Default | Purpose |
+**Caching policy (MCP vs backend):**
+
+| Layer | What is cached | Where |
 | :--- | :--- | :--- |
-| `EMBEDDING_MODEL` | `intfloat/multilingual-e5-small` | fastembed model id |
+| **MCP server (this repo)** | ONNX **model weights** only | `EMBEDDING_CACHE_DIR` — baked into the Docker image on Render (`/app/model-cache/fastembed`) |
+| **MCP server** | HuggingFace hub scratch | `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp` (writable on read-only containers) |
+| **MCP server** | **Not** RAG chunks, document hits, or query-embedding vectors | Redis rules for `vector.retrieve`, `supabase.find_documents`, `embedding.query` are **always disabled** in `wiring.py` |
+| **Backend (Supabase)** | Chunk index + pgvector retrieval | `document_chunks` table, `match_chunks` / `hybrid_search_chunks` RPCs — any retrieval cache belongs here |
+
+| Variable | Default (local) | Render / production |
+| :--- | :--- | :--- |
+| `EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Same (fastembed ONNX) |
 | `EMBEDDING_DIMENSION` | `384` | Must match pgvector column |
-| `EMBEDDING_WARM_ON_BOOT` | `false` | Pre-load ONNX at bootstrap |
-| `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | Model weights on VPS |
-| `RETRIEVAL_MODE` | `hybrid` | `vector` or `hybrid` (MVP) |
+| `EMBEDDING_WARM_ON_BOOT` | `false` | **`true`** — load ONNX during container start |
+| `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | **`/app/model-cache/fastembed`** (image bake) |
+| `HF_HOME` | (unset) | **`/tmp/hf`** |
+| `XDG_CACHE_HOME` | (unset) | **`/tmp`** |
+| `RETRIEVAL_MODE` | `hybrid` | `vector` or `hybrid` |
 | `RETRIEVE_LIMIT` | `20` | Pre-rerank candidate cap |
 | `RERANK_ENABLED` | `false` | MVP default off |
 | `RERANKER_MODEL` | `BAAI/bge-reranker-base` | When rerank enabled (MIT, fastembed ONNX) |
 | `RERANK_TOP_N` | `6` | Post-rerank cap |
-| `CACHE_TTL_EMBEDDING_QUERY` | `3600` | Query embedding cache TTL (seconds) |
-| `CACHE_TTL_VECTOR_RETRIEVE` | `600` | Retrieval result cache TTL (seconds) |
-| `CACHE_KEY_PREFIX_EMBEDDING` | `embed` | Redis key namespace |
-| `CACHE_KEY_PREFIX_VECTOR` | `vector` | Redis key namespace |
-| `VECTOR_STORE_BACKEND` | `auto` | `auto`, `chroma`, or `supabase` |
-| `SUPABASE_VECTOR_ENABLED` | `false` | When `true`, `auto` selects Supabase pgvector |
-| `CHROMA_PERSIST_PATH` | `.cache/chromadb` | Local Chroma persistence directory |
-| `CHROMA_COLLECTION_NAME` | `document_chunks` | Chroma collection for chunk embeddings |
+| `CACHE_TTL_EMBEDDING_QUERY` | `3600` | **Ignored** — MCP layer does not Redis-cache query embeddings |
+| `CACHE_TTL_VECTOR_RETRIEVE` | `600` | **Ignored** — MCP layer does not Redis-cache chunk hits |
+| `VECTOR_STORE_BACKEND` | `auto` | **`supabase`** on Render |
+| `CHROMA_PERSIST_PATH` | `.cache/chromadb` | Local Chroma only |
 
 **Vector store default:** `VECTOR_STORE_BACKEND=auto` with `SUPABASE_VECTOR_ENABLED=false` uses **ChromaDB** locally until Supabase migrations are applied; set `SUPABASE_VECTOR_ENABLED=true` (or `VECTOR_STORE_BACKEND=supabase`) to switch.
 
