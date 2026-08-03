@@ -27,6 +27,8 @@ OPTIONAL_RUNTIME_KEYS=(
   MCP_TRANSPORT
   MCP_STATELESS_HTTP
   VECTOR_STORE_BACKEND
+  EMBEDDING_CACHE_DIR
+  GROQ_MODEL_CATALOG_CACHE_PATH
 )
 
 declare -A RUNTIME_DEFAULTS=(
@@ -37,6 +39,8 @@ declare -A RUNTIME_DEFAULTS=(
   [MCP_TRANSPORT]="streamable-http"
   [MCP_STATELESS_HTTP]="true"
   [VECTOR_STORE_BACKEND]="supabase"
+  [EMBEDDING_CACHE_DIR]="/tmp/fastembed"
+  [GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"
 )
 
 if ! command -v doppler >/dev/null 2>&1; then

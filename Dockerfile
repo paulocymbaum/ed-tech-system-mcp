@@ -20,6 +20,8 @@ RUN useradd --create-home --shell /bin/bash appuser
 
 COPY --from=builder --chown=appuser:appuser /app /app
 
+RUN mkdir -p /tmp/fastembed /tmp/app-cache && chown -R appuser:appuser /tmp/fastembed /tmp/app-cache
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV APP_ENV=production
 ENV MCP_TRANSPORT=streamable-http
@@ -27,6 +29,8 @@ ENV MCP_HOST=0.0.0.0
 ENV MCP_PORT=8000
 ENV FASTMCP_MASK_ERROR_DETAILS=true
 ENV PYTHONUNBUFFERED=1
+ENV EMBEDDING_CACHE_DIR=/tmp/fastembed
+ENV GROQ_MODEL_CATALOG_CACHE_PATH=/tmp/app-cache/groq_model_catalog.json
 
 USER appuser
 

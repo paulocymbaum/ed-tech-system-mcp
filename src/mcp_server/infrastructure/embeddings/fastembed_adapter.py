@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mcp_server.domain.interfaces import IEmbeddingProvider
@@ -49,6 +50,7 @@ class FastEmbedAdapter(IEmbeddingProvider):
         if self._model is None:
             from fastembed import TextEmbedding
 
+            Path(self._cache_dir).mkdir(parents=True, exist_ok=True)
             self._model = TextEmbedding(
                 model_name=self._model_name,
                 cache_dir=self._cache_dir,

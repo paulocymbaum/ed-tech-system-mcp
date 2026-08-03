@@ -51,6 +51,14 @@ def test_sync_dev_script_uses_dev_config_by_default() -> None:
     assert "REQUIRED_DEV_KEYS" in content
 
 
+def test_sync_dev_script_includes_writable_cache_defaults() -> None:
+    content = SYNC_DEV.read_text(encoding="utf-8")
+    assert "EMBEDDING_CACHE_DIR" in content
+    assert "GROQ_MODEL_CATALOG_CACHE_PATH" in content
+    assert '[EMBEDDING_CACHE_DIR]="/tmp/fastembed"' in content
+    assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
+
+
 def test_sync_prd_wrapper_delegates_to_dev() -> None:
     content = SYNC_PRD.read_text(encoding="utf-8")
     assert "sync-dev-to-render.sh" in content

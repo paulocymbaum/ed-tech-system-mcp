@@ -12,6 +12,10 @@ services:
         value: "true"
       - key: VECTOR_STORE_BACKEND
         value: supabase
+      - key: EMBEDDING_CACHE_DIR
+        value: /tmp/fastembed
+      - key: GROQ_MODEL_CATALOG_CACHE_PATH
+        value: /tmp/app-cache/groq_model_catalog.json
       # Set runtime secrets in the Render dashboard or via scripts/doppler/sync-dev-to-render.sh
       - key: SUPABASE_URL
         sync: false
