@@ -64,12 +64,11 @@ from mcp_server.infrastructure.cached_adapters import (
 )
 from mcp_server.infrastructure.cached_llm import CachedChatModel
 from mcp_server.infrastructure.external_rate_limiter import SlidingWindowExternalRequestRateLimiter
-from mcp_server.infrastructure.groq_adapter import build_groq_chat_model
-from mcp_server.infrastructure.groq_model_catalog import (
-    CachingGroqModelCatalogClient,
-    GroqModelCatalogClient,
+from mcp_server.infrastructure.groq_active_model_list_client import (
+    CachingGroqActiveModelListClient,
+    SupabaseGroqActiveModelListClient,
 )
-from mcp_server.infrastructure.groq_model_catalog_cache import FileGroqModelCatalogCache
+from mcp_server.infrastructure.groq_adapter import build_groq_chat_model
 from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
 from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
@@ -312,7 +311,7 @@ def build_workflow_execution_config(
 
 
 def build_llm_router(settings: Settings) -> LLMRouter:
-    """Build the Groq LLM router with catalog-backed registry and debounce gate."""
+    """Build the Groq LLM router with Supabase active-model registry and debounce gate."""
     global _wired_llm_router
     if _wired_llm_router is not None:
         register_llm_router(_wired_llm_router)
@@ -331,14 +330,14 @@ def build_llm_router(settings: Settings) -> LLMRouter:
 
     register_groq_model_builder(_build_groq_model)
 
-    catalog_client = CachingGroqModelCatalogClient(
-        GroqModelCatalogClient(settings.groq_api_key),
-        FileGroqModelCatalogCache(
-            settings.groq_model_catalog_cache_path,
-            ttl_seconds=settings.groq_model_catalog_ttl_days * 24 * 60 * 60,
+    list_client = CachingGroqActiveModelListClient(
+        SupabaseGroqActiveModelListClient(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
         ),
+        ttl_seconds=settings.groq_active_model_list_cache_seconds,
     )
-    registry = GroqModelRegistry(catalog_client)
+    registry = GroqModelRegistry(list_client)
     debounce_gate = IntervalLLMDebounceGate(settings.llm_router_debounce_seconds)
     rate_limiter = build_external_rate_limiter(settings)
     router = LLMRouter(

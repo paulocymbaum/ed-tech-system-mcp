@@ -83,6 +83,11 @@ class Settings(BaseSettings):
         alias="GROQ_MODEL_CATALOG_TTL_DAYS",
         ge=1,
     )
+    groq_active_model_list_cache_seconds: float = Field(
+        default=60.0,
+        alias="GROQ_ACTIVE_MODEL_LIST_CACHE_SECONDS",
+        ge=0.0,
+    )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     cache_enabled: bool = Field(default=False, alias="CACHE_ENABLED")

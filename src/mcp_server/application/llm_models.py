@@ -56,7 +56,7 @@ AVAILABLE_LANGUAGE_MODELS: list[LanguageModelSpec] = [
 
 
 def register_groq_language_models(records: list[GroqModelRecord]) -> None:
-    """Replace Groq entries with models from the live catalog registry."""
+    """Replace Groq entries with active models from the backend allowlist registry."""
     global _GROQ_LANGUAGE_MODELS, AVAILABLE_LANGUAGE_MODELS
     _GROQ_LANGUAGE_MODELS = [
         {
@@ -65,7 +65,7 @@ def register_groq_language_models(records: list[GroqModelRecord]) -> None:
             "display_name": record.display_name or record.model_id,
         }
         for record in records
-        if record.is_routable
+        if record.active and record.is_routable
     ]
     AVAILABLE_LANGUAGE_MODELS = [*_GROQ_LANGUAGE_MODELS, *_STATIC_LANGUAGE_MODELS]
 

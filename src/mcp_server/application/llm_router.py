@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from typing import Any
 
@@ -44,27 +43,6 @@ def is_token_limit_error(exc: BaseException) -> bool:
     return status_code == 413
 
 
-def model_capability_score(model_id: str) -> int:
-    """Estimate relative model capability for routing (higher = more capable)."""
-    lowered = model_id.lower()
-    if "mixtral" in lowered:
-        return 45
-    if "120b" in lowered:
-        return 120
-    if "70b" in lowered:
-        return 70
-    if "32b" in lowered or "20b" in lowered:
-        return 32
-    if "scout" in lowered:
-        return 17
-    numbers = [int(match) for match in re.findall(r"(\d+)b", lowered)]
-    if numbers:
-        return max(numbers)
-    if "8b" in lowered or "9b" in lowered:
-        return 8
-    return 10
-
-
 class LLMRouter:
     """Select Groq models by complexity and execute with debounce and fallback."""
 
@@ -97,7 +75,7 @@ class LLMRouter:
         return self._last_used_model_id
 
     def refresh_registry(self) -> None:
-        self._registry.refresh_from_catalog()
+        self._registry.refresh_active_models()
 
     def set_temperature(self, temperature: float) -> None:
         """Update the default sampling temperature for built models."""
@@ -109,34 +87,26 @@ class LLMRouter:
         *,
         preferred_model_id: str | None = None,
     ) -> list[str]:
-        active_ids = self._registry.get_active_model_ids()
-        if not active_ids:
+        pool = self._registry.get_active_model_ids_for_complexity(complexity)
+        if not pool and complexity != LLMComplexity.MEDIUM:
+            pool = self._registry.get_active_model_ids_for_complexity(LLMComplexity.MEDIUM)
+        if not pool:
             self.refresh_registry()
-            active_ids = self._registry.get_active_model_ids()
+            pool = self._registry.get_active_model_ids_for_complexity(complexity)
+            if not pool and complexity != LLMComplexity.MEDIUM:
+                pool = self._registry.get_active_model_ids_for_complexity(LLMComplexity.MEDIUM)
 
-        ranked = sorted(active_ids, key=model_capability_score)
-        if not ranked:
+        if not pool:
             if preferred_model_id:
                 return [preferred_model_id]
             msg = "No active Groq models available for routing"
             raise RuntimeError(msg)
 
-        tier_index = {
-            LLMComplexity.LOW: 0,
-            LLMComplexity.MEDIUM: max(0, len(ranked) // 2),
-            LLMComplexity.HIGH: len(ranked) - 1,
-        }[complexity]
-        primary = ranked[tier_index]
-
-        fallback_chain = [primary]
-        for model_id in ranked:
-            if model_id not in fallback_chain:
-                fallback_chain.append(model_id)
-
-        if preferred_model_id and preferred_model_id not in fallback_chain:
-            fallback_chain.insert(0, preferred_model_id)
-        elif preferred_model_id and preferred_model_id in fallback_chain:
+        fallback_chain = list(pool)
+        if preferred_model_id and preferred_model_id in fallback_chain:
             fallback_chain.remove(preferred_model_id)
+            fallback_chain.insert(0, preferred_model_id)
+        elif preferred_model_id:
             fallback_chain.insert(0, preferred_model_id)
 
         return fallback_chain

@@ -105,9 +105,13 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
                 is_free=True,
                 is_developer_plan=is_developer_plan_groq_model(model_id),
                 is_routable=True,
+                complexity=frozenset({1, 2, 3}),
             )
             for model_id in model_ids
         }
+
+    def refresh_active_models(self) -> None:
+        return
 
     def refresh_from_catalog(self) -> None:
         return
@@ -116,7 +120,15 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
         return list(self._records.values())
 
     def get_active_model_ids(self) -> list[str]:
-        return [record.model_id for record in self._records.values() if record.active]
+        return sorted(record.model_id for record in self._records.values() if record.active)
+
+    def get_active_model_ids_for_complexity(self, complexity: LLMComplexity) -> list[str]:
+        tier = int(complexity)
+        return sorted(
+            record.model_id
+            for record in self._records.values()
+            if record.active and tier in record.complexity
+        )
 
     def deactivate_until(self, model_id: str, until: datetime) -> None:
         record = self._records.get(model_id)
@@ -130,6 +142,7 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
             is_developer_plan=record.is_developer_plan,
             is_routable=record.is_routable,
             deactivated_until=until,
+            complexity=record.complexity,
         )
 
     def is_known_model(self, model_id: str) -> bool:

@@ -10,6 +10,7 @@ from enum import IntEnum
 TOKEN_LIMIT_DEACTIVATION_HOURS = 3
 GROQ_MODEL_CATALOG_TTL_DAYS = 7
 GROQ_MODEL_CATALOG_TTL_SECONDS = GROQ_MODEL_CATALOG_TTL_DAYS * 24 * 60 * 60
+VALID_GROQ_COMPLEXITY_TIERS: frozenset[int] = frozenset({1, 2, 3})
 
 DEVELOPER_PLAN_GROQ_MODEL_IDS: frozenset[str] = frozenset(
     {
@@ -50,6 +51,14 @@ class GroqModelCatalogEntry:
 
 
 @dataclass(frozen=True)
+class GroqActiveModel:
+    """Active model from Supabase ``list_active_groq_models``."""
+
+    model_id: str
+    complexity: frozenset[int]
+
+
+@dataclass(frozen=True)
 class GroqModelRecord:
     """Registry view of a Groq model and its routing availability."""
 
@@ -60,6 +69,23 @@ class GroqModelRecord:
     is_developer_plan: bool
     is_routable: bool
     deactivated_until: datetime | None = None
+    complexity: frozenset[int] = frozenset({2})
+
+
+def normalize_complexity_tiers(raw: object) -> frozenset[int] | None:
+    """Parse and validate a complexity array from the backend list contract."""
+    if not isinstance(raw, list) or not raw:
+        return None
+    tiers: set[int] = set()
+    for item in raw:
+        if isinstance(item, bool) or not isinstance(item, int):
+            return None
+        if item not in VALID_GROQ_COMPLEXITY_TIERS:
+            return None
+        tiers.add(item)
+    if not tiers:
+        return None
+    return frozenset(tiers)
 
 
 def is_free_groq_model_pricing(pricing: GroqModelPricing | None) -> bool:
@@ -103,11 +129,19 @@ def is_routable_groq_chat_model(entry: GroqModelCatalogEntry) -> bool:
 
 
 class IGroqModelCatalogClient(ABC):
-    """Port for fetching the live Groq model catalog."""
+    """Port for fetching the live Groq model catalog (ops / sync only)."""
 
     @abstractmethod
     def fetch_models(self) -> list[GroqModelCatalogEntry]:
         """Return models advertised by the Groq API."""
+
+
+class IGroqActiveModelListClient(ABC):
+    """Port for the backend active Groq model allowlist."""
+
+    @abstractmethod
+    def fetch_active_models(self) -> list[GroqActiveModel]:
+        """Return active models with operator-configured complexity tiers."""
 
 
 @dataclass(frozen=True)
@@ -138,8 +172,12 @@ class IGroqModelRegistry(ABC):
     """Port for dynamic Groq model availability."""
 
     @abstractmethod
+    def refresh_active_models(self) -> None:
+        """Reload registry entries from the active-model list client."""
+
+    @abstractmethod
     def refresh_from_catalog(self) -> None:
-        """Reload registry entries from the catalog client."""
+        """Compatibility alias for ``refresh_active_models``."""
 
     @abstractmethod
     def list_records(self) -> list[GroqModelRecord]:
@@ -147,7 +185,11 @@ class IGroqModelRegistry(ABC):
 
     @abstractmethod
     def get_active_model_ids(self) -> list[str]:
-        """Return model ids currently eligible for routing."""
+        """Return model ids currently eligible for routing (any complexity)."""
+
+    @abstractmethod
+    def get_active_model_ids_for_complexity(self, complexity: LLMComplexity) -> list[str]:
+        """Return active model ids that support the requested complexity tier."""
 
     @abstractmethod
     def deactivate_until(self, model_id: str, until: datetime) -> None:
