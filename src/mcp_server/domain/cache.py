@@ -47,6 +47,17 @@ class CacheRuleSet(BaseModel):
         return rule is not None and rule.enabled
 
 
+# Redis cache-aside for RAG retrieval is intentionally disabled at the MCP layer.
+# Chunk freshness and any retrieval caching belong in Supabase/pgvector (backend).
+# ONNX embedding model weights use ``EMBEDDING_CACHE_DIR`` (image bake), not Redis.
+RAG_REDIS_CACHE_OPERATIONS: frozenset[CacheOperationType] = frozenset(
+    {
+        CacheOperationType.SUPABASE_FIND_DOCUMENTS,
+        CacheOperationType.EMBEDDING_QUERY,
+        CacheOperationType.VECTOR_RETRIEVE,
+    }
+)
+
 DEFAULT_CACHE_RULES: dict[CacheOperationType, CacheRule] = {
     CacheOperationType.SUPABASE_FIND_DOCUMENTS: CacheRule(
         operation=CacheOperationType.SUPABASE_FIND_DOCUMENTS,

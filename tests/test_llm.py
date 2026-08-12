@@ -159,7 +159,13 @@ class StaticGroqModelCatalog(IGroqModelCatalogClient):
 
 
 class InMemoryGroqModelRegistry(IGroqModelRegistry):
-    def __init__(self, model_ids: list[str], *, free: bool = True) -> None:
+    def __init__(
+        self,
+        model_ids: list[str],
+        *,
+        free: bool = True,
+        complexity_by_id: dict[str, frozenset[int]] | None = None,
+    ) -> None:
         self._records = {
             model_id: GroqModelRecord(
                 model_id=model_id,
@@ -168,9 +174,17 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
                 is_free=free,
                 is_developer_plan=is_developer_plan_groq_model(model_id),
                 is_routable=True,
+                complexity=(
+                    complexity_by_id.get(model_id, frozenset({2}))
+                    if complexity_by_id
+                    else frozenset({2})
+                ),
             )
             for model_id in model_ids
         }
+
+    def refresh_active_models(self) -> None:
+        return
 
     def refresh_from_catalog(self) -> None:
         return
@@ -179,7 +193,15 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
         return list(self._records.values())
 
     def get_active_model_ids(self) -> list[str]:
-        return [record.model_id for record in self._records.values() if record.active]
+        return sorted(record.model_id for record in self._records.values() if record.active)
+
+    def get_active_model_ids_for_complexity(self, complexity: LLMComplexity) -> list[str]:
+        tier = int(complexity)
+        return sorted(
+            record.model_id
+            for record in self._records.values()
+            if record.active and tier in record.complexity
+        )
 
     def deactivate_until(self, model_id: str, until: datetime) -> None:
         record = self._records.get(model_id)
@@ -193,6 +215,7 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
             is_developer_plan=record.is_developer_plan,
             is_routable=record.is_routable,
             deactivated_until=until,
+            complexity=record.complexity,
         )
 
     def is_known_model(self, model_id: str) -> bool:
@@ -216,6 +239,7 @@ def _register_test_router(
     model_ids: list[str],
     *,
     api_key: SecretStr | None = None,
+    complexity_by_id: dict[str, frozenset[int]] | None = None,
 ) -> LLMRouter:
     key = api_key or SecretStr("groq-test-key")
     register_groq_model_builder(_stub_groq_builder)
@@ -228,11 +252,16 @@ def _register_test_router(
                 is_free=True,
                 is_developer_plan=is_developer_plan_groq_model(model_id),
                 is_routable=True,
+                complexity=(
+                    complexity_by_id.get(model_id, frozenset({2}))
+                    if complexity_by_id
+                    else frozenset({2})
+                ),
             )
             for model_id in model_ids
         ]
     )
-    registry = InMemoryGroqModelRegistry(model_ids)
+    registry = InMemoryGroqModelRegistry(model_ids, complexity_by_id=complexity_by_id)
     router = LLMRouter(
         api_key=key,
         temperature=0.0,
@@ -246,26 +275,21 @@ def _register_test_router(
 
 
 def _patch_groq_catalog_for_wiring(monkeypatch: pytest.MonkeyPatch) -> None:
-    from pathlib import Path
+    from mcp_server.domain.llm_routing import GroqActiveModel
 
-    from mcp_server.infrastructure.groq_model_catalog_cache import FileGroqModelCatalogCache
-
-    cache_path = Path(".cache") / "test_groq_model_catalog.json"
-    monkeypatch.setenv("GROQ_MODEL_CATALOG_CACHE_PATH", str(cache_path))
-    FileGroqModelCatalogCache(cache_path).clear()
-
-    entries = [
-        _chat_catalog_entry("llama-3.1-8b-instant"),
-        _chat_catalog_entry("llama-3.3-70b-versatile"),
-        _chat_catalog_entry("mixtral-8x7b-32768"),
+    models = [
+        GroqActiveModel(model_id="llama-3.1-8b-instant", complexity=frozenset({1, 2})),
+        GroqActiveModel(model_id="llama-3.3-70b-versatile", complexity=frozenset({2, 3})),
+        GroqActiveModel(model_id="mixtral-8x7b-32768", complexity=frozenset({2})),
     ]
 
-    def _fake_fetch(self: object) -> list[GroqModelCatalogEntry]:
+    def _fake_fetch(self: object) -> list[GroqActiveModel]:
         _ = self
-        return entries
+        return list(models)
 
     monkeypatch.setattr(
-        "mcp_server.infrastructure.groq_model_catalog.GroqModelCatalogClient.fetch_models",
+        "mcp_server.infrastructure.groq_active_model_list_client"
+        ".SupabaseGroqActiveModelListClient.fetch_active_models",
         _fake_fetch,
     )
 
@@ -727,16 +751,36 @@ def test_llm12_default_workflow_execution_config_matches_config_json() -> None:
 
 def test_llm13_router_maps_complexity_to_model_tiers() -> None:
     router = _register_test_router(
-        ["llama-3.1-8b-instant", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"]
+        ["llama-3.1-8b-instant", "mixtral-8x7b-32768", "llama-3.3-70b-versatile"],
+        complexity_by_id={
+            "llama-3.1-8b-instant": frozenset({1, 2}),
+            "mixtral-8x7b-32768": frozenset({2}),
+            "llama-3.3-70b-versatile": frozenset({2, 3}),
+        },
     )
 
     low = router.candidate_model_ids(LLMComplexity.LOW)
     medium = router.candidate_model_ids(LLMComplexity.MEDIUM)
     high = router.candidate_model_ids(LLMComplexity.HIGH)
 
-    assert low[0] == "llama-3.1-8b-instant"
-    assert medium[0] == "mixtral-8x7b-32768"
-    assert high[0] == "llama-3.3-70b-versatile"
+    assert low == ["llama-3.1-8b-instant"]
+    assert medium == [
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile",
+        "mixtral-8x7b-32768",
+    ]
+    assert high == ["llama-3.3-70b-versatile"]
+
+
+def test_llm13b_router_falls_back_to_medium_when_tier_empty() -> None:
+    router = _register_test_router(
+        ["llama-3.3-70b-versatile"],
+        complexity_by_id={"llama-3.3-70b-versatile": frozenset({2, 3})},
+    )
+
+    low = router.candidate_model_ids(LLMComplexity.LOW)
+
+    assert low == ["llama-3.3-70b-versatile"]
 
 
 def test_llm14_router_falls_back_on_provider_failure() -> None:
@@ -775,7 +819,13 @@ def test_llm14_router_falls_back_on_provider_failure() -> None:
         return FailingThenOkModel(model_id=model_id, fail=model_id == "llama-3.1-8b-instant")
 
     register_groq_model_builder(builder)
-    registry = InMemoryGroqModelRegistry(["llama-3.1-8b-instant", "llama-3.3-70b-versatile"])
+    registry = InMemoryGroqModelRegistry(
+        ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+        complexity_by_id={
+            "llama-3.1-8b-instant": frozenset({1, 2}),
+            "llama-3.3-70b-versatile": frozenset({1, 2}),
+        },
+    )
     router = LLMRouter(
         api_key=SecretStr("test"),
         temperature=0.0,
@@ -864,39 +914,50 @@ def test_llm17b_debounce_gate_spaces_sync_calls() -> None:
     assert elapsed >= 0.04
 
 
-def test_llm18_groq_registry_marks_free_and_developer_plan_models_active() -> None:
+def test_llm18_groq_registry_loads_active_models_with_complexity() -> None:
+    from mcp_server.domain.llm_routing import GroqActiveModel
     from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
 
-    catalog = StaticGroqModelCatalog(
-        [
-            _chat_catalog_entry("allam-2-7b", pricing=None),
-            _chat_catalog_entry(
-                "llama-3.1-8b-instant",
-                pricing=GroqModelPricing(prompt=5e-8, completion=8e-8),
-            ),
-            _chat_catalog_entry(
-                "qwen/qwen3.6-27b",
-                pricing=GroqModelPricing(prompt=6e-7, completion=3e-6),
-            ),
-        ]
-    )
-    registry = GroqModelRegistry(catalog)
-    registry.refresh_from_catalog()
+    class StaticList:
+        def fetch_active_models(self) -> list[GroqActiveModel]:
+            return [
+                GroqActiveModel("llama-3.1-8b-instant", frozenset({1, 2})),
+                GroqActiveModel("llama-3.3-70b-versatile", frozenset({2, 3})),
+            ]
+
+    registry = GroqModelRegistry(StaticList())  # type: ignore[arg-type]
+    registry.refresh_active_models()
     records = {record.model_id: record for record in registry.list_records()}
 
-    assert records["allam-2-7b"].is_free is True
-    assert records["allam-2-7b"].active is True
-    assert records["llama-3.1-8b-instant"].is_free is False
-    assert records["llama-3.1-8b-instant"].is_developer_plan is True
     assert records["llama-3.1-8b-instant"].active is True
-    assert records["qwen/qwen3.6-27b"].is_developer_plan is False
-    assert records["qwen/qwen3.6-27b"].active is False
+    assert records["llama-3.1-8b-instant"].complexity == frozenset({1, 2})
+    assert registry.get_active_model_ids_for_complexity(LLMComplexity.LOW) == [
+        "llama-3.1-8b-instant"
+    ]
+    assert registry.get_active_model_ids_for_complexity(LLMComplexity.HIGH) == [
+        "llama-3.3-70b-versatile"
+    ]
 
 
 def test_llm18b_is_free_groq_model_pricing_requires_zero_rates() -> None:
     assert is_free_groq_model_pricing(GroqModelPricing()) is True
     assert is_free_groq_model_pricing(None) is True
     assert is_free_groq_model_pricing(GroqModelPricing(prompt=5e-8)) is False
+
+
+def test_llm18c_parse_active_models_payload_skips_invalid_rows() -> None:
+    from mcp_server.domain.llm_routing import GroqActiveModel
+    from mcp_server.infrastructure.groq_active_model_list_client import parse_active_models_payload
+
+    parsed = parse_active_models_payload(
+        [
+            {"model_id": "ok", "complexity": [1, 2]},
+            {"model_id": "", "complexity": [2]},
+            {"model_id": "bad-tier", "complexity": [9]},
+            {"model_id": "missing"},
+        ]
+    )
+    assert parsed == [GroqActiveModel(model_id="ok", complexity=frozenset({1, 2}))]
 
 
 def test_llm19_token_limit_deactivation_until_is_three_hours() -> None:

@@ -70,7 +70,10 @@ def test_render_yaml_sets_writable_embedding_cache_dir() -> None:
         for item in payload["services"][0]["envVars"]
         if "value" in item
     }
-    assert env_vars["EMBEDDING_CACHE_DIR"] == "/tmp/fastembed"
+    assert env_vars["EMBEDDING_CACHE_DIR"] == "/app/model-cache/fastembed"
+    assert env_vars["EMBEDDING_WARM_ON_BOOT"] == "true"
+    assert env_vars["HF_HOME"] == "/tmp/hf"
+    assert env_vars["XDG_CACHE_HOME"] == "/tmp"
     assert env_vars["GROQ_MODEL_CATALOG_CACHE_PATH"] == "/tmp/app-cache/groq_model_catalog.json"
 
 

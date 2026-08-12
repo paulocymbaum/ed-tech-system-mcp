@@ -28,6 +28,9 @@ OPTIONAL_RUNTIME_KEYS=(
   MCP_STATELESS_HTTP
   VECTOR_STORE_BACKEND
   EMBEDDING_CACHE_DIR
+  EMBEDDING_WARM_ON_BOOT
+  HF_HOME
+  XDG_CACHE_HOME
   GROQ_MODEL_CATALOG_CACHE_PATH
 )
 
@@ -39,7 +42,10 @@ declare -A RUNTIME_DEFAULTS=(
   [MCP_TRANSPORT]="streamable-http"
   [MCP_STATELESS_HTTP]="true"
   [VECTOR_STORE_BACKEND]="supabase"
-  [EMBEDDING_CACHE_DIR]="/tmp/fastembed"
+  [EMBEDDING_CACHE_DIR]="/app/model-cache/fastembed"
+  [EMBEDDING_WARM_ON_BOOT]="true"
+  [HF_HOME]="/tmp/hf"
+  [XDG_CACHE_HOME]="/tmp"
   [GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"
 )
 

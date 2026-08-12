@@ -405,14 +405,50 @@ def test_c09_build_cache_rule_set_applies_ttl_override(monkeypatch: pytest.Monke
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
     monkeypatch.setenv("CACHE_ENABLED", "true")
     monkeypatch.setenv("CACHE_TTL_SUPABASE_FIND_DOCUMENTS", "42")
+    monkeypatch.setenv("CACHE_TTL_YOUTUBE_SEARCH_VIDEOS", "99")
 
     settings = load_settings()
     rules = build_cache_rule_set(settings)
-    rule = rules.for_operation(CacheOperationType.SUPABASE_FIND_DOCUMENTS)
+    rag_rule = rules.for_operation(CacheOperationType.SUPABASE_FIND_DOCUMENTS)
+    youtube_rule = rules.for_operation(CacheOperationType.YOUTUBE_SEARCH_VIDEOS)
 
-    assert rule is not None
-    assert rule.enabled is True
-    assert rule.ttl_seconds == 42
+    assert rag_rule is not None
+    assert rag_rule.enabled is False
+    assert rag_rule.ttl_seconds == 42
+    assert youtube_rule is not None
+    assert youtube_rule.enabled is True
+    assert youtube_rule.ttl_seconds == 99
+
+
+def test_c09b_rag_redis_cache_operations_always_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("CACHE_ENABLED", "true")
+
+    settings = load_settings()
+    rules = build_cache_rule_set(settings)
+    for operation in (
+        CacheOperationType.SUPABASE_FIND_DOCUMENTS,
+        CacheOperationType.EMBEDDING_QUERY,
+        CacheOperationType.VECTOR_RETRIEVE,
+    ):
+        rule = rules.for_operation(operation)
+        assert rule is not None
+        assert rule.enabled is False
+
+
+def test_c11b_build_data_repository_never_wraps_rag_with_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("CACHE_ENABLED", "true")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+    settings = load_settings()
+    repository = build_data_repository(settings, create_cache_store(settings))
+
+    assert type(repository).__name__ == "RateLimitedDataRepository"
 
 
 def test_c10_build_document_video_workflow_returns_workflow(

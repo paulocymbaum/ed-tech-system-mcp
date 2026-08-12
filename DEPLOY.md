@@ -79,8 +79,20 @@ See [RENDER.md](./RENDER.md) for MCP deployment and env sync.
 | `GROQ_API_KEY` | optional at boot | required for LLM workflows |
 | `TAVILY_API_KEY` | optional | recommended |
 | `YOUTUBE_API_KEY` | optional | recommended |
+| `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | `/app/model-cache/fastembed` (Docker bake) |
+| `EMBEDDING_WARM_ON_BOOT` | `false` | `true` on Render |
+| `HF_HOME` | (unset) | `/tmp/hf` on Render |
+| `XDG_CACHE_HOME` | (unset) | `/tmp` on Render |
 
 Store values in Doppler config **`dev`**; never commit `.env`.
+
+### Caching policy
+
+| Cached on MCP server | Not cached on MCP server |
+| :--- | :--- |
+| ONNX model **weights** (`EMBEDDING_CACHE_DIR`, image bake) | RAG **chunks** / document hits |
+| LLM completions, YouTube, web search (Redis, when `CACHE_ENABLED=true`) | Query embedding vectors in Redis |
+| MCP tool I/O (Redis, when enabled) | Chunk retrieval results — backend (Supabase) owns this |
 
 ---
 
@@ -127,6 +139,10 @@ curl -s http://localhost:8877/api/health
 ```bash
 curl -s http://localhost:8000/health
 # {"status":"ok","service":"ed-tech-system-mcp"}
+
+# RAG smoke (before deploy):
+doppler run --config dev -- docker compose up --build -d
+MCP_BASE_URL=http://localhost:8000 bash scripts/ci/mcp-smoke.sh
 
 docker compose ps
 ```

@@ -282,6 +282,16 @@ MCP `search_web` and `application/langchain_tools.py` remain **planned** — the
 
 TTL and key prefix: `CACHE_TTL_LLM_COMPLETION`, `CACHE_KEY_PREFIX_LLM` (see env table below).
 
+#### RAG retrieval cache boundary
+
+| Cache type | MCP layer (this service) | Backend (Supabase) |
+| :--- | :--- | :--- |
+| ONNX model **weights** | ✅ `EMBEDDING_CACHE_DIR` (Docker image bake on Render) | — |
+| Query embedding **vectors** (Redis) | ❌ disabled in `wiring.py` | — |
+| Chunk / document **hits** (Redis) | ❌ disabled in `wiring.py` | Fresh reads via `match_chunks` / `hybrid_search_chunks` |
+
+`CACHE_TTL_EMBEDDING_QUERY` and `CACHE_TTL_VECTOR_RETRIEVE` exist in settings for adapter tests only; production wiring never Redis-wraps `IEmbeddingProvider`, `IVectorRetriever`, or `find_documents`.
+
 #### YouTube search (`IVideoSearchClient`)
 
 - Input: `query`, `max_results`, `language`, `safe_search` (see `VideoSearchRequest` in `validation.py`).
@@ -771,9 +781,9 @@ Extend `Settings` in `settings.py` (RAG fields shipped in Phase A):
 | `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_COMPLEXITY` | Chat model factory defaults and router tiers |
 | `TAVILY_API_KEY` | `TavilySearchClient` via `build_search_client()` |
 | `YOUTUBE_API_KEY` | `YouTubeDataApiClient` via `build_video_client()` |
-| `CACHE_TTL_*`, `CACHE_KEY_PREFIX_*` | Cache-aside for ports, LLM, MCP tools |
+| `CACHE_TTL_*`, `CACHE_KEY_PREFIX_*` | Cache-aside for LLM, YouTube, web search, MCP tools (**not** RAG chunks) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Repository + vector index (Phase A) |
-| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_WARM_ON_BOOT` | `IEmbeddingProvider` via `retrieval_runtime` |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_WARM_ON_BOOT`, `EMBEDDING_CACHE_DIR` | ONNX model file cache + boot warm (`IEmbeddingProvider`) — **not** Redis query vectors |
 | `RETRIEVAL_MODE`, `RETRIEVE_LIMIT`, `RERANK_ENABLED`, `RERANKER_MODEL`, `RERANK_TOP_N` | RAG retrieval graph defaults |
 | `SQL_AGENT_ENABLED` | Gate SQL agent MCP tool and graph routes |
 | `SQL_AGENT_MAX_ROWS` | Domain query policy default |

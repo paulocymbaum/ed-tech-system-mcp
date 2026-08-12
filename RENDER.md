@@ -98,8 +98,29 @@ Requires `RENDER_API_KEY` and `RENDER_SERVICE_ID` in Doppler `github_ci`. CI run
 curl -sS "https://<service>.onrender.com/health"
 # {"status":"ok","service":"ed-tech-system-mcp"}
 
+# Full RAG smoke (health + tools/list + find_documents + run_workflow):
+MCP_BASE_URL="https://<service>.onrender.com" bash scripts/ci/mcp-smoke.sh
+
 # MCP clients: https://<service>.onrender.com/mcp
 ```
+
+---
+
+## 4.1 RAG embedding model cache (server-side only)
+
+Render containers use a **read-only root filesystem**. RAG **chunk** results are **not** cached in Redis on this MCP layer — Supabase/pgvector owns retrieval freshness.
+
+What **is** cached server-side on the MCP host:
+
+| Mechanism | Path / env | Purpose |
+| :--- | :--- | :--- |
+| Docker image bake | `/app/model-cache/fastembed` | ONNX model weights (`scripts/ci/warm_embedding_cache.py` at build) |
+| Boot warm-up | `EMBEDDING_WARM_ON_BOOT=true` | Load ONNX into memory before first request |
+| HF hub scratch | `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp` | Writable temp for any HuggingFace hub I/O |
+
+Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingface` on a read-only path → `find_documents` / `run_workflow` fail with 502/503.
+
+**Do not** enable Redis caching for `vector.retrieve`, `supabase.find_documents`, or `embedding.query` on this service — `wiring.py` keeps those rules disabled regardless of `CACHE_ENABLED`.
 
 ---
 
@@ -116,6 +137,8 @@ curl -sS "https://<service>.onrender.com/health"
 | Issue | Fix |
 | :--- | :--- |
 | `/health` 500 after deploy | Set `SUPABASE_*` in Render env; check service logs |
+| `find_documents` / `run_workflow` 502 or 503 | Set `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp`; redeploy image with baked model (`EMBEDDING_CACHE_DIR=/app/model-cache/fastembed`) |
+| `find_documents` slow on cold start | Expected on free tier until image bake + `EMBEDDING_WARM_ON_BOOT`; run `scripts/ci/mcp-smoke.sh` after deploy |
 | CI deploy skipped | Add `RENDER_DEPLOY_HOOK_URL` to GitHub secrets |
 | OOM on startup | Upgrade Render plan or reduce memory-heavy imports at boot |
 | Cold start timeout | Retry after wake-up; consider paid always-on plan |
