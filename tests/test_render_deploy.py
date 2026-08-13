@@ -107,6 +107,9 @@ def test_render_deploy_script_contract() -> None:
     for secret_name in RENDER_SECRET_NAMES:
         assert secret_name in content
     assert "api.render.com/v1/services" in content
+    assert "wait_for_deploy" in content
+    assert "update_failed" in content
+    assert "wait_for_health" in content
     assert "secrets.DOPPLER_TOKEN" not in content
 
 

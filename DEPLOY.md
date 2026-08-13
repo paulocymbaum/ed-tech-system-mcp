@@ -80,7 +80,7 @@ See [RENDER.md](./RENDER.md) for MCP deployment and env sync.
 | `TAVILY_API_KEY` | optional | recommended |
 | `YOUTUBE_API_KEY` | optional | recommended |
 | `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | `/app/model-cache/fastembed` (Docker bake) |
-| `EMBEDDING_WARM_ON_BOOT` | `false` | `true` on Render |
+| `EMBEDDING_WARM_ON_BOOT` | `false` | `false` on free Render (512Mi); `true` OOMs at deploy |
 | `HF_HOME` | (unset) | `/tmp/hf` on Render |
 | `XDG_CACHE_HOME` | (unset) | `/tmp` on Render |
 
