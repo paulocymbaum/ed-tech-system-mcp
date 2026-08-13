@@ -54,7 +54,7 @@ trigger_render_deploy() {
   local deploy_id=""
 
   if [[ -n "$api_key" && -n "$service_id" ]]; then
-    echo "→ Triggering Render deploy via API"
+    echo "→ Triggering Render deploy via API" >&2
     local response
     response="$(
       curl -fsS -X POST \
@@ -80,7 +80,7 @@ elif isinstance(payload, list) and payload:
   fi
 
   if [[ -n "$hook_url" && "$hook_url" == https://api.render.com/deploy/* ]]; then
-    echo "→ Triggering Render deploy hook"
+    echo "→ Triggering Render deploy hook" >&2
     curl -fsS -X POST "$hook_url" >/dev/null
     printf ''
     return 0
