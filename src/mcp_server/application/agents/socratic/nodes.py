@@ -13,12 +13,10 @@ from mcp_server.application.agents.socratic.prompts import (
 from mcp_server.application.agents.socratic.state import SocraticTutorState
 from mcp_server.application.llm import get_chat_model
 from mcp_server.application.llm_model_name import resolve_invoked_model_name
-from mcp_server.application.workflow_runtime import get_document_video_workflow
 from mcp_server.domain.exceptions import ResourceNotFoundError
 from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.domain.socratic import (
     SocraticCatalogPort,
-    SocraticDocHit,
     SocraticReply,
     normalize_locale,
     validate_socratic_reply,
@@ -53,6 +51,11 @@ def _message_content(content: Any) -> str:
 
 
 async def ground_context(state: SocraticTutorState) -> dict[str, Any]:
+    """Catalog/graph grounding only — RAG embeddings are backend-owned, never MCP."""
+    existing = state.get("grounding")
+    if existing is not None:
+        return {"grounding": existing, "error": None}
+
     catalog = _require_catalog()
     grounding = catalog.load_grounding(
         tenant_id=state["tenant_id"],
@@ -62,29 +65,8 @@ async def ground_context(state: SocraticTutorState) -> dict[str, Any]:
         project_slug=state.get("project_slug"),
         query=state["message"],
     )
-
-    workflow = get_document_video_workflow()
-    if workflow is not None and state["message"].strip():
-        try:
-            documents, _videos = await workflow.retrieve_with_videos(
-                state["message"],
-                document_limit=3,
-                video_limit=0,
-                tenant_id=state["tenant_id"],
-            )
-            docs: list[SocraticDocHit] = []
-            for hit in documents[:3]:
-                content = getattr(hit, "content", "") or ""
-                docs.append(
-                    SocraticDocHit(
-                        title=str(getattr(hit, "title", "") or "document"),
-                        snippet=str(content)[:240],
-                    )
-                )
-            grounding.documents = docs
-        except Exception:  # noqa: BLE001 — grounding is best-effort
-            pass
-
+    # Explicitly keep documents empty — no retrieve_with_videos / ONNX on MCP.
+    grounding.documents = []
     return {"grounding": grounding, "error": None}
 
 

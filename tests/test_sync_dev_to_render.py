@@ -59,6 +59,7 @@ def test_sync_dev_script_includes_writable_cache_defaults() -> None:
     assert "GROQ_MODEL_CATALOG_CACHE_PATH" in content
     assert '[EMBEDDING_CACHE_DIR]="/app/model-cache/fastembed"' in content
     assert '[EMBEDDING_WARM_ON_BOOT]="false"' in content
+    assert "free-tier OOM guard" in content
     assert '[HF_HOME]="/tmp/hf"' in content
     assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
 

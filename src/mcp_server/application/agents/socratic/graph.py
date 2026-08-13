@@ -21,6 +21,7 @@ from mcp_server.application.workflow_config import (
 )
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.socratic import (
+    SocraticGrounding,
     SocraticMessage,
     SocraticReply,
     normalize_locale,
@@ -93,6 +94,7 @@ def initial_socratic_tutor_state(
     hint_level: int = 1,
     locale: str = "en",
     want_full_solution: bool = False,
+    grounding: SocraticGrounding | None = None,
 ) -> SocraticTutorState:
     return {
         "tenant_id": tenant_id,
@@ -105,7 +107,7 @@ def initial_socratic_tutor_state(
         "hint_level": max(1, min(5, int(hint_level))),
         "locale": normalize_locale(locale),
         "want_full_solution": want_full_solution,
-        "grounding": None,
+        "grounding": grounding,
         "reply": None,
         "validation_errors": [],
         "reply_retry_count": 0,

@@ -107,6 +107,17 @@ for key in "${OPTIONAL_RUNTIME_KEYS[@]}"; do
   RUNTIME_VALUES["$key"]="$value"
 done
 
+# Free Render (512Mi) OOMs when ONNX warms at boot. Keep false unless explicitly overridden.
+if [[ "${FORCE_EMBEDDING_WARM_ON_BOOT:-}" == "true" ]]; then
+  RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]="true"
+  echo "→ FORCE_EMBEDDING_WARM_ON_BOOT=true (larger Render plan required)"
+else
+  if [[ "${RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]:-}" == "true" ]]; then
+    echo "→ Overriding EMBEDDING_WARM_ON_BOOT=true from Doppler → false (free-tier OOM guard)"
+  fi
+  RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]="${RUNTIME_DEFAULTS[EMBEDDING_WARM_ON_BOOT]}"
+fi
+
 RUNTIME_VALUES["APP_ENV"]="production"
 
 service_id="${RENDER_CREDENTIALS[RENDER_SERVICE_ID]}"

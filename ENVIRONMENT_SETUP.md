@@ -367,7 +367,7 @@ See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for libra
 | :--- | :--- | :--- |
 | `EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Same (fastembed ONNX) |
 | `EMBEDDING_DIMENSION` | `384` | Must match pgvector column |
-| `EMBEDDING_WARM_ON_BOOT` | `false` | **`true`** — load ONNX during container start |
+| `EMBEDDING_WARM_ON_BOOT` | `false` | **`false`** on free Render (512Mi); set `true` only on larger plans |
 | `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | **`/app/model-cache/fastembed`** (image bake) |
 | `HF_HOME` | (unset) | **`/tmp/hf`** |
 | `XDG_CACHE_HOME` | (unset) | **`/tmp`** |
