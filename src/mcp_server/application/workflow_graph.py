@@ -78,6 +78,14 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "write_article",
         "__end__",
     ],
+    "project-review": [
+        "__start__",
+        "collect_context",
+        "grade_delivery",
+        "validate_grade",
+        "persist_grade",
+        "__end__",
+    ],
     "rag-retrieval": [
         "__start__",
         "embed_query",
