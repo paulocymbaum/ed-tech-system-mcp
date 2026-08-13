@@ -27,7 +27,7 @@ def test_dockerfile_uses_python312_and_mcp_server_cmd() -> None:
 def test_dockerfile_sets_writable_cache_paths() -> None:
     content = _read(DOCKERFILE)
     assert "ENV EMBEDDING_CACHE_DIR=/app/model-cache/fastembed" in content
-    assert "ENV EMBEDDING_WARM_ON_BOOT=true" in content
+    assert "ENV EMBEDDING_WARM_ON_BOOT=false" in content
     assert "ENV HF_HOME=/tmp/hf" in content
     assert "ENV XDG_CACHE_HOME=/tmp" in content
     assert "ENV GROQ_MODEL_CATALOG_CACHE_PATH=/tmp/app-cache/groq_model_catalog.json" in content
