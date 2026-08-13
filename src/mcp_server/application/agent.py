@@ -328,8 +328,8 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             id="socratic-tutor",
             name="Socratic Tutor",
             description=(
-                "Hint-ladder tutoring grounded in catalog, graph nodes, and RAG. "
-                "Never assigns grades or project scores."
+                "Hint-ladder tutoring grounded in catalog/graph from the backend. "
+                "Never assigns grades or project scores. MCP does not run RAG embeddings."
             ),
             graph=get_socratic_tutor_graph(),
         ),

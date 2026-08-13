@@ -1,6 +1,12 @@
-"""MCP tools for Socratic tutor (E8)."""
+"""MCP tools for Socratic tutor (E8).
+
+RAG embeddings are disabled on this layer — grounding comes from the backend
+state machine (``load_tutor_grounding`` / session snapshot) or catalog-only.
+"""
 
 from __future__ import annotations
+
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +17,12 @@ from mcp_server.application.agents.socratic.graph import (
 )
 from mcp_server.application.agent import workflow_timeout_seconds
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
-from mcp_server.domain.socratic import SocraticMessage, SocraticReply, normalize_locale
+from mcp_server.domain.socratic import (
+    SocraticGrounding,
+    SocraticMessage,
+    SocraticReply,
+    normalize_locale,
+)
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 
@@ -32,6 +43,7 @@ class SocraticTutorRequest(BaseModel):
     hint_level: int = Field(default=1, ge=1, le=5)
     locale: str = "en"
     want_full_solution: bool = False
+    grounding: dict[str, Any] | None = None
 
 
 @mcp.tool
@@ -46,8 +58,9 @@ async def socratic_tutor(
     hint_level: int = 1,
     locale: str = "en",
     want_full_solution: bool = False,
+    grounding: dict[str, Any] | None = None,
 ) -> SocraticReply:
-    """Socratic tutoring turn — hints and questions; never grades."""
+    """Socratic tutoring turn — hints and questions; never grades. No MCP RAG."""
     hist_items = [
         SocraticHistoryItem.model_validate(item) for item in (history or [])
     ]
@@ -62,10 +75,16 @@ async def socratic_tutor(
         hint_level=hint_level,
         locale=locale,
         want_full_solution=want_full_solution,
+        grounding=grounding,
     )
     args = request.model_dump()
 
     async def _run() -> SocraticReply:
+        parsed_grounding: SocraticGrounding | None = None
+        if request.grounding is not None:
+            parsed_grounding = SocraticGrounding.model_validate(request.grounding)
+            parsed_grounding.documents = []
+
         graph = get_socratic_tutor_graph()
         state = initial_socratic_tutor_state(
             tenant_id=request.tenant_id,
@@ -81,6 +100,7 @@ async def socratic_tutor(
             hint_level=request.hint_level,
             locale=normalize_locale(request.locale),
             want_full_solution=request.want_full_solution,
+            grounding=parsed_grounding,
         )
         result_state, _trace = await invoke_graph_with_trace(
             graph,
