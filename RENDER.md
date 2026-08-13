@@ -115,7 +115,7 @@ What **is** cached server-side on the MCP host:
 | Mechanism | Path / env | Purpose |
 | :--- | :--- | :--- |
 | Docker image bake | `/app/model-cache/fastembed` | ONNX model weights (`scripts/ci/warm_embedding_cache.py` at build) |
-| Boot warm-up | `EMBEDDING_WARM_ON_BOOT=true` | Load ONNX into memory before first request |
+| Boot warm-up | `EMBEDDING_WARM_ON_BOOT=false` (free) | Lazy-load ONNX on first RAG request; `true` OOMs 512Mi at deploy |
 | HF hub scratch | `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp` | Writable temp for any HuggingFace hub I/O |
 
 Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingface` on a read-only path → `find_documents` / `run_workflow` fail with 502/503.
@@ -127,7 +127,7 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 ## 5. Free tier caveats
 
 - Service **sleeps after ~15 min idle** — first request after sleep can take 30–60+ seconds.
-- **512 MB RAM** may be tight; upgrade to Starter if OOM on cold start.
+- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13).
 - Docker builds can take 5–15 minutes on first deploy.
 
 ---
@@ -138,9 +138,10 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 | :--- | :--- |
 | `/health` 500 after deploy | Set `SUPABASE_*` in Render env; check service logs |
 | `find_documents` / `run_workflow` 502 or 503 | Set `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp`; redeploy image with baked model (`EMBEDDING_CACHE_DIR=/app/model-cache/fastembed`) |
-| `find_documents` slow on cold start | Expected on free tier until image bake + `EMBEDDING_WARM_ON_BOOT`; run `scripts/ci/mcp-smoke.sh` after deploy |
+| `find_documents` slow on first request | Expected on free tier with warm-on-boot off (lazy ONNX load) |
+| Deploy `update_failed` + `oomKilled` 512Mi | Set `EMBEDDING_WARM_ON_BOOT=false` in Render + Doppler `dev`, redeploy |
 | CI deploy skipped | Add `RENDER_DEPLOY_HOOK_URL` to GitHub secrets |
-| OOM on startup | Upgrade Render plan or reduce memory-heavy imports at boot |
+| OOM on startup | Keep warm-on-boot off, or upgrade Render plan |
 | Cold start timeout | Retry after wake-up; consider paid always-on plan |
 
 ---
