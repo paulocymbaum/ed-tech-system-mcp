@@ -12,20 +12,19 @@ from mcp_server.application.agents.project_review.graph import (
 from mcp_server.application.agent import workflow_timeout_seconds
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.exceptions import ResourceNotFoundError
-from mcp_server.domain.project_review import ProjectReviewContext, ProjectReviewResult
-from mcp_server.infrastructure.project_review_repository import ProjectReviewRepository
+from mcp_server.domain.project_review import ProjectReviewContext, ProjectReviewResult, ProjectReviewStore
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 
-_repo: ProjectReviewRepository | None = None
+_repo: ProjectReviewStore | None = None
 
 
-def register_project_review_tool_repository(repo: ProjectReviewRepository) -> None:
+def register_project_review_tool_repository(repo: ProjectReviewStore) -> None:
     global _repo
     _repo = repo
 
 
-def _require_repo() -> ProjectReviewRepository:
+def _require_repo() -> ProjectReviewStore:
     if _repo is None:
         raise ResourceNotFoundError("Project review repository not initialized")
     return _repo

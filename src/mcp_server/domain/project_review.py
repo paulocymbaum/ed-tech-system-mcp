@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -76,6 +76,35 @@ class ProjectReviewResult(BaseModel):
     progress_updated: bool = False
     review_id: str | None = None
     model_id: str | None = None
+
+
+class ProjectReviewStore(Protocol):
+    """Port for collecting review context and persisting grades."""
+
+    def collect_context(
+        self,
+        *,
+        tenant_id: str,
+        course_slug: str,
+        module_slug: str,
+        lesson_slug: str,
+        project_slug: str,
+        user_id: str,
+        delivery_limit: int = 3,
+    ) -> ProjectReviewContext: ...
+
+    def persist_grade(
+        self,
+        *,
+        delivery_id: str,
+        grade: ProjectReviewGrade,
+    ) -> ProjectReviewResult: ...
+
+
+class GroqModelErrorReporterPort(Protocol):
+    """Port for reporting Groq model failures after grader batches."""
+
+    def report(self, *, model: str, error_type: str = "completion_error") -> None: ...
 
 
 def validate_review_comment(comment: str) -> dict[str, Any]:

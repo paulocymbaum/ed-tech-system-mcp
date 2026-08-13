@@ -18,24 +18,39 @@ from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.domain.exceptions import ResourceNotFoundError
 from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.domain.project_review import (
+    GroqModelErrorReporterPort,
     ProjectReviewGrade,
     ProjectReviewResult,
+    ProjectReviewStore,
     validate_review_comment,
 )
-from mcp_server.infrastructure.project_review_repository import ProjectReviewRepository
 
-_repo: ProjectReviewRepository | None = None
+_repo: ProjectReviewStore | None = None
+_error_reporter: GroqModelErrorReporterPort | None = None
 
 
-def register_project_review_repository(repo: ProjectReviewRepository) -> None:
+def register_project_review_repository(repo: ProjectReviewStore) -> None:
     global _repo
     _repo = repo
 
 
-def _require_repo() -> ProjectReviewRepository:
+def register_project_review_error_reporter(
+    reporter: GroqModelErrorReporterPort,
+) -> None:
+    global _error_reporter
+    _error_reporter = reporter
+
+
+def _require_repo() -> ProjectReviewStore:
     if _repo is None:
         raise ResourceNotFoundError("Project review repository not initialized")
     return _repo
+
+
+def _report_groq_model_error(*, model: str, error_type: str = "completion_error") -> None:
+    if _error_reporter is None:
+        return
+    _error_reporter.report(model=model, error_type=error_type)
 
 
 def _message_content(content: Any) -> str:
@@ -105,10 +120,8 @@ async def grade_delivery(state: ProjectReviewState) -> dict[str, Any]:
             llm_complexity=int(LLMComplexity.MEDIUM),
         )
     except Exception as exc:  # noqa: BLE001 — report + surface as state error
-        from mcp_server.infrastructure.groq_model_error_reporter import report_groq_model_error
-
         model_id = resolve_invoked_model_name(model)
-        report_groq_model_error(model=model_id, error_type="completion_error")
+        _report_groq_model_error(model=model_id or "unknown", error_type="completion_error")
         return {"error": f"llm_failed:{exc}", "model_id": model_id}
 
     text = _message_content(response.content)

@@ -456,11 +456,11 @@ def initialize_application_runtime(
     set_mcp_tool_cache(tool_cache)
 
     from mcp_server.application.agents.project_review.nodes import (
+        register_project_review_error_reporter,
         register_project_review_repository,
     )
     from mcp_server.infrastructure.groq_model_error_reporter import (
         GroqModelErrorReporter,
-        register_groq_model_error_reporter,
     )
     from mcp_server.infrastructure.project_review_repository import ProjectReviewRepository
     from mcp_server.interface.custom_tools_project_review import (
@@ -473,7 +473,7 @@ def initialize_application_runtime(
     )
     register_project_review_repository(project_review_repo)
     register_project_review_tool_repository(project_review_repo)
-    register_groq_model_error_reporter(
+    register_project_review_error_reporter(
         GroqModelErrorReporter(settings.supabase_url, settings.supabase_service_role_key)
     )
 
