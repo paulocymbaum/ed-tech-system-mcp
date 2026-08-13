@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-13T02:58:08.448399+00:00",
+  "generatedAt": "2026-08-13T03:00:51.479623+00:00",
   "overallState": "majorOutage",
   "paretoIncidentTypes": [
     "securityGateFailure",
@@ -42,7 +42,7 @@
       "layer": "deploy",
       "label": "Render MCP deploy",
       "health": "majorOutage",
-      "lastIncidentId": "incident-20260813T025807Z-deployFailure"
+      "lastIncidentId": "incident-20260802T234438Z-deployFailure"
     },
     {
       "id": "externalIntegration",
@@ -67,32 +67,6 @@
     }
   ],
   "incidents": [
-    {
-      "schemaVersion": 1,
-      "recordKind": "incident",
-      "id": "incident-20260813T025807Z-deployFailure",
-      "incidentType": "deployFailure",
-      "layer": "deploy",
-      "component": "renderMcp",
-      "state": "open",
-      "severity": "critical",
-      "title": "Production deploy failed",
-      "summary": "Render production deploy failed.",
-      "source": "github-actions",
-      "runId": null,
-      "gitRef": null,
-      "gitSha": null,
-      "timestamp": "2026-08-13T02:58:07.965313Z",
-      "resolvedAt": null,
-      "testCoverage": null,
-      "transitions": [
-        {
-          "fromState": "detected",
-          "toState": "open",
-          "at": "2026-08-13T02:58:07.965313Z"
-        }
-      ]
-    },
     {
       "schemaVersion": 1,
       "recordKind": "incident",
@@ -149,32 +123,6 @@
   ],
   "historyByLayer": {
     "deploy": [
-      {
-        "schemaVersion": 1,
-        "recordKind": "incident",
-        "id": "incident-20260813T025807Z-deployFailure",
-        "incidentType": "deployFailure",
-        "layer": "deploy",
-        "component": "renderMcp",
-        "state": "open",
-        "severity": "critical",
-        "title": "Production deploy failed",
-        "summary": "Render production deploy failed.",
-        "source": "github-actions",
-        "runId": null,
-        "gitRef": null,
-        "gitSha": null,
-        "timestamp": "2026-08-13T02:58:07.965313Z",
-        "resolvedAt": null,
-        "testCoverage": null,
-        "transitions": [
-          {
-            "fromState": "detected",
-            "toState": "open",
-            "at": "2026-08-13T02:58:07.965313Z"
-          }
-        ]
-      },
       {
         "schemaVersion": 1,
         "recordKind": "incident",
