@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any  # remove if unused — keep clean
+from pydantic import SecretStr
 from supabase import Client, create_client
 
 from mcp_server.domain.invariants import require_credential
