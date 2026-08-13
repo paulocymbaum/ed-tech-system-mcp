@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SUPPORTED_LOCALES = ("en", "pt", "es", "zh")
 LocaleCode = Literal["en", "pt", "es", "zh"]
@@ -43,6 +43,11 @@ class SocraticGrounding(BaseModel):
     project_readme: str = ""
     graph_hits: list[SocraticGraphHit] = Field(default_factory=list)
     documents: list[SocraticDocHit] = Field(default_factory=list)
+
+    @field_validator("lesson_markdown", "project_readme", mode="before")
+    @classmethod
+    def _coerce_optional_str(cls, value: object) -> str:
+        return "" if value is None else str(value)
 
 
 class SocraticReply(BaseModel):
