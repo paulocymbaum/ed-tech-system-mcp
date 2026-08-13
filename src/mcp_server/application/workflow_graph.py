@@ -86,6 +86,13 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "persist_grade",
         "__end__",
     ],
+    "socratic-tutor": [
+        "__start__",
+        "ground_context",
+        "generate_reply",
+        "validate_reply",
+        "__end__",
+    ],
     "rag-retrieval": [
         "__start__",
         "embed_query",

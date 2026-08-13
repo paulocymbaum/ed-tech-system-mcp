@@ -26,6 +26,10 @@ from mcp_server.application.agents.project_review.graph import (
     get_project_review_graph,
     reset_project_review_graph_cache,
 )
+from mcp_server.application.agents.socratic.graph import (
+    get_socratic_tutor_graph,
+    reset_socratic_tutor_graph_cache,
+)
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     reset_research_article_graph_cache,
@@ -321,6 +325,15 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             graph=get_project_review_graph(),
         ),
         RegisteredWorkflow(
+            id="socratic-tutor",
+            name="Socratic Tutor",
+            description=(
+                "Hint-ladder tutoring grounded in catalog, graph nodes, and RAG. "
+                "Never assigns grades or project scores."
+            ),
+            graph=get_socratic_tutor_graph(),
+        ),
+        RegisteredWorkflow(
             id="rag-retrieval",
             name="RAG Retrieval",
             description=(
@@ -356,6 +369,7 @@ def reset_registered_workflows_cache() -> None:
     reset_compiled_graph_cache()
     reset_content_generation_graph_cache()
     reset_project_review_graph_cache()
+    reset_socratic_tutor_graph_cache()
     reset_tavily_search_graph_cache()
     reset_youtube_search_graph_cache()
     reset_research_article_graph_cache()

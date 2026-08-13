@@ -477,6 +477,13 @@ def initialize_application_runtime(
         GroqModelErrorReporter(settings.supabase_url, settings.supabase_service_role_key)
     )
 
+    from mcp_server.application.agents.socratic.nodes import register_socratic_catalog
+    from mcp_server.infrastructure.socratic_catalog_repository import SocraticCatalogRepository
+
+    register_socratic_catalog(
+        SocraticCatalogRepository(settings.supabase_url, settings.supabase_service_role_key)
+    )
+
     return ApplicationContext(
         workflow_execution_config=config,
         cache_store=cache_store,
