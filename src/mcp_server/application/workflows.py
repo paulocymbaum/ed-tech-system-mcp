@@ -24,9 +24,14 @@ class DocumentVideoWorkflow:
         limit: int = 10,
         *,
         tenant_id: str | None = None,
+        course_id: str | None = None,
     ) -> list[DocumentHit]:
         """Fetch documents matching the query."""
-        filters = ChunkRetrievalFilter(tenant_id=tenant_id) if tenant_id else None
+        filters = (
+            ChunkRetrievalFilter(tenant_id=tenant_id, course_id=course_id)
+            if tenant_id or course_id
+            else None
+        )
         return await self._repository.find_documents(query, limit=limit, filters=filters)
 
     @staticmethod
@@ -59,6 +64,7 @@ class DocumentVideoWorkflow:
         video_limit: int = 5,
         *,
         tenant_id: str | None = None,
+        course_id: str | None = None,
     ) -> tuple[list[DocumentHit], list[VideoResult]]:
         """Fetch documents and enrich with related educational videos.
 
@@ -72,7 +78,12 @@ class DocumentVideoWorkflow:
         ``run_document_video_graph`` instead (sequential port calls per node).
         """
         documents_task = asyncio.create_task(
-            self.fetch_documents(query, document_limit, tenant_id=tenant_id),
+            self.fetch_documents(
+                query,
+                document_limit,
+                tenant_id=tenant_id,
+                course_id=course_id,
+            ),
         )
         videos_task = asyncio.create_task(self.search_videos(query, video_limit))
         documents = await documents_task

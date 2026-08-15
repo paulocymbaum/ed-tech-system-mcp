@@ -484,6 +484,26 @@ def initialize_application_runtime(
         SocraticCatalogRepository(settings.supabase_url, settings.supabase_service_role_key)
     )
 
+    from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClientFactory
+    from mcp_server.infrastructure.graph_search_repository import GraphSearchRepository
+    from mcp_server.interface.custom_tools_authoring import register_authoring_tools
+
+    anon = (
+        settings.supabase_anon_key.get_secret_value()
+        if settings.supabase_anon_key is not None
+        else None
+    )
+    register_authoring_tools(
+        graph_search=GraphSearchRepository(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        ),
+        backend_factory=AuthoringBackendClientFactory(
+            settings.supabase_url,
+            anon_key=anon,
+        ),
+    )
+
     return ApplicationContext(
         workflow_execution_config=config,
         cache_store=cache_store,

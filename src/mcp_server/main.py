@@ -14,6 +14,16 @@ from mcp_server.interface.custom_tools_agent_workflows import (  # noqa: F401
     content_generation,
     research_article,
 )
+from mcp_server.interface.custom_tools_authoring import (  # noqa: F401
+    author_lesson_pipeline,
+    generate_mock_test_structure,
+    save_to_backend,
+    search_graph_nodes,
+    validate_lesson,
+    validate_mock_test,
+    validate_project,
+    validate_quiz,
+)
 from mcp_server.interface.custom_tools_project_review import (  # noqa: F401
     collect_project_review_context,
     project_review,

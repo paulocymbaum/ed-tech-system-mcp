@@ -32,6 +32,11 @@ from mcp_server.application.workflow_config import (
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.harness_schemas import (
+    HarnessLessonDraft,
+    HarnessProjectDraft,
+    HarnessQuizDraft,
+)
 from mcp_server.domain.llm_routing import LLMComplexity
 
 
@@ -72,9 +77,23 @@ async def _invoke_structured(
     *,
     system_prompt: str,
     user_prompt: str,
-    model_type: type[LessonDraft] | type[QuizDraft] | type[PBLDraft],
+    model_type: type[LessonDraft]
+    | type[QuizDraft]
+    | type[PBLDraft]
+    | type[HarnessLessonDraft]
+    | type[HarnessQuizDraft]
+    | type[HarnessProjectDraft],
     llm_complexity: LLMComplexity,
-) -> tuple[LessonDraft | QuizDraft | PBLDraft | None, list[str]]:
+) -> tuple[
+    LessonDraft
+    | QuizDraft
+    | PBLDraft
+    | HarnessLessonDraft
+    | HarnessQuizDraft
+    | HarnessProjectDraft
+    | None,
+    list[str],
+]:
     model = _require_chat_model()
     result = await model.ainvoke(
         [
@@ -102,22 +121,29 @@ async def _invoke_structured(
 
 async def generate_lesson(state: ContentGenerationState) -> dict[str, object]:
     """Generate a structured lesson via Groq with router fallback."""
+    graph_scoped = bool(state.get("graph_scoped"))
+    model_type = HarnessLessonDraft if graph_scoped else LessonDraft
     lesson, errors = await _invoke_structured(
-        system_prompt=lesson_system_prompt(),
+        system_prompt=lesson_system_prompt(graph_scoped=graph_scoped),
         user_prompt=lesson_user_prompt(
             topic=state["topic"],
             grade_level=state["grade_level"],
             validation_errors=state.get("lesson_validation_errors"),
+            graph_scoped=graph_scoped,
+            graph_hits=state.get("graph_hits"),
+            graph_node_id=state.get("graph_node_id"),
+            course_slug=state.get("course_slug"),
+            lesson_slug=state.get("lesson_slug"),
         ),
-        model_type=LessonDraft,
+        model_type=model_type,
         llm_complexity=LLMComplexity.HIGH,
     )
     if lesson is None:
         return {"lesson_validation_errors": errors}
-    return {
-        "lesson": lesson,
-        "lesson_validation_errors": [],
-    }
+    out: dict[str, object] = {"lesson": lesson, "lesson_validation_errors": []}
+    if graph_scoped and isinstance(lesson, HarnessLessonDraft):
+        out["harness_lesson"] = lesson
+    return out
 
 
 async def validate_lesson(state: ContentGenerationState) -> dict[str, object]:
@@ -133,23 +159,32 @@ async def generate_quiz(state: ContentGenerationState) -> dict[str, object]:
     if lesson is None:
         return {"quiz_validation_errors": ["lesson is required before quiz generation"]}
 
+    graph_scoped = bool(state.get("graph_scoped"))
+    model_type = HarnessQuizDraft if graph_scoped else QuizDraft
+    graph_index = None
+    if isinstance(lesson, HarnessLessonDraft):
+        graph_index = lesson.meta.graph_index
+
     quiz, errors = await _invoke_structured(
-        system_prompt=quiz_system_prompt(),
+        system_prompt=quiz_system_prompt(graph_scoped=graph_scoped),
         user_prompt=quiz_user_prompt(
             topic=state["topic"],
             grade_level=state["grade_level"],
             lesson=lesson,
             validation_errors=state.get("quiz_validation_errors"),
+            graph_scoped=graph_scoped,
+            lesson_slug=state.get("lesson_slug"),
+            graph_index=graph_index,
         ),
-        model_type=QuizDraft,
+        model_type=model_type,
         llm_complexity=LLMComplexity.MEDIUM,
     )
     if quiz is None:
         return {"quiz_validation_errors": errors}
-    return {
-        "quiz": quiz,
-        "quiz_validation_errors": [],
-    }
+    out: dict[str, object] = {"quiz": quiz, "quiz_validation_errors": []}
+    if graph_scoped and isinstance(quiz, HarnessQuizDraft):
+        out["harness_quiz"] = quiz
+    return out
 
 
 async def validate_quiz(state: ContentGenerationState) -> dict[str, object]:
@@ -165,23 +200,32 @@ async def generate_pbl(state: ContentGenerationState) -> dict[str, object]:
     if lesson is None:
         return {"pbl_validation_errors": ["lesson is required before PBL generation"]}
 
+    graph_scoped = bool(state.get("graph_scoped"))
+    model_type = HarnessProjectDraft if graph_scoped else PBLDraft
+    graph_index = None
+    if isinstance(lesson, HarnessLessonDraft):
+        graph_index = lesson.meta.graph_index
+
     pbl, errors = await _invoke_structured(
-        system_prompt=pbl_system_prompt(),
+        system_prompt=pbl_system_prompt(graph_scoped=graph_scoped),
         user_prompt=pbl_user_prompt(
             topic=state["topic"],
             grade_level=state["grade_level"],
             lesson=lesson,
             validation_errors=state.get("pbl_validation_errors"),
+            graph_scoped=graph_scoped,
+            lesson_slug=state.get("lesson_slug"),
+            graph_index=graph_index,
         ),
-        model_type=PBLDraft,
+        model_type=model_type,
         llm_complexity=LLMComplexity.MEDIUM,
     )
     if pbl is None:
         return {"pbl_validation_errors": errors}
-    return {
-        "pbl": pbl,
-        "pbl_validation_errors": [],
-    }
+    out: dict[str, object] = {"pbl": pbl, "pbl_validation_errors": []}
+    if graph_scoped and isinstance(pbl, HarnessProjectDraft):
+        out["harness_project"] = pbl
+    return out
 
 
 async def validate_pbl(state: ContentGenerationState) -> dict[str, object]:

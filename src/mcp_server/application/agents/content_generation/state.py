@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
+from mcp_server.domain.authoring import GraphNodeHit
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
+from mcp_server.domain.harness_schemas import (
+    HarnessLessonDraft,
+    HarnessProjectDraft,
+    HarnessQuizDraft,
+)
 
 
 class ContentGenerationState(TypedDict):
@@ -12,9 +18,19 @@ class ContentGenerationState(TypedDict):
 
     topic: str
     grade_level: str
-    lesson: NotRequired[LessonDraft]
-    quiz: NotRequired[QuizDraft]
-    pbl: NotRequired[PBLDraft]
+    graph_scoped: NotRequired[bool]
+    tenant_id: NotRequired[str | None]
+    course_slug: NotRequired[str | None]
+    module_id: NotRequired[str | None]
+    lesson_slug: NotRequired[str | None]
+    graph_node_id: NotRequired[str | None]
+    graph_hits: NotRequired[list[GraphNodeHit]]
+    lesson: NotRequired[LessonDraft | HarnessLessonDraft]
+    quiz: NotRequired[QuizDraft | HarnessQuizDraft]
+    pbl: NotRequired[PBLDraft | HarnessProjectDraft]
+    harness_lesson: NotRequired[HarnessLessonDraft]
+    harness_quiz: NotRequired[HarnessQuizDraft]
+    harness_project: NotRequired[HarnessProjectDraft]
     lesson_validation_errors: NotRequired[list[str]]
     quiz_validation_errors: NotRequired[list[str]]
     pbl_validation_errors: NotRequired[list[str]]

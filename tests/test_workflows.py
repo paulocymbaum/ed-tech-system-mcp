@@ -180,3 +180,21 @@ async def test_t19d_skips_second_video_fetch_when_title_matches_query() -> None:
 
     assert client.call_count == 1
     assert client.last_query == "plants"
+
+
+async def test_t19e_fetch_documents_passes_course_id_filter() -> None:
+    captured: list[object] = []
+
+    class FilterCaptureRepository(IDataRepository):
+        async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
+            captured.append(filters)
+            return []
+
+    repo = FilterCaptureRepository()
+    workflow = DocumentVideoWorkflow(repo, FakeVideoClient([]))
+
+    await workflow.fetch_documents("arrays", 5, course_id="javascript")
+
+    assert captured[0] is not None
+    assert captured[0].course_id == "javascript"  # type: ignore[union-attr]
+    assert captured[0].tenant_id is None  # type: ignore[union-attr]
