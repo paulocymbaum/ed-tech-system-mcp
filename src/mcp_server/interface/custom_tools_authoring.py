@@ -15,6 +15,7 @@ from mcp_server.application.authoring_service import (
 from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
 from mcp_server.domain.authoring import (
+    AuthoringBackendFactoryPort,
     GraphNodeHit,
     GraphSearchPort,
     MockTestStructureResult,
@@ -22,7 +23,6 @@ from mcp_server.domain.authoring import (
 )
 from mcp_server.domain.content_validators import validate_mock_test_bundle
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
-from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClientFactory
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation_workflow import (
@@ -31,13 +31,13 @@ from mcp_server.interface.validation_workflow import (
 )
 
 _graph_search: GraphSearchPort | None = None
-_backend_factory: AuthoringBackendClientFactory | None = None
+_backend_factory: AuthoringBackendFactoryPort | None = None
 
 
 def register_authoring_tools(
     *,
     graph_search: GraphSearchPort,
-    backend_factory: AuthoringBackendClientFactory,
+    backend_factory: AuthoringBackendFactoryPort,
 ) -> None:
     """Wire authoring dependencies from composition root."""
     global _graph_search, _backend_factory
@@ -51,7 +51,7 @@ def _require_graph_search() -> GraphSearchPort:
     return _graph_search
 
 
-def _require_backend_factory() -> AuthoringBackendClientFactory:
+def _require_backend_factory() -> AuthoringBackendFactoryPort:
     if _backend_factory is None:
         raise ResourceNotFoundError("Authoring backend factory has not been initialized")
     return _backend_factory

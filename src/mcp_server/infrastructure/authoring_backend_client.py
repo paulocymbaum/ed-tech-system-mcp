@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from mcp_server.domain.authoring import AuthoringBackendPort
+from mcp_server.domain.authoring import AuthoringBackendFactoryPort, AuthoringBackendPort
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
 
 
@@ -112,7 +112,7 @@ class AuthoringBackendClient(AuthoringBackendPort):
         return {"lesson_id": lesson_id}
 
 
-class AuthoringBackendClientFactory:
+class AuthoringBackendClientFactory(AuthoringBackendFactoryPort):
     """Build per-request clients when JWT is supplied by the MCP tool caller."""
 
     def __init__(self, supabase_url: str, *, anon_key: str | None = None) -> None:

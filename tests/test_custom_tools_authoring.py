@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
-from mcp_server.domain.authoring import GraphNodeHit, GraphSearchPort
+from mcp_server.domain.authoring import (
+    AuthoringBackendFactoryPort,
+    AuthoringBackendPort,
+    GraphNodeHit,
+    GraphSearchPort,
+)
 from mcp_server.domain.content_validators import validate_mock_test_bundle
-from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClientFactory
 from mcp_server.interface.custom_tools_authoring import (
     generate_mock_test_structure,
     register_authoring_tools,
@@ -42,11 +44,8 @@ class FakeGraphSearch(GraphSearchPort):
         ]
 
 
-class FakeBackendFactory(AuthoringBackendClientFactory):
-    def __init__(self) -> None:
-        pass
-
-    def for_jwt(self, manager_jwt: str) -> Any:
+class FakeBackendFactory(AuthoringBackendFactoryPort):
+    def for_jwt(self, manager_jwt: str) -> AuthoringBackendPort:
         raise NotImplementedError
 
 
@@ -54,7 +53,7 @@ class FakeBackendFactory(AuthoringBackendClientFactory):
 def _register_authoring() -> None:
     register_authoring_tools(
         graph_search=FakeGraphSearch(),
-        backend_factory=FakeBackendFactory(),  # type: ignore[arg-type]
+        backend_factory=FakeBackendFactory(),
     )
 
 

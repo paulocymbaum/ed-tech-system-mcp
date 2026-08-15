@@ -82,6 +82,14 @@ class AuthoringBackendPort(ABC):
         """Publish lesson and enqueue catalog refresh."""
 
 
+class AuthoringBackendFactoryPort(ABC):
+    """Build a per-request authoring client from a manager+ user JWT."""
+
+    @abstractmethod
+    def for_jwt(self, manager_jwt: str) -> AuthoringBackendPort:
+        """Return a client authenticated as the given user (not service_role)."""
+
+
 class GraphSearchPort(ABC):
     """Resolve curriculum graph nodes for grounding."""
 
