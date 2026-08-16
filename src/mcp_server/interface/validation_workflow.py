@@ -378,6 +378,44 @@ def research_article_state_to_run_response(
     )
 
 
+def _coerce_content_field(value: Any) -> LessonDraft | QuizDraft | PBLDraft | dict[str, Any] | None:
+    """Map graph state artifacts into ContentGenerationRunResponse field types.
+
+    Graph-scoped runs store ``Harness*Draft`` on ``lesson``/``quiz``/``pbl``. Those are
+    not ``LessonDraft``/``QuizDraft``/``PBLDraft``, so dump them to ``dict`` (accepted
+    by the response union) instead of failing Pydantic validation.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (LessonDraft, QuizDraft, PBLDraft)):
+        return value
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "model_dump"):
+        dump = value.model_dump
+        # Prefer aliases for harness quiz (correctOptionId) when available.
+        try:
+            return dump(by_alias=True)  # type: ignore[misc]
+        except TypeError:
+            return dump()
+    return None
+
+
+def _dump_model(value: Any, *, by_alias: bool = False) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "model_dump"):
+        if by_alias:
+            try:
+                return value.model_dump(by_alias=True)
+            except TypeError:
+                return value.model_dump()
+        return value.model_dump()
+    return None
+
+
 def content_generation_state_to_run_response(
     state: ContentGenerationState,
     *,
@@ -405,12 +443,12 @@ def content_generation_state_to_run_response(
         lesson_retry_count=state.get("lesson_retry_count", 0),
         quiz_retry_count=state.get("quiz_retry_count", 0),
         pbl_retry_count=state.get("pbl_retry_count", 0),
-        lesson=state.get("lesson"),
-        quiz=state.get("quiz"),
-        pbl=state.get("pbl"),
-        harness_lesson=harness_lesson.model_dump() if hasattr(harness_lesson, "model_dump") else None,
-        harness_quiz=harness_quiz.model_dump(by_alias=True) if hasattr(harness_quiz, "model_dump") else None,
-        harness_project=harness_project.model_dump() if hasattr(harness_project, "model_dump") else None,
+        lesson=_coerce_content_field(state.get("lesson")),
+        quiz=_coerce_content_field(state.get("quiz")),
+        pbl=_coerce_content_field(state.get("pbl")),
+        harness_lesson=_dump_model(harness_lesson),
+        harness_quiz=_dump_model(harness_quiz, by_alias=True),
+        harness_project=_dump_model(harness_project),
         lesson_validation_errors=state.get("lesson_validation_errors", []),
         quiz_validation_errors=state.get("quiz_validation_errors", []),
         pbl_validation_errors=state.get("pbl_validation_errors", []),
