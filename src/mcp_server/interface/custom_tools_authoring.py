@@ -13,6 +13,7 @@ from mcp_server.application.authoring_service import (
     validate_project_dict,
     validate_quiz_dict,
 )
+from mcp_server.domain.content_validators import validate_mock_test_bundle, validate_test_boilerplate
 from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
 from mcp_server.domain.authoring import (
@@ -22,7 +23,6 @@ from mcp_server.domain.authoring import (
     MockTestStructureResult,
     SaveLessonResult,
 )
-from mcp_server.domain.content_validators import validate_mock_test_bundle
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
@@ -113,6 +113,16 @@ async def validate_project(project: dict[str, Any]) -> ValidationToolResponse:
     return ValidationToolResponse(
         ok=not any(f.startswith("error:") for f in findings), findings=findings
     )
+
+
+@mcp.tool(name="validate_test_boilerplate")
+async def validate_test_boilerplate_tool(
+    boilerplate: dict[str, Any],
+) -> ValidationToolResponse:
+    """Validate harness body has LEARNER_CODE and runner_kind is known (E16.15)."""
+    report = validate_test_boilerplate(boilerplate)
+    findings = [f"{f.level}: {f.message}" for f in report.findings]
+    return ValidationToolResponse(ok=report.ok, findings=findings)
 
 
 @mcp.tool

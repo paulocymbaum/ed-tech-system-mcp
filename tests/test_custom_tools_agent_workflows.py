@@ -195,6 +195,9 @@ async def test_research_article_mcp_tool_returns_article() -> None:
     assert response.web_result_count == 2
     assert response.video_count == 1
     assert response.trace == []
+    dumped = response.model_dump()
+    assert "system_prompt" not in str(dumped)
+    assert "user_prompt" not in str(dumped)
 
 
 async def test_content_generation_mcp_tool_returns_lesson_quiz_and_pbl() -> None:
@@ -212,3 +215,6 @@ async def test_content_generation_mcp_tool_returns_lesson_quiz_and_pbl() -> None
     assert len(response.quiz.questions) >= 3
     assert response.pbl is not None
     assert response.trace == []
+    dumped = response.model_dump()
+    assert "system_prompt" not in str(dumped)
+    assert "user_prompt" not in str(dumped)

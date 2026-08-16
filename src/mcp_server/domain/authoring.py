@@ -78,6 +78,20 @@ class AuthoringBackendPort(ABC):
         """Return project UUID."""
 
     @abstractmethod
+    async def set_lesson_stack_runtime(
+        self,
+        *,
+        lesson_id: str,
+        stack: str,
+        test_boilerplate_id: str | None = None,
+        boilerplate_slug: str | None = None,
+        run_config: dict[str, Any] | None = None,
+        dependencies: list[dict[str, Any]] | None = None,
+        project_id: str | None = None,
+    ) -> str:
+        """Set lesson stack, boilerplate, and run dependencies. Return boilerplate UUID."""
+
+    @abstractmethod
     async def publish_lesson(self, *, lesson_id: str) -> dict[str, Any]:
         """Publish lesson and enqueue catalog refresh."""
 

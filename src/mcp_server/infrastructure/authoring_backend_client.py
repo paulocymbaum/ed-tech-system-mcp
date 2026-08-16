@@ -111,6 +111,32 @@ class AuthoringBackendClient(AuthoringBackendPort):
         )
         return str(result)
 
+    async def set_lesson_stack_runtime(
+        self,
+        *,
+        lesson_id: str,
+        stack: str,
+        test_boilerplate_id: str | None = None,
+        boilerplate_slug: str | None = None,
+        run_config: dict[str, Any] | None = None,
+        dependencies: list[dict[str, Any]] | None = None,
+        project_id: str | None = None,
+    ) -> str:
+        payload: dict[str, Any] = {
+            "p_lesson_id": lesson_id,
+            "p_stack": stack,
+            "p_run_config": run_config or {},
+            "p_dependencies": dependencies or [],
+        }
+        if test_boilerplate_id:
+            payload["p_test_boilerplate_id"] = test_boilerplate_id
+        if boilerplate_slug:
+            payload["p_boilerplate_slug"] = boilerplate_slug
+        if project_id:
+            payload["p_project_id"] = project_id
+        result = await self._post_rpc("set_lesson_stack_runtime", payload)
+        return str(result)
+
     async def publish_lesson(self, *, lesson_id: str) -> dict[str, Any]:
         result = await self._post_rpc("publish_lesson", {"p_lesson_id": lesson_id})
         if isinstance(result, dict):

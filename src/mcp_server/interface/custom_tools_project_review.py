@@ -12,7 +12,7 @@ from mcp_server.application.agents.project_review.graph import (
     initial_project_review_state,
     result_from_state,
 )
-from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.exceptions import ExternalServiceError, ResourceNotFoundError
 from mcp_server.domain.project_review import (
     ProjectReviewContext,
     ProjectReviewResult,
@@ -109,6 +109,8 @@ async def project_review(
         graph = get_project_review_graph()
         state = initial_project_review_state(**args)
         result_state = await ainvoke_with_workflow_timeout(graph, state)
+        if result_state.get("error") and result_state.get("result") is None:
+            raise ExternalServiceError("AI reviewer is temporarily unavailable")
         return result_from_state(result_state)
 
     return await _cached_tool_invoke(

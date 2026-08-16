@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from mcp_server.domain.authoring import AuthoringBackendPort, SaveLessonResult
@@ -10,6 +11,7 @@ from mcp_server.domain.content_validators import (
     validate_project_readme,
     validate_project_tests_json,
     validate_quiz_payload,
+    validate_test_boilerplate,
 )
 from mcp_server.domain.exceptions import DomainValidationError
 from mcp_server.domain.harness_schemas import (
@@ -88,6 +90,41 @@ def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft
                 "position": position,
             }
         )
+    if not tests_out:
+        tests_raw = ""
+        for item in files_out:
+            path = str(item.get("path") or "")
+            if path.endswith("tests.json") and item.get("content"):
+                tests_raw = str(item.get("content") or "")
+                break
+        if tests_raw:
+            try:
+                parsed: Any = json.loads(tests_raw)
+            except json.JSONDecodeError:
+                parsed = None
+            cases = (
+                parsed
+                if isinstance(parsed, list)
+                else parsed.get("cases")
+                if isinstance(parsed, dict)
+                else None
+            )
+            if isinstance(cases, list):
+                for position, case in enumerate(cases, start=1):
+                    if not isinstance(case, dict):
+                        continue
+                    tests_out.append(
+                        {
+                            "slug": case.get("id") or case.get("slug") or f"case-{position}",
+                            "name": case.get("name") or f"case-{position}",
+                            "stdin": case.get("stdin") or "",
+                            "expected_stdout": case.get("expectedStdout")
+                            or case.get("expected_stdout"),
+                            "expected_exit_code": case.get("expectedExitCode")
+                            or case.get("expected_exit_code"),
+                            "position": position,
+                        }
+                    )
     readme = data.get("readme_markdown") or data.get("readmeMarkdown") or ""
     if readme and not any(f.get("path") == "README.md" for f in files_out):
         files_out.insert(0, {"path": "README.md", "kind": "readme", "content": readme})
@@ -180,9 +217,34 @@ class AuthoringService:
 
         project_id: str | None = None
         if project is not None:
+            boilerplate = project.get("test_boilerplate") or project.get("testBoilerplate")
+            if isinstance(boilerplate, dict):
+                bp_report = validate_test_boilerplate(boilerplate)
+                if not bp_report.ok:
+                    messages = [f"{f.level}: {f.message}" for f in bp_report.errors]
+                    raise DomainValidationError("; ".join(messages))
             project_id = await self._backend.upsert_project_tree(
                 lesson_id=lesson_id,
                 project=harness_project_to_rpc_payload(project),
+            )
+            stack = str(
+                meta.get("stack")
+                or project.get("stack")
+                or "javascript"
+            )
+            deps = project.get("run_dependencies") or project.get("runDependencies") or []
+            await self._backend.set_lesson_stack_runtime(
+                lesson_id=lesson_id,
+                stack=stack,
+                test_boilerplate_id=(
+                    boilerplate.get("id") if isinstance(boilerplate, dict) else None
+                ),
+                boilerplate_slug=(
+                    boilerplate.get("slug") if isinstance(boilerplate, dict) else None
+                ),
+                run_config=project.get("run_config") or project.get("runConfig") or {},
+                dependencies=deps if isinstance(deps, list) else [],
+                project_id=project_id,
             )
 
         published = False
@@ -214,11 +276,12 @@ def validate_project_dict(project: dict[str, Any]) -> list[str]:
     if tests_raw:
         report.findings.extend(validate_project_tests_json(tests_raw).findings)
     elif project.get("test_cases"):
-        import json
-
         report.findings.extend(
             validate_project_tests_json(json.dumps({"cases": project.get("test_cases")})).findings
         )
+    boilerplate = project.get("test_boilerplate") or project.get("testBoilerplate")
+    if isinstance(boilerplate, dict):
+        report.findings.extend(validate_test_boilerplate(boilerplate).findings)
     return [f"{f.level}: {f.message}" for f in report.findings]
 
 

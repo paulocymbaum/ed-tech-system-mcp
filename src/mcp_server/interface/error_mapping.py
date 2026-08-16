@@ -14,6 +14,7 @@ from mcp_server.domain.exceptions import (
     DomainError,
     DomainValidationError,
     ExternalRateLimitError,
+    ExternalServiceError,
     ResourceNotFoundError,
 )
 
@@ -25,6 +26,8 @@ def raise_as_mcp_error(error: DomainError) -> NoReturn:
     if isinstance(error, DomainValidationError):
         raise McpError(ErrorData(code=-32602, message=f"Invalid params: {error}")) from error
     if isinstance(error, ExternalRateLimitError):
+        raise ToolError(str(error)) from error
+    if isinstance(error, ExternalServiceError):
         raise ToolError(str(error)) from error
     if isinstance(error, DomainAuthorizationError):
         raise ToolError("Unauthorized") from error

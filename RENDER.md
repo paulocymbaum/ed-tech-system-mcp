@@ -1,6 +1,6 @@
 # Render deployment (Docker MCP)
 
-The **MCP server** deploys to **Render** as a **Docker Web Service**. The same image as local `docker compose` runs the full stack (`uv sync --extra full`, `mcp-server` on port 8000).
+The **MCP server** deploys to **Render** as a **Docker Web Service**. The Docker image uses `uv sync --frozen --no-dev --extra prod` (workflow + RAG **without** Chroma). Local Chroma fallback is extra `full` via `uv`, not the Render image.
 
 ---
 
@@ -128,9 +128,11 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 
 ## 5. Free tier caveats
 
-- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false` and `RERANK_ENABLED=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13).
+- **750 instance-hours / month** on the free plan. A process that stays awake 24/7 exhausts the quota in ~31 days. Sleep after ~15 min idle is expected, not an OOM.
+- **Liveness:** Render health check and CI post-deploy probe are **`GET /health` only**. Do **not** schedule `POST /mcp` (JSON-RPC `initialize` / `tools/list`) as a keep-alive — that prevents sleep and burns hours. Cursor and LMS clients connect on demand. CI pytest stays local; it must not add a cron against hosted `/mcp`.
+- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false` and `RERANK_ENABLED=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13). Capacity choice **A**: stay on 512Mi unless `/health` is 5xx/OOM on boot.
 - **Auth:** `/health` is public (Render probe). `/mcp` requires `Authorization: Bearer $MCP_INBOUND_TOKEN`. Privileged tools also require `X-EdHarness-Caller-Jwt` (learner/manager access token — never `service_role`). Set `MCP_INBOUND_TOKEN` in Doppler `dev` before deploy or boot fails closed (`MCP_REQUIRE_INBOUND_TOKEN=true`).
-- Service **sleeps after ~15 min idle** — first request after sleep can take 30–60+ seconds. Do not ping `/mcp` 24/7 or you will burn the 750 free instance-hours.
+- First request after sleep can take 30–60+ seconds. Retry `/health` once; do not hammer `/mcp`.
 
 ---
 

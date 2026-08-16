@@ -11,7 +11,7 @@ COPY pyproject.toml uv.lock ARCHITECTURE.md config.json ./
 COPY src ./src
 COPY scripts/ci/warm_embedding_cache.py ./scripts/ci/warm_embedding_cache.py
 
-RUN uv sync --frozen --no-dev --extra full
+RUN uv sync --frozen --no-dev --extra prod
 
 ENV EMBEDDING_CACHE_DIR=/app/model-cache/fastembed
 ENV HF_HOME=/tmp/hf

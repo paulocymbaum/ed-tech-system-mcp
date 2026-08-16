@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 
 import pytest
+
+from mcp_server.interface import privileged_tool_auth as privileged_mod
 
 from mcp_server.application.mcp_tool_auth_runtime import (
     McpToolAuthRuntime,
@@ -80,3 +83,10 @@ def test_set_runtime_can_disable_gate() -> None:
     set_mcp_tool_auth_runtime(McpToolAuthRuntime(require_caller_jwt=False, identity=None))
     runtime = McpToolAuthRuntime(require_caller_jwt=False, identity=None)
     assert runtime.require_caller_jwt is False
+
+
+def test_privileged_auth_offloads_sync_identity_to_thread() -> None:
+    source = inspect.getsource(privileged_mod._enforce_caller)
+    assert "asyncio.to_thread" in source
+    assert "user_id_from_jwt" in source
+    assert "is_tenant_member" in source

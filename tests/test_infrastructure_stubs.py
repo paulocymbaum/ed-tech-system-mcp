@@ -39,6 +39,30 @@ async def test_t26e_supabase_find_documents_rejects_missing_service_role_key() -
         await repo.find_documents("query")
 
 
+def test_youtube_client_reuses_discovery_resource(monkeypatch) -> None:
+    builds: list[object] = []
+
+    class _FakeYoutube:
+        def search(self):
+            return self
+
+        def list(self, **kwargs: object):
+            return self
+
+        def execute(self):
+            return {"items": []}
+
+    def fake_build(*args: object, **kwargs: object) -> _FakeYoutube:
+        builds.append((args, kwargs))
+        return _FakeYoutube()
+
+    monkeypatch.setattr("mcp_server.infrastructure.youtube_client.build", fake_build)
+    client = YouTubeDataApiClient("api-key")
+    client._search_videos_sync("q", 1, "en", True)
+    client._search_videos_sync("q2", 1, "en", True)
+    assert len(builds) == 1
+
+
 async def test_t27_youtube_search_videos_maps_api_results(monkeypatch) -> None:
     client = YouTubeDataApiClient("api-key")
 

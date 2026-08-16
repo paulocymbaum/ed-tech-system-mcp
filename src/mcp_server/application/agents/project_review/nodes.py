@@ -160,6 +160,8 @@ async def validate_grade(state: ProjectReviewState) -> dict[str, Any]:
 
 
 async def persist_grade(state: ProjectReviewState) -> dict[str, Any]:
+    if state.get("error"):
+        return {}
     context = state.get("context")
     score = state.get("score")
     comment = state.get("comment")

@@ -21,6 +21,7 @@ from mcp_server.application.workflow_config import (
     get_workflow_execution_config,
 )
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
+from mcp_server.domain.exceptions import ExternalServiceError
 from mcp_server.domain.project_review import ProjectReviewResult
 
 ProjectReviewGraph = CompiledStateGraph[
@@ -142,6 +143,11 @@ def result_from_state(state: ProjectReviewState) -> ProjectReviewResult:
     result = state.get("result")
     if result is not None:
         return result
+    err = str(state.get("error") or "")
+    if err.startswith("llm_failed") or err.startswith("parse_failed"):
+        raise ExternalServiceError("AI reviewer is temporarily unavailable")
+    if err in {"missing_grade", "missing_context"}:
+        raise ExternalServiceError("AI reviewer is temporarily unavailable")
     context = state.get("context")
     delivery_id = context.latest_delivery_id if context else ""
     score = int(state.get("score") or 0)

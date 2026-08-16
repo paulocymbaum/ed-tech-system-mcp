@@ -35,6 +35,9 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 | `validate_lesson` | none | Gate lesson README + meta |
 | `validate_quiz` | none | Gate quiz option slugs / `correctOptionId` |
 | `validate_project` | none | Gate PBL README + tests |
+| `validate_test_boilerplate` | none | Gate harness `{{LEARNER_CODE}}` + runner_kind |
+
+**E16 lockstep:** catalog project blobs (`stack`, `runConfig`, `testBoilerplate.body`, `runDependencies`) must keep `{{LEARNER_CODE}}`. MCP `validate_test_boilerplate` + `save_to_backend` stay aligned with PraxisWeb `INTEGRATION/CURRICULUM.md` and backend `get-course-catalog`.
 | `search_graph_nodes` | tenant | Topic graph placement (EF9 / RPC) |
 | `save_to_backend` | **manager** | Upsert lesson (+ quiz/project) via public RPCs |
 | `author_lesson_pipeline` | **manager** + tenant | search → generate → validate → save → publish note |

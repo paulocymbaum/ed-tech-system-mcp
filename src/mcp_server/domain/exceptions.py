@@ -21,5 +21,9 @@ class ExternalRateLimitError(DomainError):
     """Raised when outbound external API calls exceed the configured per-minute cap."""
 
 
+class ExternalServiceError(DomainError):
+    """Raised when an outbound model or API call fails closed to the caller."""
+
+
 class DomainAuthorizationError(DomainError):
     """Raised when a caller is missing or not allowed to invoke a privileged tool."""

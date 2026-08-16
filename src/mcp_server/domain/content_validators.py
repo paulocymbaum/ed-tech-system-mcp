@@ -438,3 +438,32 @@ def validate_mock_test_bundle(value: Any) -> ValidationReport:
             )
         )
     return report
+
+
+KNOWN_LESSON_STACKS = frozenset({"javascript", "typescript", "react", "cpp", "python"})
+KNOWN_RUNNER_KINDS = frozenset({"browser-js", "node", "pytest", "cpp-cli", "react-test"})
+
+
+def validate_test_boilerplate(value: Any) -> ValidationReport:
+    """Require LEARNER_CODE placeholder and a known runner_kind (E16.15)."""
+    report = ValidationReport()
+    if not isinstance(value, dict):
+        report.findings.append(ValidationFinding("error", "test_boilerplate must be an object"))
+        return report
+    body = value.get("body")
+    if not isinstance(body, str) or "{{LEARNER_CODE}}" not in body:
+        report.findings.append(
+            ValidationFinding("error", "test_boilerplate.body must contain {{LEARNER_CODE}}")
+        )
+    kind = value.get("runnerKind") or value.get("runner_kind")
+    if kind is not None and kind not in KNOWN_RUNNER_KINDS:
+        report.findings.append(
+            ValidationFinding(
+                "error",
+                f"unknown runner_kind `{kind}` (allowed: {', '.join(sorted(KNOWN_RUNNER_KINDS))})",
+            )
+        )
+    stack = value.get("stack")
+    if stack is not None and stack not in KNOWN_LESSON_STACKS:
+        report.findings.append(ValidationFinding("error", f"unknown stack `{stack}`"))
+    return report

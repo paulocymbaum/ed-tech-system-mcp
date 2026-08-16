@@ -23,6 +23,7 @@ from mcp_server.interface.custom_tools_authoring import (  # noqa: F401
     validate_mock_test,
     validate_project,
     validate_quiz,
+    validate_test_boilerplate_tool,
 )
 from mcp_server.interface.custom_tools_project_review import (  # noqa: F401
     collect_project_review_context,

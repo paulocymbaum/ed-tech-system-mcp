@@ -177,7 +177,13 @@ This creates `.venv/` beside `pyproject.toml` and installs exactly what is in `u
 For production-like installs (runtime only):
 
 ```bash
-uv sync --frozen --no-dev
+uv sync --frozen --no-dev --extra prod
+```
+
+Render/Docker uses extra **`prod`** (LangGraph + FastEmbed, **no** `chromadb`). Local Chroma fallback:
+
+```bash
+uv sync --frozen --all-groups --extra full
 ```
 
 | Flag | When to use |

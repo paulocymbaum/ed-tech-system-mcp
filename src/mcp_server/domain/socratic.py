@@ -80,10 +80,39 @@ def normalize_locale(value: str | None) -> LocaleCode:
     return "en"
 
 
+def tutor_turn_index(history: list[SocraticMessage] | None) -> int:
+    """1-based assistant turn about to be produced (empty history → turn 1)."""
+    if not history:
+        return 1
+    prior = 0
+    for message in history:
+        role = getattr(message, "role", None)
+        if role is None and isinstance(message, dict):
+            role = message.get("role")
+        if role == "assistant":
+            prior += 1
+    return prior + 1
+
+
+_FENCE_BLOCK = re.compile(r"```(?:[a-zA-Z0-9_+-]*)\n([\s\S]*?)```")
+_COMPLETE_FN = re.compile(
+    r"\b(function|def|class|const\s+\w+\s*=\s*\()",
+    re.I,
+)
+
+
+def _looks_complete_solution(body: str) -> bool:
+    lines = [line for line in body.splitlines() if line.strip()]
+    if len(lines) < 4:
+        return False
+    return bool(_COMPLETE_FN.search(body)) and bool(re.search(r"\breturn\b", body, re.I))
+
+
 def validate_socratic_reply(
     reply: str,
     *,
     asked_full_solution: bool = False,
+    turn_index: int = 1,
 ) -> dict[str, Any]:
     """Enforce tutor policies: no grading, short turns, questions-first bias."""
     errors: list[str] = []
@@ -102,8 +131,15 @@ def validate_socratic_reply(
             break
 
     if not asked_full_solution:
-        if re.search(r"```[\s\S]{400,}```", text):
-            errors.append("Full solution code dump blocked unless user asked.")
+        for fence in _FENCE_BLOCK.finditer(text):
+            body = fence.group(1)
+            if len(body) >= 400:
+                errors.append("Full solution code dump blocked unless user asked.")
+                break
+            if turn_index <= 1 and _looks_complete_solution(body):
+                errors.append("Full solution code dump blocked unless user asked.")
+                break
+
         question_marks = text.count("?")
         if question_marks < 1:
             warnings.append("Prefer ending with at least one Socratic question.")
