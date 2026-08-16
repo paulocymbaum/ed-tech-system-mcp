@@ -239,6 +239,7 @@ async def author_lesson_pipeline(
         quiz=harness_quiz,
         project=harness_project,
         publish=publish,
+        strict_project_readme_sections=False,
     )
     return AuthorLessonPipelineResponse(
         graph_hits=graph_hits,

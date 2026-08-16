@@ -171,6 +171,7 @@ class AuthoringService:
         project: dict[str, Any] | None = None,
         publish: bool = False,
         skip_validation: bool = False,
+        strict_project_readme_sections: bool = True,
     ) -> SaveLessonResult:
         readme, meta = harness_lesson_fields(lesson)
         project_readme = None
@@ -193,6 +194,7 @@ class AuthoringService:
                 quiz=quiz,
                 project_readme=project_readme,
                 project_tests_json=project_tests,
+                strict_project_readme_sections=strict_project_readme_sections,
             )
             if not report.ok:
                 messages = [f"{f.level}: {f.message}" for f in report.errors]

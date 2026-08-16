@@ -333,6 +333,7 @@ def validate_lesson_bundle(
     quiz: Any | None = None,
     project_readme: str | None = None,
     project_tests_json: str | None = None,
+    strict_project_readme_sections: bool = True,
 ) -> ValidationReport:
     """Validate lesson README + meta (+ optional nested quiz/project)."""
     report = ValidationReport()
@@ -344,7 +345,10 @@ def validate_lesson_bundle(
         quiz_report = validate_quiz_payload(quiz)
         report.findings.extend(quiz_report.findings)
     if project_readme is not None:
-        readme_report = validate_project_readme(project_readme)
+        readme_report = validate_project_readme(
+            project_readme,
+            required_sections_as_errors=strict_project_readme_sections,
+        )
         report.findings.extend(readme_report.findings)
     if project_tests_json is not None:
         tests_report = validate_project_tests_json(project_tests_json)
