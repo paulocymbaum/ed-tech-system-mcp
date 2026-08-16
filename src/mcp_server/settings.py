@@ -30,6 +30,11 @@ class Settings(BaseSettings):
         alias="LLM_ROUTER_DEBOUNCE_SECONDS",
         ge=0.0,
     )
+    llm_router_max_fallbacks: int = Field(
+        default=1,
+        alias="LLM_ROUTER_MAX_FALLBACKS",
+        ge=0,
+    )
     external_request_limit_per_minute: int = Field(
         default=60,
         alias="EXTERNAL_REQUEST_LIMIT_PER_MINUTE",

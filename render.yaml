@@ -42,3 +42,7 @@ services:
         sync: false
       - key: MCP_INBOUND_TOKEN
         sync: false
+      - key: CACHE_ENABLED
+        sync: false
+      - key: REDIS_URL
+        sync: false

@@ -122,6 +122,8 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 
 **Do not** enable Redis caching for `vector.retrieve`, `supabase.find_documents`, or `embedding.query` on this service — `wiring.py` keeps those rules disabled regardless of `CACHE_ENABLED`.
 
+**Do** set `CACHE_ENABLED=true` and `REDIS_URL` (managed Redis, not localhost) on staging/production for LLM completions, YouTube, Tavily, and MCP tool responses. Provision Redis in the Render dashboard or Doppler `stg`/`prd`, then sync. The process warns at boot if those are missing; it does not fail closed.
+
 ---
 
 ## 5. Free tier caveats

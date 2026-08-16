@@ -298,6 +298,8 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = Field(default=None, alias="GROQ_API_KEY")
     llm_model: str = Field(default="llama-3.3-70b-versatile", alias="LLM_MODEL")
     llm_temperature: float = Field(default=0.0, alias="LLM_TEMPERATURE", ge=0.0, le=2.0)
+    llm_router_debounce_seconds: float = Field(default=0.1, alias="LLM_ROUTER_DEBOUNCE_SECONDS")
+    llm_router_max_fallbacks: int = Field(default=1, alias="LLM_ROUTER_MAX_FALLBACKS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     # Redis cache (Infrastructure) — optional; degrades when disabled or unavailable
@@ -336,9 +338,11 @@ In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), e
 
 | Variable | Production value | Notes |
 | :--- | :--- | :--- |
-| `CACHE_ENABLED` | `true` | Optional; enables Redis for LLM / integration ports (not RAG chunks) |
-| `REDIS_URL` | Managed Redis endpoint | Prefer a single URL (e.g. `redis://:password@host:6379/0`) |
-| `REDIS_HOST` / `REDIS_PORT` | Fallback when `REDIS_URL` unset | Use only when your platform injects host/port separately |
+| `CACHE_ENABLED` | `true` | **Required** in staging/production. Enables Redis for LLM / YouTube / web / MCP tool I/O (not RAG chunks). Python default remains `false` for local and CI. |
+| `REDIS_URL` | Managed Redis endpoint | **Required** with `CACHE_ENABLED` in staging/production. Prefer a single URL (e.g. `redis://:password@host:6379/0`). Do not rely on localhost. |
+| `REDIS_HOST` / `REDIS_PORT` | Fallback when `REDIS_URL` unset | Use only when your platform injects a **non-localhost** host/port separately |
+
+Boot logs a warning (does not crash) when `APP_ENV` is `staging` or `production` and cache is off or Redis is still the localhost fallback.
 
 **Deployment checklist (Doppler / secrets manager):**
 
@@ -516,8 +520,10 @@ YOUTUBE_API_KEY=
 GROQ_API_KEY=
 LLM_MODEL=llama-3.3-70b-versatile
 LLM_TEMPERATURE=0
+# LLM_ROUTER_DEBOUNCE_SECONDS=0.1
+# LLM_ROUTER_MAX_FALLBACKS=1
 
-# Redis cache (Infrastructure — optional; disabled by default)
+# Redis cache (Infrastructure — local default off; required true in staging/production)
 CACHE_ENABLED=false
 # Prefer REDIS_URL when available:
 # REDIS_URL=redis://localhost:6379/0

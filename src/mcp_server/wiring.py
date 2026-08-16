@@ -103,6 +103,9 @@ _runtime_cache_store: ICacheStore | None = None
 _wired_llm_router: LLMRouter | None = None
 _wired_external_rate_limiter: IExternalRequestRateLimiter | None = None
 
+_PRODUCTION_LIKE_APP_ENVS = frozenset({"staging", "production"})
+_LOCAL_REDIS_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
 
 @dataclass(frozen=True)
 class ApplicationContext:
@@ -123,6 +126,36 @@ def resolve_redis_url(settings: Settings) -> str | None:
     )
     auth = f":{password}@" if password else ""
     return f"redis://{auth}{settings.redis_host}:{settings.redis_port}/0"
+
+
+def production_cache_misconfigured_message(settings: Settings) -> str | None:
+    """Return a warning when staging/production lacks Redis cache for LLM/integration I/O."""
+    env = settings.app_env.strip().lower()
+    if env not in _PRODUCTION_LIKE_APP_ENVS:
+        return None
+    explicit_url = bool(settings.redis_url and settings.redis_url.strip())
+    remote_host = settings.redis_host.strip().lower() not in _LOCAL_REDIS_HOSTS
+    redis_configured = explicit_url or remote_host
+    if not settings.cache_enabled:
+        return (
+            f"APP_ENV={settings.app_env} requires CACHE_ENABLED=true and REDIS_URL for LLM, "
+            "YouTube, web search, and MCP tool cache (RAG Redis stays disabled). "
+            "Continuing without cache."
+        )
+    if not redis_configured:
+        return (
+            f"CACHE_ENABLED=true in APP_ENV={settings.app_env} but REDIS_URL is unset "
+            "(localhost Redis fallback is not a production endpoint). "
+            "Set REDIS_URL to the managed Redis URL. Continuing."
+        )
+    return None
+
+
+def warn_if_production_cache_misconfigured(settings: Settings) -> None:
+    """Log when staging/production is missing the required Redis cache configuration."""
+    message = production_cache_misconfigured_message(settings)
+    if message is not None:
+        logging.getLogger(__name__).warning(message)
 
 
 def create_cache_store(settings: Settings) -> ICacheStore:
@@ -355,6 +388,7 @@ def build_llm_router(settings: Settings) -> LLMRouter:
         model_builder=_build_groq_model,
         default_complexity=LLMComplexity(settings.llm_complexity),
         external_rate_limiter=rate_limiter,
+        max_fallbacks=settings.llm_router_max_fallbacks,
     )
     router.refresh_registry()
     register_groq_language_models(registry.list_records())
@@ -455,6 +489,7 @@ def initialize_application_runtime(
     from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
 
     settings.assert_inbound_token_if_required()
+    warn_if_production_cache_misconfigured(settings)
 
     set_token_counter(TiktokenTokenCounter())
     cache_store = create_cache_store(settings)

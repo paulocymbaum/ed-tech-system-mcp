@@ -307,7 +307,9 @@ load_settings() → load_operational_config()
 
 **Purpose:** Reduce cost and latency for **repeatable, safe-to-stale** operations while keeping **retrieval freshness** on the backend.
 
-### Redis cache-aside (optional, `CACHE_ENABLED`)
+### Redis cache-aside (`CACHE_ENABLED`)
+
+Local and CI keep `CACHE_ENABLED=false`. Staging and production should set `CACHE_ENABLED=true` plus `REDIS_URL`. RAG retrieve/embed operations stay uncached in Redis regardless.
 
 | Operation | Cached? | Default TTL |
 | :--- | :--- | :--- |

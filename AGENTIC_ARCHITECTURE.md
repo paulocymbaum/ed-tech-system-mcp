@@ -125,7 +125,7 @@ Orchestration, agents, LangChain tools, and conditional parameter construction.
 | `integration_runtime.py` | Lazy accessors for `ISearchClient` and `IVideoSearchClient` (Tavily / YouTube) |
 | `workflow_trace.py` | `invoke_graph_with_trace()` — per-node replay for local UI |
 | `workflow_llm_trace.py` | Captures LLM prompts, raw output, and model name per node |
-| `llm.py` / `llm_router.py` | `create_chat_model()`, Groq `LLMRouter` with complexity tiers and model fallback |
+| `llm.py` / `llm_router.py` | `create_chat_model()`, Groq `LLMRouter` with per-complexity debounce and capped model fallback |
 | `workflow_graph.py` | Graph introspection DTOs, spine layout, async/retry edge classification for UI |
 | `agents/*/` | One package per LangGraph workflow (`content_generation`, `research_article`, `tavily_search`, `youtube_search`) |
 | `langchain_tools.py` *(planned)* | `@tool` wrappers: `search_web`, `search_youtube`, `find_documents`, `run_sql_read` |
@@ -452,8 +452,8 @@ UI: POST /api/workflows/content-generation/run { topic, grade_level? }
   → ContentGenerationRunResponse (lesson, quiz, pbl, retry counts, trace)
 ```
 
-- **LLM:** Groq via `RoutingChatModel` → `LLMRouter` with complexity tiers and **automatic model fallback** on provider failure.
-- **Validation retries:** configurable via `config.json` `node_retries`; failed Pydantic/JSON parses loop back to `generate_*` nodes.
+- **LLM:** Groq via `RoutingChatModel` → `LLMRouter` with complexity tiers, **per-complexity debounce**, and **capped fallback** (`LLM_ROUTER_MAX_FALLBACKS`, default one extra model) on provider failure.
+- **Validation retries:** `config.json` `validation_retries` (separate from provider `node_retries`); failed Pydantic/JSON parses loop back to `generate_*` nodes.
 - **Trace:** each LLM node records `llm_io` (system/user prompts, raw output, `model_name`, `llm_complexity`) via `workflow_llm_trace`.
 
 ### J. Semantic RAG retrieval (Phase A — shipped)
@@ -526,7 +526,7 @@ All four local UI workflows are covered by pytest and pass in CI (`206 passed`).
 | Tavily + YouTube integrations | `tavily-search`, `youtube-search`, `research-article` UI runs |
 | Parallel async tool trace | `research-article` replay shows `tool_search_tavily` and `tool_search_youtube` as separate steps |
 | Validation retries | `content-generation` with bad LLM output — see `tests/test_workflow_trace.py` |
-| Groq model fallback | `LLMRouter` falls back on provider failure — see `tests/test_llm.py::test_llm14_router_falls_back_on_provider_failure` |
+| Groq model fallback | `LLMRouter` tries one extra model by default — `test_llm14_router_falls_back_on_provider_failure`, `test_llm14b_router_caps_fallback_attempts` |
 
 **Note:** Fallback and retry paths do not appear in the UI unless a node actually fails. Clean runs show all-green traces. To exercise fallbacks locally, use the scripted tests above or temporarily misconfigure a model tier in tests.
 
@@ -686,7 +686,7 @@ ed-tech-system-mcp/
         │   ├── workflow_llm_trace.py    # ✅ LLM prompt/output capture per node
         │   ├── workflow_graph.py        # ✅ Graph introspection + UI layout (async edges)
         │   ├── workflow_config.py       # ✅ WorkflowExecutionConfig runtime view
-        │   ├── llm_router.py            # ✅ Groq model fallback + complexity routing
+        │   ├── llm_router.py            # ✅ Groq capped fallback + per-complexity debounce
         │   ├── routing_chat_model.py    # ✅ LangChain adapter over LLMRouter
         │   ├── llm_models.py            # ✅ Groq model registry from catalog
         │   ├── workflows.py             # ✅ DocumentVideoWorkflow use-case orchestrator
@@ -818,9 +818,9 @@ See [Agent file structure](#agent-file-structure) for the full tree. Status snap
 | `application/retrieval_runtime.py` | ✅ | Lazy RAG port accessors |
 | `application/workflow_trace.py` | ✅ | UI execution trace collection |
 | `application/workflow_llm_trace.py` | ✅ | Per-node LLM I/O for observability |
-| `application/workflows.py` | ✅ | `DocumentVideoWorkflow`; BL-010 parallel I/O |
+| `application/workflows.py` | ✅ | `DocumentVideoWorkflow`; sequential document-then-video I/O |
 | `application/workflow_graph.py` | ✅ | UI layout, async/retry edge kinds |
-| `application/llm_router.py` | ✅ | Groq fallback + complexity routing |
+| `application/llm_router.py` | ✅ | Groq capped fallback + per-complexity debounce |
 | `application/langchain_tools.py` | 📋 | LangChain `@tool` wrappers |
 | `interface/custom_tools.py` | ✅ | MCP: `health_check`, `find_documents`, `search_youtube`, `run_workflow` |
 | `interface/validation.py` | ✅ | MCP DTOs + all local UI run/trace models |

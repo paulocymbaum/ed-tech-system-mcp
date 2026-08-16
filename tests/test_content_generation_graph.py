@@ -150,10 +150,12 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
 
 
 class NoOpDebounceGate(ILLMDebounceGate):
-    def acquire_sync(self) -> None:
+    def acquire_sync(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        del complexity
         return
 
-    async def acquire(self) -> None:
+    async def acquire(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        del complexity
         return
 
 
