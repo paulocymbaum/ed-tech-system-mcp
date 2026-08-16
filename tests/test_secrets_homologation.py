@@ -45,6 +45,8 @@ OPTIONAL_SECRET_NAMES = frozenset(
         "REDIS_PASSWORD",
         "LLM_MODEL",
         "LLM_TEMPERATURE",
+        "LLM_ROUTER_DEBOUNCE_SECONDS",
+        "LLM_ROUTER_MAX_FALLBACKS",
     }
 )
 

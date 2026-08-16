@@ -32,6 +32,14 @@ OPTIONAL_RUNTIME_KEYS=(
   HF_HOME
   XDG_CACHE_HOME
   GROQ_MODEL_CATALOG_CACHE_PATH
+  RERANK_ENABLED
+  MCP_HOST_ORIGIN_PROTECTION
+  MCP_ALLOWED_HOSTS
+  MCP_REQUIRE_INBOUND_TOKEN
+  MCP_REQUIRE_CALLER_JWT
+  MCP_INBOUND_TOKEN
+  CACHE_ENABLED
+  REDIS_URL
 )
 
 declare -A RUNTIME_DEFAULTS=(
@@ -47,6 +55,11 @@ declare -A RUNTIME_DEFAULTS=(
   [HF_HOME]="/tmp/hf"
   [XDG_CACHE_HOME]="/tmp"
   [GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"
+  [RERANK_ENABLED]="false"
+  [MCP_HOST_ORIGIN_PROTECTION]="true"
+  [MCP_ALLOWED_HOSTS]="ed-tech-system-mcp.onrender.com"
+  [MCP_REQUIRE_INBOUND_TOKEN]="true"
+  [MCP_REQUIRE_CALLER_JWT]="true"
 )
 
 if ! command -v doppler >/dev/null 2>&1; then
@@ -117,6 +130,16 @@ else
   fi
   RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]="${RUNTIME_DEFAULTS[EMBEDDING_WARM_ON_BOOT]}"
 fi
+
+# Keep the second ONNX model off on free Render (512Mi).
+if [[ "${FORCE_RERANK_ENABLED:-}" == "true" ]]; then
+  RUNTIME_VALUES[RERANK_ENABLED]="true"
+  echo "→ FORCE_RERANK_ENABLED=true (larger Render plan required)"
+else
+  RUNTIME_VALUES[RERANK_ENABLED]="false"
+fi
+
+RUNTIME_VALUES["LOG_LEVEL"]="INFO"
 
 RUNTIME_VALUES["APP_ENV"]="production"
 

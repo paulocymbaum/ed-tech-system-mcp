@@ -22,6 +22,8 @@ def test_dockerfile_uses_python312_and_mcp_server_cmd() -> None:
     assert 'CMD ["mcp-server"]' in content
     assert "MCP_TRANSPORT=streamable-http" in content
     assert "MCP_HOST=0.0.0.0" in content
+    assert "uv sync --frozen --no-dev --extra prod" in content
+    assert "--extra full" not in content
 
 
 def test_dockerfile_sets_writable_cache_paths() -> None:

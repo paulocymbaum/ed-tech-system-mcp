@@ -82,6 +82,12 @@ def test_t16_document_query_request_validation() -> None:
         DocumentQueryRequest(query="x", video_limit=26)
 
 
+def test_t16b_document_query_request_accepts_course_id() -> None:
+    request = DocumentQueryRequest(query="arrays", course_id="javascript")
+    assert request.course_id == "javascript"
+    assert request.tenant_id is None
+
+
 def test_t17_workflow_run_request_validation() -> None:
     with pytest.raises(ValidationError):
         WorkflowRunRequest(query="")

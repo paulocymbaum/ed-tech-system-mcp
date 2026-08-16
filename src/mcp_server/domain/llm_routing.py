@@ -201,15 +201,15 @@ class IGroqModelRegistry(ABC):
 
 
 class ILLMDebounceGate(ABC):
-    """Port that spaces outbound LLM provider calls."""
+    """Port that spaces outbound LLM provider calls per complexity tier."""
 
     @abstractmethod
-    def acquire_sync(self) -> None:
-        """Block until a new provider call is allowed (sync callers)."""
+    def acquire_sync(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        """Block until a new provider call is allowed for this complexity (sync)."""
 
     @abstractmethod
-    async def acquire(self) -> None:
-        """Wait until a new provider call is allowed (async callers)."""
+    async def acquire(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        """Wait until a new provider call is allowed for this complexity (async)."""
 
 
 def token_limit_deactivation_until(*, now: datetime | None = None) -> datetime:

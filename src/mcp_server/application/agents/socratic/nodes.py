@@ -19,6 +19,7 @@ from mcp_server.domain.socratic import (
     SocraticCatalogPort,
     SocraticReply,
     normalize_locale,
+    tutor_turn_index,
     validate_socratic_reply,
 )
 
@@ -123,7 +124,11 @@ async def validate_reply(state: SocraticTutorState) -> dict[str, Any]:
     want_full = bool(state.get("want_full_solution"))
     if not reply:
         return {"validation_errors": ["missing_reply"], "reply_retry_count": retries}
-    check = validate_socratic_reply(reply, asked_full_solution=want_full)
+    check = validate_socratic_reply(
+        reply,
+        asked_full_solution=want_full,
+        turn_index=tutor_turn_index(state.get("history")),
+    )
     if not check["ok"]:
         return {
             "validation_errors": list(check["errors"]),

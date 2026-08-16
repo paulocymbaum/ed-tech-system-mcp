@@ -98,9 +98,13 @@ _CACHE_STORE_REQUIRED_MSG = (
     "cache store is required when CACHE_ENABLED=true; "
     "pass the shared store from initialize_application_runtime()"
 )
+_runtime_cache_store: ICacheStore | None = None
 
 _wired_llm_router: LLMRouter | None = None
 _wired_external_rate_limiter: IExternalRequestRateLimiter | None = None
+
+_PRODUCTION_LIKE_APP_ENVS = frozenset({"staging", "production"})
+_LOCAL_REDIS_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 @dataclass(frozen=True)
@@ -122,6 +126,36 @@ def resolve_redis_url(settings: Settings) -> str | None:
     )
     auth = f":{password}@" if password else ""
     return f"redis://{auth}{settings.redis_host}:{settings.redis_port}/0"
+
+
+def production_cache_misconfigured_message(settings: Settings) -> str | None:
+    """Return a warning when staging/production lacks Redis cache for LLM/integration I/O."""
+    env = settings.app_env.strip().lower()
+    if env not in _PRODUCTION_LIKE_APP_ENVS:
+        return None
+    explicit_url = bool(settings.redis_url and settings.redis_url.strip())
+    remote_host = settings.redis_host.strip().lower() not in _LOCAL_REDIS_HOSTS
+    redis_configured = explicit_url or remote_host
+    if not settings.cache_enabled:
+        return (
+            f"APP_ENV={settings.app_env} requires CACHE_ENABLED=true and REDIS_URL for LLM, "
+            "YouTube, web search, and MCP tool cache (RAG Redis stays disabled). "
+            "Continuing without cache."
+        )
+    if not redis_configured:
+        return (
+            f"CACHE_ENABLED=true in APP_ENV={settings.app_env} but REDIS_URL is unset "
+            "(localhost Redis fallback is not a production endpoint). "
+            "Set REDIS_URL to the managed Redis URL. Continuing."
+        )
+    return None
+
+
+def warn_if_production_cache_misconfigured(settings: Settings) -> None:
+    """Log when staging/production is missing the required Redis cache configuration."""
+    message = production_cache_misconfigured_message(settings)
+    if message is not None:
+        logging.getLogger(__name__).warning(message)
 
 
 def create_cache_store(settings: Settings) -> ICacheStore:
@@ -221,10 +255,15 @@ def build_chunking_strategy(_settings: Settings) -> IChunkingStrategy:
 
 
 def warm_embedding_provider_on_boot(settings: Settings, cache_store: ICacheStore) -> None:
-    """Pre-load the embedding ONNX model when ``EMBEDDING_WARM_ON_BOOT`` is enabled."""
+    """Pre-load the embedding ONNX model used by retrieval (same lazy singleton)."""
+    del cache_store
     if not settings.embedding_warm_on_boot:
         return
-    provider = build_embedding_provider(settings, cache_store)
+    from mcp_server.application.retrieval_runtime import get_embedding_provider
+
+    provider = get_embedding_provider()
+    if provider is None:
+        return
     try:
         asyncio.run(provider.embed_queries(["warmup"]))
     except Exception as exc:
@@ -307,6 +346,7 @@ def build_workflow_execution_config(
         node_retries=operational.node_retries,
         workflow_timeout_seconds=operational.workflow_timeout,
         agent_node_timeout_seconds=operational.agent_node_timeout,
+        validation_retries=operational.validation_retries,
     )
 
 
@@ -348,6 +388,7 @@ def build_llm_router(settings: Settings) -> LLMRouter:
         model_builder=_build_groq_model,
         default_complexity=LLMComplexity(settings.llm_complexity),
         external_rate_limiter=rate_limiter,
+        max_fallbacks=settings.llm_router_max_fallbacks,
     )
     router.refresh_registry()
     register_groq_language_models(registry.list_records())
@@ -427,6 +468,7 @@ def initialize_application_runtime(
     settings: Settings | None = None,
 ) -> ApplicationContext:
     """Initialize application-layer runtime config and wired dependencies."""
+    global _runtime_cache_store
     config = build_workflow_execution_config(operational)
     set_workflow_execution_config(config)
     if settings is None:
@@ -436,6 +478,7 @@ def initialize_application_runtime(
         configure_lazy_integration_clients(None)
         configure_lazy_retrieval_clients(None)
         set_mcp_tool_cache(None)
+        _runtime_cache_store = cache_store
         return ApplicationContext(
             workflow_execution_config=config,
             cache_store=cache_store,
@@ -444,6 +487,9 @@ def initialize_application_runtime(
         )
 
     from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
+
+    settings.assert_inbound_token_if_required()
+    warn_if_production_cache_misconfigured(settings)
 
     set_token_counter(TiktokenTokenCounter())
     cache_store = create_cache_store(settings)
@@ -484,6 +530,57 @@ def initialize_application_runtime(
         SocraticCatalogRepository(settings.supabase_url, settings.supabase_service_role_key)
     )
 
+    from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClientFactory
+    from mcp_server.infrastructure.graph_search_repository import GraphSearchRepository
+    from mcp_server.interface.custom_tools_authoring import register_authoring_tools
+
+    anon = (
+        settings.supabase_anon_key.get_secret_value()
+        if settings.supabase_anon_key is not None
+        else None
+    )
+    register_authoring_tools(
+        graph_search=GraphSearchRepository(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        ),
+        backend_factory=AuthoringBackendClientFactory(
+            settings.supabase_url,
+            anon_key=anon,
+        ),
+    )
+
+    from mcp_server.application.mcp_tool_auth_runtime import (
+        McpToolAuthRuntime,
+        set_mcp_tool_auth_runtime,
+    )
+    from mcp_server.infrastructure.caller_identity_adapter import SupabaseCallerIdentityAdapter
+    from mcp_server.interface.mcp_server import mcp
+
+    inbound = settings.inbound_token_value()
+    if inbound:
+        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+        mcp.auth = StaticTokenVerifier(
+            tokens={inbound: {"client_id": "ed-tech-bff", "scopes": ["mcp"]}},
+            required_scopes=["mcp"],
+        )
+    else:
+        mcp.auth = None
+    identity = None
+    if settings.mcp_require_caller_jwt:
+        identity = SupabaseCallerIdentityAdapter(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        )
+    set_mcp_tool_auth_runtime(
+        McpToolAuthRuntime(
+            require_caller_jwt=settings.mcp_require_caller_jwt,
+            identity=identity,
+        )
+    )
+
+    _runtime_cache_store = cache_store
     return ApplicationContext(
         workflow_execution_config=config,
         cache_store=cache_store,
@@ -567,3 +664,18 @@ register_vector_retriever_builder(_lazy_build_vector_retriever)
 register_vector_index_writer_builder(_lazy_build_vector_index_writer)
 register_reranker_builder(_lazy_build_reranker)
 register_chunking_strategy_builder(_lazy_build_chunking_strategy)
+
+
+def shutdown_application_runtime_sync() -> None:
+    """Close Redis (if wired). Safe from atexit when no event loop is running."""
+    store = _runtime_cache_store
+    closer = getattr(store, "close", None)
+    if closer is None:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(closer())
+        return
+    loop.create_task(closer())
+

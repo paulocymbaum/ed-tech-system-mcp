@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from mcp_server.application.agent import workflow_timeout_seconds
-from mcp_server.application.agents.content_generation.graph import (
-    get_content_generation_graph,
-    initial_content_generation_state,
-)
+from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     initial_research_article_state,
 )
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
+from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation_workflow import (
@@ -19,7 +15,6 @@ from mcp_server.interface.validation_workflow import (
     ContentGenerationRunResponse,
     ResearchArticleRunRequest,
     ResearchArticleRunResponse,
-    content_generation_state_to_run_response,
     research_article_state_to_run_response,
 )
 
@@ -33,28 +28,19 @@ async def _invoke_research_article(
         max_web_results=request.max_web_results,
         max_video_results=request.max_video_results,
     )
-    result, trace = await invoke_graph_with_trace(
-        graph,
-        state,
-        timeout_seconds=workflow_timeout_seconds(),
-    )
-    return research_article_state_to_run_response(result, trace=trace)
+    result = await ainvoke_with_workflow_timeout(graph, state)
+    return research_article_state_to_run_response(result)
 
 
 async def _invoke_content_generation(
     request: ContentGenerationRunRequest,
 ) -> ContentGenerationRunResponse:
-    graph = get_content_generation_graph()
-    state = initial_content_generation_state(
-        request.topic,
-        grade_level=request.grade_level,
-    )
-    result, trace = await invoke_graph_with_trace(
-        graph,
-        state,
-        timeout_seconds=workflow_timeout_seconds(),
-    )
-    return content_generation_state_to_run_response(result, trace=trace)
+    from mcp_server.interface.custom_tools_authoring import _require_graph_search
+
+    graph_search = None
+    if request.tenant_id and request.course_slug:
+        graph_search = _require_graph_search()
+    return await invoke_content_generation(request, graph_search=graph_search)
 
 
 @mcp.tool
@@ -81,11 +67,23 @@ async def research_article(
 async def content_generation(
     topic: str,
     grade_level: str = "6th grade",
+    tenant_id: str | None = None,
+    course_slug: str | None = None,
+    module_id: str | None = None,
+    lesson_slug: str | None = None,
+    graph_node_id: str | None = None,
+    graph_query: str | None = None,
 ) -> ContentGenerationRunResponse:
-    """Generate a structured lesson, quiz, and problem-based learning project."""
+    """Generate lesson, quiz, and PBL. Pass tenant_id+course_slug for graph-scoped output."""
     request = ContentGenerationRunRequest(
         topic=topic,
         grade_level=grade_level,
+        tenant_id=tenant_id,
+        course_slug=course_slug,
+        module_id=module_id,
+        lesson_slug=lesson_slug,
+        graph_node_id=graph_node_id,
+        graph_query=graph_query,
     )
     args = request.model_dump()
     return await _cached_tool_invoke(

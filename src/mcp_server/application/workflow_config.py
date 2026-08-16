@@ -25,6 +25,7 @@ class WorkflowExecutionConfig:
     node_retries: int
     workflow_timeout_seconds: float
     agent_node_timeout_seconds: float
+    validation_retries: int = 1
 
 
 def _default_workflow_execution_config() -> WorkflowExecutionConfig:
@@ -34,6 +35,7 @@ def _default_workflow_execution_config() -> WorkflowExecutionConfig:
         node_retries=operational.node_retries,
         workflow_timeout_seconds=operational.workflow_timeout,
         agent_node_timeout_seconds=operational.agent_node_timeout,
+        validation_retries=operational.validation_retries,
     )
 
 

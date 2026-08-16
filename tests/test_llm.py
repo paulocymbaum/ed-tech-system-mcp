@@ -223,10 +223,12 @@ class InMemoryGroqModelRegistry(IGroqModelRegistry):
 
 
 class NoOpDebounceGate(ILLMDebounceGate):
-    def acquire_sync(self) -> None:
+    def acquire_sync(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        del complexity
         return
 
-    async def acquire(self) -> None:
+    async def acquire(self, complexity: LLMComplexity = LLMComplexity.MEDIUM) -> None:
+        del complexity
         return
 
 
@@ -745,6 +747,7 @@ def test_llm12_default_workflow_execution_config_matches_config_json() -> None:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
 
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.node_retries == raw["node_retries"]
+    assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.validation_retries == raw["validation_retries"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.workflow_timeout_seconds == raw["workflow_timeout"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.agent_node_timeout_seconds == raw["agent_node_timeout"]
 
@@ -912,6 +915,86 @@ def test_llm17b_debounce_gate_spaces_sync_calls() -> None:
     gate.acquire_sync()
     elapsed = time.monotonic() - start
     assert elapsed >= 0.04
+
+
+async def test_llm17c_debounce_gate_isolates_complexity_tiers() -> None:
+    import time
+
+    gate = IntervalLLMDebounceGate(0.08)
+
+    async def ping_twice(complexity: LLMComplexity) -> None:
+        await gate.acquire(complexity)
+        await gate.acquire(complexity)
+
+    start = time.monotonic()
+    await asyncio.gather(
+        ping_twice(LLMComplexity.LOW),
+        ping_twice(LLMComplexity.HIGH),
+    )
+    elapsed = time.monotonic() - start
+    assert elapsed >= 0.07
+    assert elapsed < 0.20
+
+
+def test_llm14b_router_caps_fallback_attempts() -> None:
+    calls: list[str] = []
+
+    class CountingFailModel(BaseChatModel):
+        model_id: str
+
+        @property
+        def _llm_type(self) -> str:
+            return "counting-fail-stub"
+
+        def _generate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            calls.append(self.model_id)
+            if self.model_id != "ok-model":
+                raise RuntimeError(f"fail {self.model_id}")
+            return ChatResult(
+                generations=[ChatGeneration(message=AIMessage(content=self.model_id))]
+            )
+
+        async def _agenerate(
+            self,
+            messages: list[BaseMessage],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> ChatResult:
+            return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    def builder(api_key: SecretStr, model_id: str, temperature: float) -> BaseChatModel:
+        _ = api_key, temperature
+        return CountingFailModel(model_id=model_id)
+
+    registry = InMemoryGroqModelRegistry(
+        ["fail-a", "fail-b", "ok-model"],
+        complexity_by_id={
+            "fail-a": frozenset({2}),
+            "fail-b": frozenset({2}),
+            "ok-model": frozenset({2}),
+        },
+    )
+    router = LLMRouter(
+        api_key=SecretStr("test"),
+        temperature=0.0,
+        registry=registry,
+        debounce_gate=NoOpDebounceGate(),
+        model_builder=builder,
+        default_complexity=LLMComplexity.MEDIUM,
+        max_fallbacks=1,
+    )
+
+    with pytest.raises(RuntimeError, match="fail fail-b"):
+        router.generate([HumanMessage(content="hello")])
+
+    assert calls == ["fail-a", "fail-b"]
 
 
 def test_llm18_groq_registry_loads_active_models_with_complexity() -> None:

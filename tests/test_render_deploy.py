@@ -72,6 +72,11 @@ def test_render_yaml_sets_writable_embedding_cache_dir() -> None:
     }
     assert env_vars["EMBEDDING_CACHE_DIR"] == "/app/model-cache/fastembed"
     assert env_vars["EMBEDDING_WARM_ON_BOOT"] == "false"
+    assert env_vars["RERANK_ENABLED"] == "false"
+    assert env_vars["LOG_LEVEL"] == "INFO"
+    assert env_vars["MCP_REQUIRE_INBOUND_TOKEN"] == "true"
+    assert env_vars["MCP_REQUIRE_CALLER_JWT"] == "true"
+    assert env_vars["MCP_ALLOWED_HOSTS"] == "ed-tech-system-mcp.onrender.com"
     assert env_vars["HF_HOME"] == "/tmp/hf"
     assert env_vars["XDG_CACHE_HOME"] == "/tmp"
     assert env_vars["GROQ_MODEL_CATALOG_CACHE_PATH"] == "/tmp/app-cache/groq_model_catalog.json"

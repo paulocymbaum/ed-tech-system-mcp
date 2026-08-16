@@ -40,6 +40,7 @@ from mcp_server.wiring import (
     build_mcp_tool_cache,
     create_cache_store,
     initialize_application_runtime,
+    production_cache_misconfigured_message,
     resolve_redis_url,
 )
 
@@ -398,6 +399,59 @@ def test_c08_create_cache_store_returns_noop_when_disabled(monkeypatch: pytest.M
 
     settings = load_settings()
     assert type(create_cache_store(settings)).__name__ == "NoOpCacheStore"
+
+
+def _settings_with_cache_env(monkeypatch: pytest.MonkeyPatch, **env: str):
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    return load_settings()
+
+
+def test_c08b_production_cache_warns_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings_with_cache_env(
+        monkeypatch,
+        APP_ENV="production",
+        CACHE_ENABLED="false",
+    )
+    message = production_cache_misconfigured_message(settings)
+    assert message is not None
+    assert "CACHE_ENABLED=true" in message
+
+
+def test_c08c_production_cache_warns_when_redis_is_localhost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    settings = _settings_with_cache_env(
+        monkeypatch,
+        APP_ENV="staging",
+        CACHE_ENABLED="true",
+        REDIS_HOST="localhost",
+    )
+    message = production_cache_misconfigured_message(settings)
+    assert message is not None
+    assert "REDIS_URL" in message
+
+
+def test_c08d_production_cache_ok_with_redis_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings_with_cache_env(
+        monkeypatch,
+        APP_ENV="production",
+        CACHE_ENABLED="true",
+        REDIS_URL="redis://cache.example:6379/0",
+    )
+    assert production_cache_misconfigured_message(settings) is None
+
+
+def test_c08e_development_cache_off_is_not_a_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings_with_cache_env(
+        monkeypatch,
+        APP_ENV="development",
+        CACHE_ENABLED="false",
+    )
+    assert production_cache_misconfigured_message(settings) is None
 
 
 def test_c09_build_cache_rule_set_applies_ttl_override(monkeypatch: pytest.MonkeyPatch) -> None:

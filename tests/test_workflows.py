@@ -109,19 +109,17 @@ async def test_t19_workflow_returns_documents_and_videos_tuple() -> None:
     assert result[1] == vids
 
 
-async def test_t19b_parallel_io_when_no_documents() -> None:
-    class ParallelTracker:
+async def test_t19b_video_search_waits_for_documents() -> None:
+    class SequentialTracker:
         def __init__(self) -> None:
-            self.doc_started = False
             self.doc_finished = False
-            self.video_started_before_doc_finished = False
+            self.video_started_after_doc = False
 
-    tracker = ParallelTracker()
+    tracker = SequentialTracker()
 
     class TrackingRepository(IDataRepository):
         async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
-            tracker.doc_started = True
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.02)
             tracker.doc_finished = True
             return []
 
@@ -133,15 +131,14 @@ async def test_t19b_parallel_io_when_no_documents() -> None:
             language: str = "en",
             safe_search: bool = True,
         ) -> list[VideoResult]:
-            if tracker.doc_started and not tracker.doc_finished:
-                tracker.video_started_before_doc_finished = True
+            tracker.video_started_after_doc = tracker.doc_finished
             return []
 
     workflow = DocumentVideoWorkflow(TrackingRepository(), TrackingVideoClient())
 
     await workflow.retrieve_with_videos("plants")
 
-    assert tracker.video_started_before_doc_finished is True
+    assert tracker.video_started_after_doc is True
 
 
 async def test_t19c_sequential_video_refetch_when_document_title_differs() -> None:
@@ -180,3 +177,21 @@ async def test_t19d_skips_second_video_fetch_when_title_matches_query() -> None:
 
     assert client.call_count == 1
     assert client.last_query == "plants"
+
+
+async def test_t19e_fetch_documents_passes_course_id_filter() -> None:
+    captured: list[object] = []
+
+    class FilterCaptureRepository(IDataRepository):
+        async def find_documents(self, query: str, limit: int = 10, *, filters=None) -> list[DocumentHit]:
+            captured.append(filters)
+            return []
+
+    repo = FilterCaptureRepository()
+    workflow = DocumentVideoWorkflow(repo, FakeVideoClient([]))
+
+    await workflow.fetch_documents("arrays", 5, course_id="javascript")
+
+    assert captured[0] is not None
+    assert captured[0].course_id == "javascript"  # type: ignore[union-attr]
+    assert captured[0].tenant_id is None  # type: ignore[union-attr]

@@ -91,6 +91,7 @@ src/
 | **`duckduckgo-search`** (or `tavily-python`) | Open-source web search integration for real-time information retrieval. | Infrastructure |
 | **`google-api-python-client`** | YouTube Data API v3 client for searching educational videos by topic, channel, or document-derived keywords. | Infrastructure |
 | **`python-dotenv`** | Managing environment variables (Supabase URL/Keys, API keys). | Entrypoint |
+| **`chromadb`** (`full` extra only) | Local vector fallback. Render/prod image uses extra `prod` (FastEmbed + splitters, no Chroma). | Infrastructure (lazy import when `VECTOR_STORE_BACKEND=chroma`) |
 
 ---
 

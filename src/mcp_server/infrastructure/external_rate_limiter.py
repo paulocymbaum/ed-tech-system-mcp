@@ -25,7 +25,14 @@ class SlidingWindowExternalRequestRateLimiter(IExternalRequestRateLimiter):
         self._window_seconds = window_seconds
         self._timestamps: deque[float] = deque()
         self._sync_lock = threading.Lock()
-        self._async_lock = asyncio.Lock()
+        self._async_lock: asyncio.Lock | None = None
+
+    def _ensure_async_lock(self) -> asyncio.Lock:
+        if self._async_lock is None:
+            with self._sync_lock:
+                if self._async_lock is None:
+                    self._async_lock = asyncio.Lock()
+        return self._async_lock
 
     def acquire_sync(self, *, provider: str) -> None:
         del provider
@@ -34,7 +41,7 @@ class SlidingWindowExternalRequestRateLimiter(IExternalRequestRateLimiter):
 
     async def acquire(self, *, provider: str) -> None:
         del provider
-        async with self._async_lock:
+        async with self._ensure_async_lock():
             self._reserve_or_raise()
 
     def _reserve_or_raise(self) -> None:

@@ -21,6 +21,7 @@ class DocumentQueryRequest(BaseModel):
     document_limit: int = Field(default=10, ge=1, le=50)
     video_limit: int = Field(default=5, ge=1, le=25)
     tenant_id: str | None = Field(default=None, min_length=36, max_length=36)
+    course_id: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("query")
     @classmethod

@@ -91,7 +91,7 @@ Store values in Doppler config **`dev`**; never commit `.env`.
 | Cached on MCP server | Not cached on MCP server |
 | :--- | :--- |
 | ONNX model **weights** (`EMBEDDING_CACHE_DIR`, image bake) | RAG **chunks** / document hits |
-| LLM completions, YouTube, web search (Redis, when `CACHE_ENABLED=true`) | Query embedding vectors in Redis |
+| LLM completions, YouTube, web search (Redis; required when `APP_ENV` is staging/production) | Query embedding vectors in Redis |
 | MCP tool I/O (Redis, when enabled) | Chunk retrieval results — backend (Supabase) owns this |
 
 ---

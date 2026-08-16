@@ -164,11 +164,25 @@ def initial_content_generation_state(
     topic: str,
     *,
     grade_level: str = "6th grade",
+    tenant_id: str | None = None,
+    course_slug: str | None = None,
+    module_id: str | None = None,
+    lesson_slug: str | None = None,
+    graph_node_id: str | None = None,
+    graph_hits: list | None = None,
 ) -> ContentGenerationState:
     """Build the initial graph state for content generation."""
+    graph_scoped = bool(tenant_id and course_slug)
     return ContentGenerationState(
         topic=topic,
         grade_level=grade_level,
+        graph_scoped=graph_scoped,
+        tenant_id=tenant_id,
+        course_slug=course_slug,
+        module_id=module_id,
+        lesson_slug=lesson_slug,
+        graph_node_id=graph_node_id,
+        graph_hits=graph_hits or [],
         lesson_retry_count=0,
         quiz_retry_count=0,
         pbl_retry_count=0,

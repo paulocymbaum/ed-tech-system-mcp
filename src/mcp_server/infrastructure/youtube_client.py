@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+from typing import Any
 
+import httplib2  # type: ignore[import-untyped]
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -16,12 +19,29 @@ from mcp_server.domain.invariants import (
 )
 from mcp_server.domain.schemas import VideoResult
 
+_YOUTUBE_HTTP_TIMEOUT_SECONDS = 20.0
+
 
 class YouTubeDataApiClient(IVideoSearchClient):
     """Adapter for YouTube Data API v3."""
 
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
+        self._lock = threading.Lock()
+        self._youtube: Any = None
+
+    def _youtube_resource(self) -> Any:
+        with self._lock:
+            if self._youtube is None:
+                http = httplib2.Http(timeout=_YOUTUBE_HTTP_TIMEOUT_SECONDS)
+                self._youtube = build(
+                    "youtube",
+                    "v3",
+                    developerKey=self._api_key,
+                    cache_discovery=False,
+                    http=http,
+                )
+            return self._youtube
 
     async def search_videos(
         self,
@@ -54,7 +74,7 @@ class YouTubeDataApiClient(IVideoSearchClient):
         language: str,
         safe_search: bool,
     ) -> list[VideoResult]:
-        youtube = build("youtube", "v3", developerKey=self._api_key, cache_discovery=False)
+        youtube = self._youtube_resource()
         response = (
             youtube.search()
             .list(

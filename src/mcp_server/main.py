@@ -1,9 +1,9 @@
 """Entrypoint — transport initialization and environment bootstrap."""
 
 import logging
-import os
 import sys
 
+from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.env_bootstrap import bootstrap_environment
 from mcp_server.interface.custom_tools import (  # noqa: F401
     find_documents,
@@ -14,17 +14,27 @@ from mcp_server.interface.custom_tools_agent_workflows import (  # noqa: F401
     content_generation,
     research_article,
 )
+from mcp_server.interface.custom_tools_authoring import (  # noqa: F401
+    author_lesson_pipeline,
+    generate_mock_test_structure,
+    save_to_backend,
+    search_graph_nodes,
+    validate_lesson,
+    validate_mock_test,
+    validate_project,
+    validate_quiz,
+    validate_test_boilerplate_tool,
+)
 from mcp_server.interface.custom_tools_project_review import (  # noqa: F401
     collect_project_review_context,
     project_review,
 )
 from mcp_server.interface.custom_tools_socratic import socratic_tutor  # noqa: F401
 from mcp_server.interface.custom_tools_workflow import run_workflow  # noqa: F401
-from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.interface.mcp_server import create_mcp_server
 from mcp_server.operational_config import load_operational_config
 from mcp_server.settings import Settings, load_settings
-from mcp_server.wiring import initialize_application_runtime
+from mcp_server.wiring import initialize_application_runtime, shutdown_application_runtime_sync
 
 
 def configure_logging(settings: Settings) -> None:
@@ -66,5 +76,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"Startup failed: {exc}", file=sys.stderr)
+        print(f"Startup failed: {type(exc).__name__}", file=sys.stderr)
         sys.exit(1)
+    finally:
+        shutdown_application_runtime_sync()

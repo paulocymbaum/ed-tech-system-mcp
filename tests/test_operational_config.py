@@ -29,7 +29,8 @@ def _reset_runtime_config() -> None:
 
 def test_o01_load_operational_config_from_repo_root() -> None:
     config = load_operational_config()
-    assert config.node_retries == 3
+    assert config.node_retries == 1
+    assert config.validation_retries == 1
     assert config.workflow_timeout == 300
     assert config.agent_node_timeout == 60
 
@@ -110,6 +111,7 @@ def test_o09_build_workflow_execution_config_maps_field_names() -> None:
     )
     runtime = build_workflow_execution_config(operational)
     assert runtime.node_retries == 4
+    assert runtime.validation_retries == 1
     assert runtime.workflow_timeout_seconds == 180.5
     assert runtime.agent_node_timeout_seconds == 45.25
 

@@ -139,10 +139,24 @@ class ContentGenerationRunRequest(BaseModel):
 
     topic: str = Field(min_length=1)
     grade_level: str = Field(default="6th grade", min_length=1)
+    tenant_id: str | None = Field(default=None, min_length=36, max_length=36)
+    course_slug: str | None = Field(default=None, min_length=1)
+    module_id: str | None = Field(default=None, min_length=36, max_length=36)
+    lesson_slug: str | None = Field(default=None, min_length=1)
+    graph_node_id: str | None = Field(default=None, min_length=36, max_length=36)
+    graph_query: str | None = Field(default=None, min_length=1)
 
-    @field_validator("topic", "grade_level")
+    @field_validator(
+        "topic",
+        "grade_level",
+        "course_slug",
+        "lesson_slug",
+        "graph_query",
+    )
     @classmethod
-    def validate_user_text(cls, value: str) -> str:
+    def validate_user_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         return require_safe_user_text(value, field="text")
 
 
@@ -151,13 +165,21 @@ class ContentGenerationRunResponse(BaseModel):
 
     topic: str
     grade_level: str
+    graph_scoped: bool = False
+    tenant_id: str | None = None
+    course_slug: str | None = None
+    graph_node_id: str | None = None
+    graph_hits: list[dict[str, Any]] = Field(default_factory=list)
     generation_complete: bool
     lesson_retry_count: int = Field(ge=0)
     quiz_retry_count: int = Field(ge=0)
     pbl_retry_count: int = Field(ge=0)
-    lesson: LessonDraft | None = None
-    quiz: QuizDraft | None = None
-    pbl: PBLDraft | None = None
+    lesson: LessonDraft | dict[str, Any] | None = None
+    quiz: QuizDraft | dict[str, Any] | None = None
+    pbl: PBLDraft | dict[str, Any] | None = None
+    harness_lesson: dict[str, Any] | None = None
+    harness_quiz: dict[str, Any] | None = None
+    harness_project: dict[str, Any] | None = None
     lesson_validation_errors: list[str] = Field(default_factory=list)
     quiz_validation_errors: list[str] = Field(default_factory=list)
     pbl_validation_errors: list[str] = Field(default_factory=list)
@@ -362,9 +384,23 @@ def content_generation_state_to_run_response(
     trace: list[WorkflowTraceStep] | None = None,
 ) -> ContentGenerationRunResponse:
     """Map a content-generation graph state to the local UI workflow response."""
+    harness_lesson = state.get("harness_lesson")
+    harness_quiz = state.get("harness_quiz")
+    harness_project = state.get("harness_project")
+    graph_hits_raw = state.get("graph_hits") or []
+    graph_hits = [
+        hit.model_dump() if hasattr(hit, "model_dump") else dict(hit)
+        for hit in graph_hits_raw
+        if hit is not None
+    ]
     return ContentGenerationRunResponse(
         topic=state["topic"],
         grade_level=state["grade_level"],
+        graph_scoped=bool(state.get("graph_scoped")),
+        tenant_id=state.get("tenant_id"),
+        course_slug=state.get("course_slug"),
+        graph_node_id=state.get("graph_node_id"),
+        graph_hits=graph_hits,
         generation_complete=state.get("generation_complete", False),
         lesson_retry_count=state.get("lesson_retry_count", 0),
         quiz_retry_count=state.get("quiz_retry_count", 0),
@@ -372,6 +408,9 @@ def content_generation_state_to_run_response(
         lesson=state.get("lesson"),
         quiz=state.get("quiz"),
         pbl=state.get("pbl"),
+        harness_lesson=harness_lesson.model_dump() if hasattr(harness_lesson, "model_dump") else None,
+        harness_quiz=harness_quiz.model_dump(by_alias=True) if hasattr(harness_quiz, "model_dump") else None,
+        harness_project=harness_project.model_dump() if hasattr(harness_project, "model_dump") else None,
         lesson_validation_errors=state.get("lesson_validation_errors", []),
         quiz_validation_errors=state.get("quiz_validation_errors", []),
         pbl_validation_errors=state.get("pbl_validation_errors", []),

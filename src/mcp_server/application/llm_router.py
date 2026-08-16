@@ -20,8 +20,6 @@ from mcp_server.domain.llm_routing import (
 
 GroqChatModelBuilder = Callable[[SecretStr, str, float], BaseChatModel]
 
-TOKEN_LIMIT_COOLDOWN_SECONDS = 3 * 60 * 60
-
 
 def is_token_limit_error(exc: BaseException) -> bool:
     """Return whether an exception indicates a provider token/context limit."""
@@ -55,17 +53,20 @@ class LLMRouter:
         debounce_gate: ILLMDebounceGate,
         model_builder: GroqChatModelBuilder,
         default_complexity: LLMComplexity = LLMComplexity.MEDIUM,
-        token_limit_cooldown_seconds: float = TOKEN_LIMIT_COOLDOWN_SECONDS,
         external_rate_limiter: IExternalRequestRateLimiter | None = None,
+        max_fallbacks: int = 1,
     ) -> None:
+        if max_fallbacks < 0:
+            msg = "max_fallbacks must be non-negative"
+            raise ValueError(msg)
         self._api_key = api_key
         self._temperature = temperature
         self._registry = registry
         self._debounce_gate = debounce_gate
         self._model_builder = model_builder
         self._default_complexity = default_complexity
-        self._token_limit_cooldown_seconds = token_limit_cooldown_seconds
         self._external_rate_limiter = external_rate_limiter
+        self._max_fallbacks = max_fallbacks
         self._model_cache: dict[str, BaseChatModel] = {}
         self._last_used_model_id: str | None = None
 
@@ -111,6 +112,18 @@ class LLMRouter:
 
         return fallback_chain
 
+    def _routed_model_ids(
+        self,
+        complexity: LLMComplexity,
+        *,
+        preferred_model_id: str | None,
+    ) -> list[str]:
+        candidates = self.candidate_model_ids(
+            complexity,
+            preferred_model_id=preferred_model_id,
+        )
+        return candidates[: self._max_fallbacks + 1]
+
     def generate(
         self,
         messages: list[BaseMessage],
@@ -123,11 +136,11 @@ class LLMRouter:
     ) -> ChatResult:
         if self._external_rate_limiter is not None:
             self._external_rate_limiter.acquire_sync(provider="llm")
-        self._debounce_gate.acquire_sync()
         resolved_complexity = complexity or self._default_complexity
+        self._debounce_gate.acquire_sync(resolved_complexity)
         last_error: BaseException | None = None
 
-        for model_id in self.candidate_model_ids(
+        for model_id in self._routed_model_ids(
             resolved_complexity,
             preferred_model_id=preferred_model_id,
         ):
@@ -167,11 +180,11 @@ class LLMRouter:
     ) -> ChatResult:
         if self._external_rate_limiter is not None:
             await self._external_rate_limiter.acquire(provider="llm")
-        await self._debounce_gate.acquire()
         resolved_complexity = complexity or self._default_complexity
+        await self._debounce_gate.acquire(resolved_complexity)
         last_error: BaseException | None = None
 
-        for model_id in self.candidate_model_ids(
+        for model_id in self._routed_model_ids(
             resolved_complexity,
             preferred_model_id=preferred_model_id,
         ):
