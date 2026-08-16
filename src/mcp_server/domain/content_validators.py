@@ -209,7 +209,9 @@ def validate_quiz_payload(value: Any, *, file_label: str = "") -> ValidationRepo
     return report
 
 
-def validate_project_readme(markdown: str) -> ValidationReport:
+def validate_project_readme(
+    markdown: str, *, required_sections_as_errors: bool = True
+) -> ValidationReport:
     """Validate project README.md (PraxisWeb project-contract.mjs)."""
     report = ValidationReport()
     if not markdown.strip():
@@ -217,9 +219,14 @@ def validate_project_readme(markdown: str) -> ValidationReport:
         return report
     if not re.search(r"^#\s+.+", markdown, re.MULTILINE):
         report.findings.append(ValidationFinding("error", "Missing top-level # title"))
+    section_level = "error" if required_sections_as_errors else "warn"
     for section in REQUIRED_PBL_SECTIONS:
         if not _has_section(markdown, section):
-            report.findings.append(ValidationFinding("error", f"Missing section: ## {section}"))
+            # Author pipeline passes required_sections_as_errors=False so LLM first
+            # drafts can still save; standalone validate_project stays strict.
+            report.findings.append(
+                ValidationFinding(section_level, f"Missing section: ## {section}")
+            )
     if not _has_section(markdown, "Example data"):
         report.findings.append(
             ValidationFinding("warn", "Missing optional section: ## Example data (if applicable)")

@@ -218,7 +218,9 @@ async def author_lesson_pipeline(
     if harness_quiz:
         findings.extend(validate_quiz_dict(harness_quiz))
     if harness_project:
-        findings.extend(validate_project_dict(harness_project))
+        findings.extend(
+            validate_project_dict(harness_project, strict_readme_sections=False)
+        )
     if any(f.startswith("error:") for f in findings):
         return AuthorLessonPipelineResponse(
             graph_hits=graph_hits,

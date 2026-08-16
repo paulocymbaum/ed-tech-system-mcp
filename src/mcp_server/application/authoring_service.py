@@ -145,8 +145,14 @@ def harness_lesson_fields(
     if isinstance(lesson, HarnessLessonDraft):
         return lesson.readme_markdown, lesson.meta.model_dump(by_alias=True)
     readme = lesson.get("readme_markdown") or lesson.get("readmeMarkdown") or ""
-    meta = lesson.get("meta") or {}
-    return str(readme), meta if isinstance(meta, dict) else {}
+    meta_raw = lesson.get("meta") or {}
+    meta = dict(meta_raw) if isinstance(meta_raw, dict) else {}
+    # Validators + upsert expect camelCase graph keys (aliases).
+    if meta.get("graphIndex") is None and meta.get("graph_index") is not None:
+        meta["graphIndex"] = meta["graph_index"]
+    if meta.get("graphNodeId") is None and meta.get("graph_node_id") is not None:
+        meta["graphNodeId"] = meta["graph_node_id"]
+    return str(readme), meta
 
 
 class AuthoringService:
@@ -265,9 +271,13 @@ def validate_quiz_dict(quiz: dict[str, Any]) -> list[str]:
     return [f"{f.level}: {f.message}" for f in report.findings]
 
 
-def validate_project_dict(project: dict[str, Any]) -> list[str]:
+def validate_project_dict(
+    project: dict[str, Any], *, strict_readme_sections: bool = True
+) -> list[str]:
     readme = project.get("readme_markdown") or project.get("readmeMarkdown") or ""
-    report = validate_project_readme(readme)
+    report = validate_project_readme(
+        readme, required_sections_as_errors=strict_readme_sections
+    )
     tests_raw = ""
     for item in project.get("files") or []:
         if isinstance(item, dict) and item.get("path") == "starter/tests.json":

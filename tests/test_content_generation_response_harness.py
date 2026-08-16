@@ -86,5 +86,10 @@ def test_graph_scoped_harness_drafts_coerce_to_response() -> None:
     assert isinstance(response.pbl, dict)
     assert isinstance(response.harness_lesson, dict)
     assert response.harness_lesson["meta"]["title"] == "Variables"
+    # Validators + FE expect camelCase graph keys (aliases), not snake_case fields.
+    assert response.harness_lesson["meta"]["graphIndex"] == "1.2.3"
+    assert response.harness_lesson["meta"]["graphNodeId"] == "11111111-1111-1111-1111-111111111111"
+    assert "graph_index" not in response.harness_lesson["meta"]
     assert response.harness_quiz is not None
+    assert response.harness_quiz["questions"][0]["correctOptionId"] == "a"
     assert response.harness_project is not None
