@@ -5,10 +5,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
 import urllib.request
+
+
+def _mcp_headers() -> dict[str, str]:
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    inbound = os.environ.get("MCP_INBOUND_TOKEN", "").strip()
+    if inbound:
+        headers["Authorization"] = f"Bearer {inbound}"
+    caller = os.environ.get("MCP_SMOKE_CALLER_JWT", "").strip()
+    if caller:
+        headers["X-EdHarness-Caller-Jwt"] = caller.removeprefix("Bearer ").strip()
+    return headers
 
 
 def _post_json(url: str, payload: dict[str, object], *, timeout: float) -> dict[str, object]:
@@ -16,10 +31,7 @@ def _post_json(url: str, payload: dict[str, object], *, timeout: float) -> dict[
     request = urllib.request.Request(
         url,
         data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
-        },
+        headers=_mcp_headers(),
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -83,6 +95,12 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("PASS /health")
 
+        inbound = os.environ.get("MCP_INBOUND_TOKEN", "").strip()
+        if not inbound:
+            print("SKIP tools/list (set MCP_INBOUND_TOKEN for /mcp checks)")
+            print("All MCP smoke checks passed.")
+            return 0
+
         tools_payload = _post_json(
             f"{base_url}/mcp",
             {"jsonrpc": "2.0", "id": "tools/list", "method": "tools/list", "params": {}},
@@ -95,6 +113,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"FAIL tools/list: missing {required}", file=sys.stderr)
                 return 1
         print("PASS tools/list")
+
+        if not os.environ.get("MCP_SMOKE_CALLER_JWT", "").strip():
+            print("SKIP find_documents / run_workflow (set MCP_SMOKE_CALLER_JWT)")
+            print("All MCP smoke checks passed.")
+            return 0
 
         find_result = _call_tool(
             base_url,

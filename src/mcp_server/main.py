@@ -76,5 +76,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"Startup failed: {exc}", file=sys.stderr)
+        print(f"Startup failed: {type(exc).__name__}", file=sys.stderr)
         sys.exit(1)

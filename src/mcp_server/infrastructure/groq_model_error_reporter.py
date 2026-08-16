@@ -40,9 +40,8 @@ class GroqModelErrorReporter:
                 )
                 if response.status_code >= 400:
                     logger.warning(
-                        "report-groq-model-errors failed status=%s body=%s",
+                        "report-groq-model-errors failed status=%s",
                         response.status_code,
-                        response.text[:200],
                     )
         except Exception:  # noqa: BLE001 — never fail the grader on telemetry
             logger.exception("report-groq-model-errors request failed")

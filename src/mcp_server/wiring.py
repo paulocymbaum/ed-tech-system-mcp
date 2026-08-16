@@ -445,6 +445,8 @@ def initialize_application_runtime(
 
     from mcp_server.infrastructure.token_counting.tiktoken_counter import TiktokenTokenCounter
 
+    settings.assert_inbound_token_if_required()
+
     set_token_counter(TiktokenTokenCounter())
     cache_store = create_cache_store(settings)
     configure_lazy_chat_model(settings, cache_store)
@@ -502,6 +504,36 @@ def initialize_application_runtime(
             settings.supabase_url,
             anon_key=anon,
         ),
+    )
+
+    from mcp_server.application.mcp_tool_auth_runtime import (
+        McpToolAuthRuntime,
+        set_mcp_tool_auth_runtime,
+    )
+    from mcp_server.infrastructure.caller_identity_adapter import SupabaseCallerIdentityAdapter
+    from mcp_server.interface.mcp_server import mcp
+
+    inbound = settings.inbound_token_value()
+    if inbound:
+        from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+        mcp.auth = StaticTokenVerifier(
+            tokens={inbound: {"client_id": "ed-tech-bff", "scopes": ["mcp"]}},
+            required_scopes=["mcp"],
+        )
+    else:
+        mcp.auth = None
+    identity = None
+    if settings.mcp_require_caller_jwt:
+        identity = SupabaseCallerIdentityAdapter(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        )
+    set_mcp_tool_auth_runtime(
+        McpToolAuthRuntime(
+            require_caller_jwt=settings.mcp_require_caller_jwt,
+            identity=identity,
+        )
     )
 
     return ApplicationContext(

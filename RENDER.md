@@ -126,9 +126,9 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 
 ## 5. Free tier caveats
 
-- Service **sleeps after ~15 min idle** — first request after sleep can take 30–60+ seconds.
-- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13).
-- Docker builds can take 5–15 minutes on first deploy.
+- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false` and `RERANK_ENABLED=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13).
+- **Auth:** `/health` is public (Render probe). `/mcp` requires `Authorization: Bearer $MCP_INBOUND_TOKEN`. Privileged tools also require `X-EdHarness-Caller-Jwt` (learner/manager access token — never `service_role`). Set `MCP_INBOUND_TOKEN` in Doppler `dev` before deploy or boot fails closed (`MCP_REQUIRE_INBOUND_TOKEN=true`).
+- Service **sleeps after ~15 min idle** — first request after sleep can take 30–60+ seconds. Do not ping `/mcp` 24/7 or you will burn the 750 free instance-hours.
 
 ---
 
@@ -151,3 +151,6 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 - Never commit `.env` or token values
 - App secrets: Doppler **`dev`** only (synced to Render by script when enabled)
 - Deploy hook URL: Doppler **`github_ci`** → GitHub Secrets only
+- `MCP_INBOUND_TOKEN` is the only credential allowed in the MCP `Authorization` header (BFF → MCP)
+- Learner JWTs travel in `X-EdHarness-Caller-Jwt` so they are not JSON-RPC tool arguments and are not logged
+- `LOG_LEVEL=INFO` on Render; do not dump `Settings`, JWTs, or HTTP bodies

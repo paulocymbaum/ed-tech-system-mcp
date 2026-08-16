@@ -19,3 +19,7 @@ class DomainValidationError(DomainError):
 
 class ExternalRateLimitError(DomainError):
     """Raised when outbound external API calls exceed the configured per-minute cap."""
+
+
+class DomainAuthorizationError(DomainError):
+    """Raised when a caller is missing or not allowed to invoke a privileged tool."""

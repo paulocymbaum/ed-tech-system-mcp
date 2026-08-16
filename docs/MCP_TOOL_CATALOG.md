@@ -4,6 +4,8 @@ Agent-facing catalog for **ed-tech-system-mcp** (Streamable HTTP `/mcp`).
 Staging host: `https://ed-tech-system-mcp.onrender.com`  
 LMS browsers must use backend Pattern C BFFs — never call MCP with secrets from the SPA.
 
+**Hosted `/mcp` is not a public API.** The BFF sends `Authorization: Bearer $MCP_INBOUND_TOKEN` plus `X-EdHarness-Caller-Jwt` (the signed-in user). Direct browser or anonymous `tools/call` is rejected.
+
 **SoR companions:** backend `MCP_INTEGRATION.md` · `INTEGRATION/` · `API_ENDPOINTS.md`  
 **Authoring playbook:** [`AUTHOR_PUBLISH_PLAYBOOK.md`](./AUTHOR_PUBLISH_PLAYBOOK.md)
 
@@ -13,10 +15,10 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 
 | Class | Meaning |
 |-------|---------|
-| **none** | No tenant/user token required |
-| **tenant** | Pass `tenant_id` (and often course/module/lesson slugs) |
-| **user** | Learner/manager access token used by BFF or MCP host (Pattern C) |
-| **manager** | Tool arg `manager_jwt` must be a **manager+ user** access token — not the service role |
+| **none** | Health only (`/health` HTTP and `health_check` behind inbound token) |
+| **inbound** | Shared `MCP_INBOUND_TOKEN` on HTTP `/mcp` (BFF or operator) |
+| **caller JWT** | Header `X-EdHarness-Caller-Jwt` — verified Auth user; must match `user_id` / `manager_jwt`; must be a tenant member when `tenant_id` is present |
+| **manager** | Tool arg `manager_jwt` must equal the caller JWT and be a **manager+ user** access token — not the service role |
 
 ---
 

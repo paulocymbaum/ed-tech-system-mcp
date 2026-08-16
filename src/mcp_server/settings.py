@@ -47,6 +47,12 @@ class Settings(BaseSettings):
         alias="MCP_HOST_ORIGIN_PROTECTION",
     )
     mcp_allowed_hosts: str = Field(default="", alias="MCP_ALLOWED_HOSTS")
+    mcp_inbound_token: SecretStr | None = Field(default=None, alias="MCP_INBOUND_TOKEN")
+    mcp_require_inbound_token: bool = Field(
+        default=False,
+        alias="MCP_REQUIRE_INBOUND_TOKEN",
+    )
+    mcp_require_caller_jwt: bool = Field(default=False, alias="MCP_REQUIRE_CALLER_JWT")
     workflow_api_host: str = Field(default="0.0.0.0", alias="WORKFLOW_API_HOST", min_length=1)
     workflow_api_port: int = Field(default=8877, alias="WORKFLOW_API_PORT", gt=0, le=65535)
     workflow_ui_cors_origins: str = Field(default="", alias="WORKFLOW_UI_CORS_ORIGINS")
@@ -155,6 +161,16 @@ class Settings(BaseSettings):
         default="document_chunks",
         alias="CHROMA_COLLECTION_NAME",
     )
+
+    def inbound_token_value(self) -> str:
+        if self.mcp_inbound_token is None:
+            return ""
+        return self.mcp_inbound_token.get_secret_value().strip()
+
+    def assert_inbound_token_if_required(self) -> None:
+        if self.mcp_require_inbound_token and not self.inbound_token_value():
+            msg = "MCP_INBOUND_TOKEN is required when MCP_REQUIRE_INBOUND_TOKEN=true"
+            raise RuntimeError(msg)
 
 
 def load_settings() -> Settings:
