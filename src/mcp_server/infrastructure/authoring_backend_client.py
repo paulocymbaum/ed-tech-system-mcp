@@ -33,14 +33,20 @@ class AuthoringBackendClient(AuthoringBackendPort):
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        self._http: httpx.AsyncClient | None = None
+
+    async def _client(self) -> httpx.AsyncClient:
+        if self._http is None or self._http.is_closed:
+            self._http = httpx.AsyncClient(timeout=60.0)
+        return self._http
 
     async def _post_rpc(self, name: str, body: dict[str, Any]) -> Any:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self._rpc_base}/{name}",
-                headers=self._headers,
-                json=body,
-            )
+        client = await self._client()
+        response = await client.post(
+            f"{self._rpc_base}/{name}",
+            headers=self._headers,
+            json=body,
+        )
         if response.status_code >= 400:
             detail = response.text[:500]
             msg = f"RPC {name} failed ({response.status_code}): {detail}"

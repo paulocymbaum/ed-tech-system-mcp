@@ -10,6 +10,7 @@ memory; keys are recreated on demand.
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -23,14 +24,27 @@ class CacheAsideCoordinator:
     """Per-key singleflight locks for cache-aside miss coalescing."""
 
     def __init__(self, *, max_locks: int = 1024) -> None:
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
         self._max_locks = max_locks
+
+    def _evict_idle(self) -> None:
+        if len(self._locks) < self._max_locks:
+            return
+        for key, lock in list(self._locks.items()):
+            if not lock.locked():
+                self._locks.pop(key, None)
+            if len(self._locks) < self._max_locks:
+                return
 
     @asynccontextmanager
     async def singleflight(self, key: str) -> AsyncIterator[None]:
-        if len(self._locks) >= self._max_locks:
-            self._locks.clear()
-        lock = self._locks.setdefault(key, asyncio.Lock())
+        self._evict_idle()
+        lock = self._locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._locks[key] = lock
+        else:
+            self._locks.move_to_end(key)
         try:
             async with lock:
                 yield

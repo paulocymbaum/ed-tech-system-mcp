@@ -10,13 +10,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.socratic.graph import (
     get_socratic_tutor_graph,
     initial_socratic_tutor_state,
     result_from_state,
 )
-from mcp_server.application.agent import workflow_timeout_seconds
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.socratic import (
     SocraticGrounding,
     SocraticMessage,
@@ -39,7 +38,7 @@ class SocraticTutorRequest(BaseModel):
     module_slug: str | None = None
     lesson_slug: str | None = None
     project_slug: str | None = None
-    history: list[SocraticHistoryItem] = Field(default_factory=list)
+    history: list[SocraticHistoryItem] = Field(default_factory=list, max_length=20)
     hint_level: int = Field(default=1, ge=1, le=5)
     locale: str = "en"
     want_full_solution: bool = False
@@ -95,18 +94,14 @@ async def socratic_tutor(
             project_slug=request.project_slug,
             history=[
                 SocraticMessage(role=h.role, content=h.content)  # type: ignore[arg-type]
-                for h in request.history
+                for h in request.history[-6:]
             ],
             hint_level=request.hint_level,
             locale=normalize_locale(request.locale),
             want_full_solution=request.want_full_solution,
             grounding=parsed_grounding,
         )
-        result_state, _trace = await invoke_graph_with_trace(
-            graph,
-            state,
-            timeout_seconds=workflow_timeout_seconds(),
-        )
+        result_state = await ainvoke_with_workflow_timeout(graph, state)
         return result_from_state(result_state)
 
     return await _cached_tool_invoke("socratic_tutor", args, _run)

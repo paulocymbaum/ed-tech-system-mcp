@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from mcp_server.application.content_generation_runner import invoke_content_generation
-from mcp_server.application.agent import workflow_timeout_seconds
+from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     initial_research_article_state,
 )
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
+from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation_workflow import (
@@ -16,7 +15,6 @@ from mcp_server.interface.validation_workflow import (
     ContentGenerationRunResponse,
     ResearchArticleRunRequest,
     ResearchArticleRunResponse,
-    content_generation_state_to_run_response,
     research_article_state_to_run_response,
 )
 
@@ -30,12 +28,8 @@ async def _invoke_research_article(
         max_web_results=request.max_web_results,
         max_video_results=request.max_video_results,
     )
-    result, trace = await invoke_graph_with_trace(
-        graph,
-        state,
-        timeout_seconds=workflow_timeout_seconds(),
-    )
-    return research_article_state_to_run_response(result, trace=trace)
+    result = await ainvoke_with_workflow_timeout(graph, state)
+    return research_article_state_to_run_response(result)
 
 
 async def _invoke_content_generation(
@@ -80,7 +74,7 @@ async def content_generation(
     graph_node_id: str | None = None,
     graph_query: str | None = None,
 ) -> ContentGenerationRunResponse:
-    """Generate lesson, quiz, and PBL. Pass tenant_id+course_slug for graph-scoped EdHarness output."""
+    """Generate lesson, quiz, and PBL. Pass tenant_id+course_slug for graph-scoped output."""
     request = ContentGenerationRunRequest(
         topic=topic,
         grade_level=grade_level,

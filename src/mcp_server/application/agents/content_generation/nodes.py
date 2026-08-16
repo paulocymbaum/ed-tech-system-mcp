@@ -49,7 +49,7 @@ def _workflow_runtime_config() -> WorkflowExecutionConfig:
 
 def max_validation_retries() -> int:
     """Maximum validation-driven retries before the graph gives up on an artifact."""
-    return _workflow_runtime_config().node_retries
+    return _workflow_runtime_config().validation_retries
 
 
 def _require_chat_model() -> BaseChatModel:

@@ -745,6 +745,7 @@ def test_llm12_default_workflow_execution_config_matches_config_json() -> None:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
 
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.node_retries == raw["node_retries"]
+    assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.validation_retries == raw["validation_retries"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.workflow_timeout_seconds == raw["workflow_timeout"]
     assert DEFAULT_WORKFLOW_EXECUTION_CONFIG.agent_node_timeout_seconds == raw["agent_node_timeout"]
 

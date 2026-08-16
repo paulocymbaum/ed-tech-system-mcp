@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
-from mcp_server.application.agent import workflow_timeout_seconds
+from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     initial_content_generation_state,
 )
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.authoring import GraphNodeHit, GraphSearchPort
 from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
@@ -31,7 +31,8 @@ async def invoke_content_generation(
             msg = "Graph search repository is required for graph-scoped content generation"
             raise RuntimeError(msg)
         if request.graph_query or not resolved_node:
-            hits = graph_search.search_graph_nodes(
+            hits = await asyncio.to_thread(
+                graph_search.search_graph_nodes,
                 tenant_id=request.tenant_id,
                 query=request.graph_query or request.topic,
                 course_slug=request.course_slug,
@@ -56,12 +57,8 @@ async def invoke_content_generation(
         )
 
     graph = get_content_generation_graph()
-    result, trace = await invoke_graph_with_trace(
-        graph,
-        state,
-        timeout_seconds=workflow_timeout_seconds(),
-    )
-    return content_generation_state_to_run_response(result, trace=trace)
+    result = await ainvoke_with_workflow_timeout(graph, state)
+    return content_generation_state_to_run_response(result)
 
 
 def graph_hits_to_dicts(hits: list[GraphNodeHit]) -> list[dict[str, Any]]:

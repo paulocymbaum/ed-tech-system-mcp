@@ -22,6 +22,12 @@ class SupabaseCallerIdentityAdapter:
         else:
             self._service_role_key = service_role_key
         self._client: Client | None = None
+        self._http: httpx.Client | None = None
+
+    def _http_client(self) -> httpx.Client:
+        if self._http is None or self._http.is_closed:
+            self._http = httpx.Client(timeout=_AUTH_TIMEOUT_SECONDS)
+        return self._http
 
     def _client_or_create(self) -> Client:
         require_credential(self._supabase_url, resource="Supabase")
@@ -42,8 +48,7 @@ class SupabaseCallerIdentityAdapter:
             "Authorization": f"Bearer {token}",
         }
         try:
-            with httpx.Client(timeout=_AUTH_TIMEOUT_SECONDS) as client:
-                response = client.get(url, headers=headers)
+            response = self._http_client().get(url, headers=headers)
         except httpx.HTTPError as exc:
             raise DomainAuthorizationError("Could not verify caller") from exc
         if response.status_code >= 400:

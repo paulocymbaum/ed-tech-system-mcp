@@ -182,7 +182,7 @@ def _reset_agent_workflow_runtime() -> None:
     reset_workflow_execution_config()
 
 
-async def test_research_article_mcp_tool_returns_article_and_trace() -> None:
+async def test_research_article_mcp_tool_returns_article() -> None:
     set_chat_model(_ResearchArticleModel())
     set_search_client(_FakeSearchClient())
     set_video_client(_FakeVideoClient())
@@ -194,8 +194,7 @@ async def test_research_article_mcp_tool_returns_article_and_trace() -> None:
     assert "Frogs in Modern Science" in response.article
     assert response.web_result_count == 2
     assert response.video_count == 1
-    llm_steps = [step for step in response.trace if step.llm_io]
-    assert llm_steps
+    assert response.trace == []
 
 
 async def test_content_generation_mcp_tool_returns_lesson_quiz_and_pbl() -> None:
@@ -212,5 +211,4 @@ async def test_content_generation_mcp_tool_returns_lesson_quiz_and_pbl() -> None
     assert response.quiz is not None
     assert len(response.quiz.questions) >= 3
     assert response.pbl is not None
-    llm_steps = [step for step in response.trace if step.llm_io]
-    assert llm_steps
+    assert response.trace == []

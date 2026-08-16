@@ -52,7 +52,7 @@ class RedisCacheStore(ICacheStore):
             return str(value).encode("utf-8")
         except RedisError:
             logger.warning("Redis GET failed for key %s; treating as cache miss", key)
-            self._available = False
+            await self.close()
             return None
 
     async def set(self, key: str, value: bytes, ttl_seconds: int) -> None:
@@ -65,12 +65,13 @@ class RedisCacheStore(ICacheStore):
             await client.set(key, value, ex=ttl_seconds)
         except RedisError:
             logger.warning("Redis SET failed for key %s; continuing without cache", key)
-            self._available = False
+            await self.close()
 
     async def close(self) -> None:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+        self._available = None
 
 
 class NoOpCacheStore(ICacheStore):

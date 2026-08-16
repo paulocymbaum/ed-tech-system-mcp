@@ -28,37 +28,37 @@ class FakeIdentity:
         return (user_id, tenant_id) in self.members
 
 
-def test_enforce_caller_rejects_missing_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_enforce_caller_rejects_missing_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "mcp_server.interface.privileged_tool_auth._caller_jwt_from_headers",
         lambda: "",
     )
     runtime = McpToolAuthRuntime(require_caller_jwt=True, identity=FakeIdentity())
     with pytest.raises(DomainAuthorizationError):
-        _enforce_caller(runtime, "project_review", {"user_id": "user-1", "tenant_id": "tenant-1"})
+        await _enforce_caller(runtime, "project_review", {"user_id": "user-1", "tenant_id": "tenant-1"})
 
 
-def test_enforce_caller_rejects_user_id_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_enforce_caller_rejects_user_id_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "mcp_server.interface.privileged_tool_auth._caller_jwt_from_headers",
         lambda: "valid-jwt",
     )
     runtime = McpToolAuthRuntime(require_caller_jwt=True, identity=FakeIdentity())
     with pytest.raises(DomainAuthorizationError):
-        _enforce_caller(
+        await _enforce_caller(
             runtime,
             "collect_project_review_context",
             {"user_id": "other", "tenant_id": "tenant-1"},
         )
 
 
-def test_enforce_caller_accepts_matching_member(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_enforce_caller_accepts_matching_member(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "mcp_server.interface.privileged_tool_auth._caller_jwt_from_headers",
         lambda: "valid-jwt",
     )
     runtime = McpToolAuthRuntime(require_caller_jwt=True, identity=FakeIdentity())
-    _enforce_caller(
+    await _enforce_caller(
         runtime,
         "project_review",
         {"user_id": "user-1", "tenant_id": "tenant-1"},

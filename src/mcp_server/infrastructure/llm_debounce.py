@@ -20,8 +20,15 @@ class IntervalLLMDebounceGate(ILLMDebounceGate):
             raise ValueError(msg)
         self._interval_seconds = interval_seconds
         self._sync_lock = threading.Lock()
-        self._async_lock = asyncio.Lock()
+        self._async_lock: asyncio.Lock | None = None
         self._last_call_monotonic = 0.0
+
+    def _ensure_async_lock(self) -> asyncio.Lock:
+        if self._async_lock is None:
+            with self._sync_lock:
+                if self._async_lock is None:
+                    self._async_lock = asyncio.Lock()
+        return self._async_lock
 
     def acquire_sync(self) -> None:
         with self._sync_lock:
@@ -30,7 +37,7 @@ class IntervalLLMDebounceGate(ILLMDebounceGate):
     async def acquire(self) -> None:
         if self._interval_seconds == 0:
             return
-        async with self._async_lock:
+        async with self._ensure_async_lock():
             now = time.monotonic()
             elapsed = now - self._last_call_monotonic
             if elapsed < self._interval_seconds:

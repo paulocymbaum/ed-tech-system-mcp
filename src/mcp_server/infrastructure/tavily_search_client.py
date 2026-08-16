@@ -17,23 +17,29 @@ class TavilySearchClient(ISearchClient):
 
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
+        self._http: httpx.AsyncClient | None = None
+
+    async def _client(self) -> httpx.AsyncClient:
+        if self._http is None or self._http.is_closed:
+            self._http = httpx.AsyncClient(timeout=15.0)
+        return self._http
 
     async def search(self, query: str, max_results: int = 5) -> list[str]:
         query = require_non_empty_text(query, field="query")
         max_results = require_positive_int(max_results, field="max_results")
         require_credential(self._api_key, resource="Tavily API")
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={
-                    "api_key": self._api_key,
-                    "query": query,
-                    "max_results": max_results,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
+        client = await self._client()
+        response = await client.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": self._api_key,
+                "query": query,
+                "max_results": max_results,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
 
         results: list[str] = []
         for item in payload.get("results", []):

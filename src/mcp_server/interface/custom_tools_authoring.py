@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -173,7 +174,8 @@ async def author_lesson_pipeline(
     publish: bool = False,
 ) -> AuthorLessonPipelineResponse:
     """Orchestrate search → generate → validate → save → publish (graph-scoped)."""
-    resolved_node_id, graph_hits = _resolve_graph_node(
+    resolved_node_id, graph_hits = await asyncio.to_thread(
+        _resolve_graph_node,
         tenant_id=tenant_id,
         course_slug=course_slug,
         graph_node_id=graph_node_id,
@@ -265,7 +267,7 @@ async def search_graph_nodes(
     }
 
     async def _run() -> SearchGraphNodesResponse:
-        hits = _require_graph_search().search_graph_nodes(**args)
+        hits = await asyncio.to_thread(_require_graph_search().search_graph_nodes, **args)
         return SearchGraphNodesResponse(
             query=query.strip(),
             tenant_id=tenant_id,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 from typing import Any
 
@@ -44,19 +45,19 @@ class PrivilegedToolAuthMiddleware(Middleware):
             return await call_next(context)
 
         try:
-            _enforce_caller(runtime, name, _tool_arguments(context.message))
+            await _enforce_caller(runtime, name, _tool_arguments(context.message))
         except DomainAuthorizationError as exc:
             raise_as_mcp_error(exc)
         return await call_next(context)
 
 
-def _enforce_caller(runtime: Any, tool_name: str, arguments: dict[str, Any]) -> None:
+async def _enforce_caller(runtime: Any, tool_name: str, arguments: dict[str, Any]) -> None:
     _ = tool_name
     identity = runtime.identity
     caller_jwt = _caller_jwt_from_headers()
     if not caller_jwt:
         raise DomainAuthorizationError("Caller JWT is required")
-    user_id = identity.user_id_from_jwt(caller_jwt)
+    user_id = await asyncio.to_thread(identity.user_id_from_jwt, caller_jwt)
 
     requested_user = arguments.get("user_id")
     if isinstance(requested_user, str) and requested_user.strip() and requested_user != user_id:
@@ -70,5 +71,10 @@ def _enforce_caller(runtime: Any, tool_name: str, arguments: dict[str, Any]) -> 
 
     tenant_id = arguments.get("tenant_id")
     if isinstance(tenant_id, str) and tenant_id.strip():
-        if not identity.is_tenant_member(user_id=user_id, tenant_id=tenant_id.strip()):
+        member = await asyncio.to_thread(
+            identity.is_tenant_member,
+            user_id=user_id,
+            tenant_id=tenant_id.strip(),
+        )
+        if not member:
             raise DomainAuthorizationError("Caller is not a member of this tenant")

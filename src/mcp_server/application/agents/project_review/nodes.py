@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -80,7 +81,8 @@ def _parse_grade_json(text: str) -> ProjectReviewGrade:
 
 async def collect_context(state: ProjectReviewState) -> dict[str, Any]:
     repo = _require_repo()
-    context = repo.collect_context(
+    context = await asyncio.to_thread(
+        repo.collect_context,
         tenant_id=state["tenant_id"],
         course_slug=state["course_slug"],
         module_slug=state["module_slug"],

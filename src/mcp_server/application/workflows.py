@@ -1,8 +1,5 @@
 """Use-case orchestrators tying domain ports together."""
 
-import asyncio
-import contextlib
-
 from mcp_server.domain.interfaces import IDataRepository, IVideoSearchClient
 from mcp_server.domain.schemas import ChunkRetrievalFilter, DocumentHit, VideoResult
 
@@ -66,39 +63,18 @@ class DocumentVideoWorkflow:
         tenant_id: str | None = None,
         course_id: str | None = None,
     ) -> tuple[list[DocumentHit], list[VideoResult]]:
-        """Fetch documents and enrich with related educational videos.
+        """Fetch documents, then search videos using derived terms.
 
-        Latency trade-off: document and video port calls always start in parallel
-        using the user query as provisional video terms. When the first document
-        supplies a different title, a second sequential YouTube call replaces the
-        provisional results. When no documents are returned, the parallel video
-        search is kept (query-only path) with no extra round trip.
-
-        For per-node graph observability or workflow timeout enforcement, use
-        ``run_document_video_graph`` instead (sequential port calls per node).
+        YouTube is invoked once after documents return so a differing title
+        does not cancel a wasted query-term search. Empty document results
+        still search videos with the original query.
         """
-        documents_task = asyncio.create_task(
-            self.fetch_documents(
-                query,
-                document_limit,
-                tenant_id=tenant_id,
-                course_id=course_id,
-            ),
+        documents = await self.fetch_documents(
+            query,
+            document_limit,
+            tenant_id=tenant_id,
+            course_id=course_id,
         )
-        videos_task = asyncio.create_task(self.search_videos(query, video_limit))
-        documents = await documents_task
-
-        if not documents:
-            videos = await videos_task
-            return documents, videos
-
         search_terms = self.derive_search_terms(query, documents)
-        if search_terms == query:
-            videos = await videos_task
-            return documents, videos
-
-        videos_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await videos_task
         videos = await self.search_videos(search_terms, video_limit)
         return documents, videos

@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from pydantic import BaseModel, Field
 
+from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.project_review.graph import (
     get_project_review_graph,
     initial_project_review_state,
     result_from_state,
 )
-from mcp_server.application.agent import workflow_timeout_seconds
-from mcp_server.application.workflow_trace import invoke_graph_with_trace
 from mcp_server.domain.exceptions import ResourceNotFoundError
-from mcp_server.domain.project_review import ProjectReviewContext, ProjectReviewResult, ProjectReviewStore
+from mcp_server.domain.project_review import (
+    ProjectReviewContext,
+    ProjectReviewResult,
+    ProjectReviewStore,
+)
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 
@@ -67,7 +72,7 @@ async def collect_project_review_context(
     args = request.model_dump()
 
     async def _run() -> ProjectReviewContext:
-        return _require_repo().collect_context(**args)
+        return await asyncio.to_thread(_require_repo().collect_context, **args)
 
     return await _cached_tool_invoke(
         "collect_project_review_context",
@@ -103,11 +108,7 @@ async def project_review(
     async def _run() -> ProjectReviewResult:
         graph = get_project_review_graph()
         state = initial_project_review_state(**args)
-        result_state, _trace = await invoke_graph_with_trace(
-            graph,
-            state,
-            timeout_seconds=workflow_timeout_seconds(),
-        )
+        result_state = await ainvoke_with_workflow_timeout(graph, state)
         return result_from_state(result_state)
 
     return await _cached_tool_invoke(

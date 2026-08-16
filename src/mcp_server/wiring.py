@@ -98,6 +98,7 @@ _CACHE_STORE_REQUIRED_MSG = (
     "cache store is required when CACHE_ENABLED=true; "
     "pass the shared store from initialize_application_runtime()"
 )
+_runtime_cache_store: ICacheStore | None = None
 
 _wired_llm_router: LLMRouter | None = None
 _wired_external_rate_limiter: IExternalRequestRateLimiter | None = None
@@ -221,10 +222,15 @@ def build_chunking_strategy(_settings: Settings) -> IChunkingStrategy:
 
 
 def warm_embedding_provider_on_boot(settings: Settings, cache_store: ICacheStore) -> None:
-    """Pre-load the embedding ONNX model when ``EMBEDDING_WARM_ON_BOOT`` is enabled."""
+    """Pre-load the embedding ONNX model used by retrieval (same lazy singleton)."""
+    del cache_store
     if not settings.embedding_warm_on_boot:
         return
-    provider = build_embedding_provider(settings, cache_store)
+    from mcp_server.application.retrieval_runtime import get_embedding_provider
+
+    provider = get_embedding_provider()
+    if provider is None:
+        return
     try:
         asyncio.run(provider.embed_queries(["warmup"]))
     except Exception as exc:
@@ -307,6 +313,7 @@ def build_workflow_execution_config(
         node_retries=operational.node_retries,
         workflow_timeout_seconds=operational.workflow_timeout,
         agent_node_timeout_seconds=operational.agent_node_timeout,
+        validation_retries=operational.validation_retries,
     )
 
 
@@ -427,6 +434,7 @@ def initialize_application_runtime(
     settings: Settings | None = None,
 ) -> ApplicationContext:
     """Initialize application-layer runtime config and wired dependencies."""
+    global _runtime_cache_store
     config = build_workflow_execution_config(operational)
     set_workflow_execution_config(config)
     if settings is None:
@@ -436,6 +444,7 @@ def initialize_application_runtime(
         configure_lazy_integration_clients(None)
         configure_lazy_retrieval_clients(None)
         set_mcp_tool_cache(None)
+        _runtime_cache_store = cache_store
         return ApplicationContext(
             workflow_execution_config=config,
             cache_store=cache_store,
@@ -536,6 +545,7 @@ def initialize_application_runtime(
         )
     )
 
+    _runtime_cache_store = cache_store
     return ApplicationContext(
         workflow_execution_config=config,
         cache_store=cache_store,
@@ -619,3 +629,18 @@ register_vector_retriever_builder(_lazy_build_vector_retriever)
 register_vector_index_writer_builder(_lazy_build_vector_index_writer)
 register_reranker_builder(_lazy_build_reranker)
 register_chunking_strategy_builder(_lazy_build_chunking_strategy)
+
+
+def shutdown_application_runtime_sync() -> None:
+    """Close Redis (if wired). Safe from atexit when no event loop is running."""
+    store = _runtime_cache_store
+    closer = getattr(store, "close", None)
+    if closer is None:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(closer())
+        return
+    loop.create_task(closer())
+

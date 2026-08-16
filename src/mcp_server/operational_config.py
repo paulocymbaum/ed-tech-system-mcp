@@ -1,7 +1,8 @@
 """Operational tuning loaded from config.json at startup.
 
 Units:
-- ``node_retries``: count (non-negative integer)
+- ``node_retries``: provider retry count for LangGraph LLM nodes (non-negative)
+- ``validation_retries``: content-generation validation loop cap (non-negative)
 - ``workflow_timeout``: seconds (overall LangGraph workflow execution limit)
 - ``agent_node_timeout``: seconds (per-node execution limit)
 """
@@ -19,7 +20,12 @@ class OperationalConfig(BaseModel):
 
     node_retries: int = Field(
         ge=0,
-        description="Retry count for LangGraph agent nodes",
+        description="Retry count for LangGraph provider/LLM nodes",
+    )
+    validation_retries: int = Field(
+        default=1,
+        ge=0,
+        description="Validation-driven regenerate loops for content generation",
     )
     workflow_timeout: float = Field(
         gt=0,

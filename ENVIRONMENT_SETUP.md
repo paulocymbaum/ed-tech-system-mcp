@@ -467,7 +467,8 @@ Non-secret workflow tuning lives in a **committed** `config.json` at the reposit
 
 | Key | Type | Unit | Validation | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| `node_retries` | integer | count | `>= 0` | Retry count for LangGraph agent nodes |
+| `node_retries` | integer | count | `>= 0` | Provider retry count for LangGraph LLM nodes |
+| `validation_retries` | integer | count | `>= 0` | Content-generation validation regenerate loops |
 | `workflow_timeout` | number | seconds | `> 0` | Overall LangGraph workflow execution limit |
 | `agent_node_timeout` | number | seconds | `> 0` | Per-node execution limit |
 
@@ -475,7 +476,8 @@ Default values shipped in the repo:
 
 ```json
 {
-  "node_retries": 3,
+  "node_retries": 1,
+  "validation_retries": 1,
   "workflow_timeout": 300,
   "agent_node_timeout": 60
 }
