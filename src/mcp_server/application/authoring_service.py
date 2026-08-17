@@ -138,6 +138,64 @@ def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft
     }
 
 
+def _dump_project_test_cases(cases: list[Any]) -> str:
+    """Serialize structured test_cases into starter/tests.json body."""
+    out: list[dict[str, Any]] = []
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+        row: dict[str, Any] = {
+            "id": case.get("id") or case.get("slug"),
+            "name": case.get("name"),
+            "stdin": case.get("stdin") or "",
+        }
+        stdout = case.get("expectedStdout")
+        if stdout is None:
+            stdout = case.get("expected_stdout")
+        if stdout is not None:
+            row["expectedStdout"] = stdout
+        exit_code = case.get("expectedExitCode")
+        if exit_code is None:
+            exit_code = case.get("expected_exit_code")
+        if exit_code is not None:
+            row["expectedExitCode"] = exit_code
+        out.append(row)
+    return json.dumps(out, indent=2)
+
+
+def repair_invalid_project_tests_json(project: dict[str, Any]) -> list[str]:
+    """Rewrite invalid starter/tests.json from structured test_cases when possible.
+
+    LLM drafts often embed unescaped quotes in stdin strings, breaking the file
+    JSON while still producing valid structured ``test_cases``.
+    """
+    cases = project.get("test_cases") or project.get("testCases")
+    if not isinstance(cases, list) or not cases:
+        return []
+    files = project.get("files")
+    if not isinstance(files, list):
+        return []
+    for item in files:
+        if not isinstance(item, dict) or item.get("path") != "starter/tests.json":
+            continue
+        raw = str(item.get("content") or "")
+        if not raw.strip():
+            item["content"] = _dump_project_test_cases(cases)
+            return [
+                "warn: starter/tests.json was empty; filled from structured test_cases",
+            ]
+        try:
+            json.loads(raw)
+            return []
+        except json.JSONDecodeError:
+            item["content"] = _dump_project_test_cases(cases)
+            return [
+                "warn: starter/tests.json is not valid JSON; "
+                "repaired from structured test_cases",
+            ]
+    return []
+
+
 def harness_lesson_fields(
     lesson: dict[str, Any] | HarnessLessonDraft,
 ) -> tuple[str, dict[str, Any]]:
@@ -177,14 +235,13 @@ class AuthoringService:
         project_readme = None
         project_tests = None
         if project:
+            repair_invalid_project_tests_json(project)
             project_readme = project.get("readme_markdown") or project.get("readmeMarkdown")
             for item in project.get("files") or []:
                 if isinstance(item, dict) and item.get("path") == "starter/tests.json":
                     project_tests = item.get("content")
                     break
             if project_tests is None and project.get("test_cases"):
-                import json
-
                 project_tests = json.dumps({"cases": project.get("test_cases")})
 
         if not skip_validation:
@@ -276,6 +333,7 @@ def validate_quiz_dict(quiz: dict[str, Any]) -> list[str]:
 def validate_project_dict(
     project: dict[str, Any], *, strict_readme_sections: bool = True
 ) -> list[str]:
+    repair_findings = repair_invalid_project_tests_json(project)
     readme = project.get("readme_markdown") or project.get("readmeMarkdown") or ""
     report = validate_project_readme(
         readme, required_sections_as_errors=strict_readme_sections
@@ -294,7 +352,7 @@ def validate_project_dict(
     boilerplate = project.get("test_boilerplate") or project.get("testBoilerplate")
     if isinstance(boilerplate, dict):
         report.findings.extend(validate_test_boilerplate(boilerplate).findings)
-    return [f"{f.level}: {f.message}" for f in report.findings]
+    return repair_findings + [f"{f.level}: {f.message}" for f in report.findings]
 
 
 def validate_lesson_dict(
