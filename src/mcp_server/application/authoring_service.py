@@ -8,11 +8,15 @@ from typing import Any
 from mcp_server.domain.authoring import AuthoringBackendPort, SaveLessonResult
 from mcp_server.domain.content_validators import (
     validate_lesson_bundle,
+    validate_lesson_stack,
+    validate_project_files_for_rpc,
     validate_project_readme,
     validate_project_tests_json,
     validate_quiz_payload,
+    validate_run_dependencies,
     validate_test_boilerplate,
 )
+from mcp_server.domain.curriculum_enums import normalize_project_file_kind
 from mcp_server.domain.exceptions import DomainValidationError
 from mcp_server.domain.harness_schemas import (
     HarnessLessonDraft,
@@ -68,24 +72,7 @@ def _rpc_project_file_kind(
     content: object = None,
 ) -> str:
     """Map harness file labels to ``curriculum.project_file_kind`` (``dir`` | ``file``)."""
-    raw = str(kind or "").strip().lower()
-    aliases = {
-        "dir": "dir",
-        "directory": "dir",
-        "file": "file",
-        "readme": "file",
-        "starter": "file",
-        "solution": "file",
-        "test": "file",
-        "tests": "file",
-    }
-    if raw in aliases:
-        return aliases[raw]
-    if content is None:
-        leaf = str(path).rstrip("/").rsplit("/", 1)[-1]
-        if leaf and "." not in leaf:
-            return "dir"
-    return "file"
+    return normalize_project_file_kind(kind, path=path, content=content)
 
 
 def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft) -> dict[str, Any]:
@@ -328,7 +315,15 @@ class AuthoringService:
                 or project.get("stack")
                 or "javascript"
             )
+            stack_report = validate_lesson_stack(stack)
+            if not stack_report.ok:
+                messages = [f"{f.level}: {f.message}" for f in stack_report.errors]
+                raise DomainValidationError("; ".join(messages))
             deps = project.get("run_dependencies") or project.get("runDependencies") or []
+            deps_report = validate_run_dependencies(deps)
+            if not deps_report.ok:
+                messages = [f"{f.level}: {f.message}" for f in deps_report.errors]
+                raise DomainValidationError("; ".join(messages))
             await self._backend.set_lesson_stack_runtime(
                 lesson_id=lesson_id,
                 stack=stack,
@@ -383,6 +378,11 @@ def validate_project_dict(
     boilerplate = project.get("test_boilerplate") or project.get("testBoilerplate")
     if isinstance(boilerplate, dict):
         report.findings.extend(validate_test_boilerplate(boilerplate).findings)
+    stack = project.get("stack")
+    report.findings.extend(validate_lesson_stack(stack).findings)
+    report.findings.extend(validate_project_files_for_rpc(project.get("files")).findings)
+    deps = project.get("run_dependencies") or project.get("runDependencies")
+    report.findings.extend(validate_run_dependencies(deps).findings)
     return repair_findings + [f"{f.level}: {f.message}" for f in report.findings]
 
 

@@ -7,7 +7,22 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from mcp_server.domain.curriculum_enums import (
+    LESSON_STACKS,
+    MOCK_SECTION_TYPES,
+    PROJECT_FILE_KINDS,
+    RUN_DEPENDENCY_KINDS,
+    RUNNER_KINDS,
+    normalize_project_file_kind,
+)
+
 LESSON_CONCEPTS_SECTION = "Lesson concepts practiced"
+
+# Re-export for callers / tests that imported from this module.
+KNOWN_LESSON_STACKS = LESSON_STACKS
+KNOWN_RUNNER_KINDS = RUNNER_KINDS
+KNOWN_RUN_DEPENDENCY_KINDS = RUN_DEPENDENCY_KINDS
+KNOWN_PROJECT_FILE_KINDS = PROJECT_FILE_KINDS
 
 REQUIRED_PBL_SECTIONS = [
     "Problem context",
@@ -356,8 +371,6 @@ def validate_lesson_bundle(
     return report
 
 
-MOCK_SECTION_TYPES = frozenset({"instructions", "quiz", "coding"})
-
 
 def validate_mock_test_bundle(value: Any) -> ValidationReport:
     """Validate EF2 ``mock_tests[]`` entry (three ordered sections)."""
@@ -451,8 +464,84 @@ def validate_mock_test_bundle(value: Any) -> ValidationReport:
     return report
 
 
-KNOWN_LESSON_STACKS = frozenset({"javascript", "typescript", "react", "cpp", "python"})
-KNOWN_RUNNER_KINDS = frozenset({"browser-js", "node", "pytest", "cpp-cli", "react-test"})
+def validate_run_dependencies(deps: Any) -> ValidationReport:
+    """Validate ``run_dependencies`` kinds against curriculum CHECK + FE usage."""
+    report = ValidationReport()
+    if deps is None:
+        return report
+    if not isinstance(deps, list):
+        report.findings.append(
+            ValidationFinding("error", "run_dependencies must be an array")
+        )
+        return report
+    for index, item in enumerate(deps):
+        if not isinstance(item, dict):
+            report.findings.append(
+                ValidationFinding("error", f"run_dependencies[{index}] must be an object")
+            )
+            continue
+        kind = item.get("kind")
+        if kind is None:
+            continue  # SQL defaults missing kind to npm
+        if str(kind) not in RUN_DEPENDENCY_KINDS:
+            report.findings.append(
+                ValidationFinding(
+                    "error",
+                    f"run_dependencies[{index}].kind `{kind}` invalid "
+                    f"(allowed: {', '.join(sorted(RUN_DEPENDENCY_KINDS))})",
+                )
+            )
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            report.findings.append(
+                ValidationFinding(
+                    "error", f"run_dependencies[{index}].name must be a non-empty string"
+                )
+            )
+    return report
+
+
+def validate_lesson_stack(stack: Any) -> ValidationReport:
+    report = ValidationReport()
+    if stack is None:
+        return report
+    if str(stack) not in LESSON_STACKS:
+        report.findings.append(
+            ValidationFinding(
+                "error",
+                f"unknown stack `{stack}` (allowed: {', '.join(sorted(LESSON_STACKS))})",
+            )
+        )
+    return report
+
+
+def validate_project_files_for_rpc(files: Any) -> ValidationReport:
+    """Ensure each file kind maps to PraxisWeb/backend ``dir``|``file``."""
+    report = ValidationReport()
+    if files is None:
+        return report
+    if not isinstance(files, list):
+        report.findings.append(ValidationFinding("error", "project.files must be an array"))
+        return report
+    for index, item in enumerate(files):
+        if not isinstance(item, dict):
+            report.findings.append(
+                ValidationFinding("error", f"project.files[{index}] must be an object")
+            )
+            continue
+        path = str(item.get("path") or "")
+        mapped = normalize_project_file_kind(
+            item.get("kind"), path=path, content=item.get("content")
+        )
+        if mapped not in PROJECT_FILE_KINDS:
+            report.findings.append(
+                ValidationFinding(
+                    "error",
+                    f"project.files[{index}].kind maps to `{mapped}` "
+                    f"(allowed: {', '.join(sorted(PROJECT_FILE_KINDS))})",
+                )
+            )
+    return report
 
 
 def validate_test_boilerplate(value: Any) -> ValidationReport:
@@ -467,14 +556,14 @@ def validate_test_boilerplate(value: Any) -> ValidationReport:
             ValidationFinding("error", "test_boilerplate.body must contain {{LEARNER_CODE}}")
         )
     kind = value.get("runnerKind") or value.get("runner_kind")
-    if kind is not None and kind not in KNOWN_RUNNER_KINDS:
+    if kind is not None and kind not in RUNNER_KINDS:
         report.findings.append(
             ValidationFinding(
                 "error",
-                f"unknown runner_kind `{kind}` (allowed: {', '.join(sorted(KNOWN_RUNNER_KINDS))})",
+                f"unknown runner_kind `{kind}` (allowed: {', '.join(sorted(RUNNER_KINDS))})",
             )
         )
     stack = value.get("stack")
-    if stack is not None and stack not in KNOWN_LESSON_STACKS:
-        report.findings.append(ValidationFinding("error", f"unknown stack `{stack}`"))
+    if stack is not None and stack not in LESSON_STACKS:
+        report.findings.append(ValidationFinding("error", f"unknown stack `{stack}` (allowed: {', '.join(sorted(LESSON_STACKS))})"))
     return report

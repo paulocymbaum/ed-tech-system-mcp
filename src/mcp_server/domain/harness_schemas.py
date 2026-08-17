@@ -73,7 +73,7 @@ class HarnessProjectFile(BaseModel):
     """Starter/solution file in project tree."""
 
     path: str = Field(min_length=1)
-    kind: str = Field(default="starter")
+    kind: str = Field(default="file")
     content: str | None = None
 
 

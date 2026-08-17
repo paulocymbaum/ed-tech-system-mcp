@@ -120,7 +120,11 @@ class GraphSearchPort(ABC):
         ...
 
 
+from mcp_server.domain.curriculum_enums import MOCK_SECTION_TYPES as CURRICULUM_MOCK_SECTION_TYPES
+
+# Ordered for mock-test section positions 1→3 (matches validate_mock_test_bundle).
 MOCK_SECTION_TYPES = ("instructions", "quiz", "coding")
+assert frozenset(MOCK_SECTION_TYPES) == CURRICULUM_MOCK_SECTION_TYPES
 
 
 class MockTestSectionSpec(BaseModel):
