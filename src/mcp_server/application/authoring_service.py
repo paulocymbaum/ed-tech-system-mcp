@@ -61,6 +61,33 @@ def harness_quiz_to_rpc_payload(quiz: dict[str, Any] | HarnessQuizDraft) -> dict
     }
 
 
+def _rpc_project_file_kind(
+    kind: object,
+    *,
+    path: str = "",
+    content: object = None,
+) -> str:
+    """Map harness file labels to ``curriculum.project_file_kind`` (``dir`` | ``file``)."""
+    raw = str(kind or "").strip().lower()
+    aliases = {
+        "dir": "dir",
+        "directory": "dir",
+        "file": "file",
+        "readme": "file",
+        "starter": "file",
+        "solution": "file",
+        "test": "file",
+        "tests": "file",
+    }
+    if raw in aliases:
+        return aliases[raw]
+    if content is None:
+        leaf = str(path).rstrip("/").rsplit("/", 1)[-1]
+        if leaf and "." not in leaf:
+            return "dir"
+    return "file"
+
+
 def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft) -> dict[str, Any]:
     """Map EdHarness project draft to ``upsert_project_tree`` body."""
     data = project.model_dump() if isinstance(project, HarnessProjectDraft) else project
@@ -68,11 +95,15 @@ def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft
     for item in data.get("files") or []:
         if not isinstance(item, dict):
             continue
+        path = item.get("path")
+        content = item.get("content")
         files_out.append(
             {
-                "path": item.get("path"),
-                "kind": item.get("kind") or "starter",
-                "content": item.get("content"),
+                "path": path,
+                "kind": _rpc_project_file_kind(
+                    item.get("kind"), path=str(path or ""), content=content
+                ),
+                "content": content,
             }
         )
     tests_out: list[dict[str, Any]] = []
@@ -127,7 +158,7 @@ def harness_project_to_rpc_payload(project: dict[str, Any] | HarnessProjectDraft
                     )
     readme = data.get("readme_markdown") or data.get("readmeMarkdown") or ""
     if readme and not any(f.get("path") == "README.md" for f in files_out):
-        files_out.insert(0, {"path": "README.md", "kind": "readme", "content": readme})
+        files_out.insert(0, {"path": "README.md", "kind": "file", "content": readme})
     return {
         "slug": data.get("slug"),
         "title": data.get("title"),
