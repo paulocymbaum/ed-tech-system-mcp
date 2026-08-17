@@ -26,7 +26,16 @@ class AuthoringBackendClient(AuthoringBackendPort):
         if not self._manager_jwt:
             msg = "manager_jwt is required for authoring RPCs (manager+ role)"
             raise DomainValidationError(msg)
-        apikey = (anon_key or self._manager_jwt).strip()
+        # PostgREST/Kong requires the project anon (or service_role) key in
+        # ``apikey``. A user JWT is valid for Authorization only — using it as
+        # apikey yields HTTP 401 "Invalid API key".
+        apikey = (anon_key or "").strip()
+        if not apikey:
+            msg = (
+                "SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY) is required "
+                "for authoring RPCs; user JWT cannot be used as apikey"
+            )
+            raise DomainValidationError(msg)
         self._headers = {
             "Authorization": f"Bearer {self._manager_jwt}",
             "apikey": apikey,

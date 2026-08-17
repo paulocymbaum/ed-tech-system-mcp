@@ -45,6 +45,18 @@ def test_t24_settings_loads_with_required_env(monkeypatch: pytest.MonkeyPatch) -
     assert settings.supabase_service_role_key.get_secret_value() == "test-key"
 
 
+def test_t24b_settings_accepts_vite_supabase_anon_key_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    monkeypatch.setenv("VITE_SUPABASE_ANON_KEY", "vite-anon-key")
+    settings = load_settings()
+    assert settings.supabase_anon_key is not None
+    assert settings.supabase_anon_key.get_secret_value() == "vite-anon-key"
+
+
 def test_t25_settings_youtube_key_optional(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")

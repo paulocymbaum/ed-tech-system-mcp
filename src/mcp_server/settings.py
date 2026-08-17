@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", alias="APP_ENV")
     supabase_url: str = Field(alias="SUPABASE_URL")
     supabase_service_role_key: SecretStr = Field(alias="SUPABASE_SERVICE_ROLE_KEY")
-    supabase_anon_key: SecretStr | None = Field(default=None, alias="SUPABASE_ANON_KEY")
+    supabase_anon_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"),
+    )
     youtube_api_key: SecretStr | None = Field(default=None, alias="YOUTUBE_API_KEY")
     tavily_api_key: SecretStr | None = Field(default=None, alias="TAVILY_API_KEY")
     groq_api_key: SecretStr | None = Field(default=None, alias="GROQ_API_KEY")

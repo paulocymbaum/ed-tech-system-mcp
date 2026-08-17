@@ -13,10 +13,23 @@ from mcp_server.application.authoring_service import (
 from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClient
 
 
+def test_authoring_client_requires_anon_key() -> None:
+    from mcp_server.domain.exceptions import DomainValidationError
+
+    with pytest.raises(DomainValidationError, match="SUPABASE_ANON_KEY"):
+        AuthoringBackendClient("https://example.supabase.co", "user-jwt-only")
+
+
 @pytest.mark.asyncio
 async def test_save_lesson_bundle_calls_rpc_sequence() -> None:
-    client = AuthoringBackendClient("https://example.supabase.co", "jwt-token")
+    client = AuthoringBackendClient(
+        "https://example.supabase.co",
+        "jwt-token",
+        anon_key="anon-project-key",
+    )
     calls: list[tuple[str, dict]] = []
+    assert client._headers["apikey"] == "anon-project-key"
+    assert client._headers["Authorization"] == "Bearer jwt-token"
 
     async def fake_post(name: str, body: dict) -> object:
         calls.append((name, body))
