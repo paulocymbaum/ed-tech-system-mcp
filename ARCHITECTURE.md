@@ -1,132 +1,243 @@
 # Architecture Documentation: Domain-Driven MCP Server
 
-This document defines the architectural standards for our MCP (Model Context Protocol) server implementation. We prioritize maintainability, testability, and scalability by enforcing Domain-Driven Design (DDD) principles, SOLID design, and the Clean Architecture philosophy.
+Architectural standards for the ed-tech MCP server. Maintainability, testability, and scalability come from Domain-Driven Design (DDD), SOLID, and Clean Architecture.
 
 ## Core Design Principles
 
-- **SOLID**: Each component must have a single responsibility. We prefer composition over inheritance and strictly follow the Dependency Inversion Principle.
-- **DRY (Don't Repeat Yourself)**: Domain logic must exist in exactly one place. If logic is duplicated between tools or resources, it belongs in a Domain Service.
-- **Clean Code**: Code must be readable, self-documenting, and free of unnecessary complexity. Names should reflect domain concepts, not implementation details.
+- **SOLID**: Single responsibility per module; composition over inheritance; Dependency Inversion at every boundary.
+- **DRY**: Domain rules live once (validators, enums, ports). Tools and agents call them — they do not re-implement them.
+- **Clean Code**: Names match domain concepts. Prefer small, testable units over framework glue in the core.
 
 ---
 
 ## Architectural Layers (Clean Architecture)
 
-We divide the application into concentric layers, where the inner layers (Domain) are oblivious to outer layers (Frameworks/Transport).
+Concentric layers: **inner layers never import outer layers**. Dependency direction is always inward toward Domain.
 
-### 1. Domain Layer (`/domain`)
-The "source of truth." This layer contains only pure business logic, entities, and domain exceptions.
-*   **Restrictions:** No dependencies on the MCP SDK, LangChain, database drivers, or external API libraries.
-*   **Responsibility:** Define core business objects, validation rules, domain-specific service interfaces (Ports), and video search contracts (`IVideoSearchClient`, `VideoResult`).
+```text
+entrypoint / local UI
+        ↓
+   interface  (MCP tools, validation, error mapping)
+        ↓
+  application (workflows, LangGraph agents, runners)
+        ↓
+     domain   (entities, ports, invariants)  ←  infrastructure (adapters)
+```
 
-### 2. Application/Use-Case Layer (`/application`)
-Coordinates the flow of data between the Domain and the Interface layers, orchestrating Agentic workflows.
-*   **Restrictions:** Can depend on Domain interfaces and LangChain primitives for orchestration, but not on concrete data/infrastructure implementations.
-*   **Responsibility:** Orchestrate domain services and LangChain tools to fulfill specific execution requests, including document retrieval enriched with YouTube video discovery.
+| Layer | Path under `src/mcp_server/` | May import | Must not import |
+| :--- | :--- | :--- | :--- |
+| **domain** | `domain/` | stdlib, pydantic (schemas only) | MCP SDK, LangChain/LangGraph, Supabase, HTTP clients, Redis |
+| **application** | `application/` | domain, LangChain/LangGraph primitives | MCP SDK, concrete infrastructure adapters |
+| **interface** | `interface/` | domain, application, MCP SDK, FastAPI (local UI) | infrastructure adapters directly (use ports via wiring/runtimes) |
+| **infrastructure** | `infrastructure/` | domain ports, external SDKs | interface, MCP tool handlers |
+| **entrypoint** | `main.py`, `wiring.py`, `settings.py`, … | all layers (composition root only) | — |
 
-### 3. Interface Layer (`/interface`)
-The adapter layer bridging the external MCP protocol and internal Application/Domain logic.
-*   **Restrictions:** Can depend on the Domain, Application, and the MCP SDK.
-*   **Responsibility:** Expose tools to the MCP server, handle JSON-RPC translation, enforce Pydantic validation on incoming requests, and handle error mapping.
-
-### 4. Infrastructure Layer (`/infrastructure`)
-Contains the implementations (Adapters) of the interfaces defined in the Domain layer.
-*   **Responsibility:** Supabase integration, open-source search APIs, YouTube video search, file system access, logging, and external tool clients.
+Cross-cutting **changelog folders** (`changelog/{DATE}/{LAYER}/`) use the same layer names plus audit/refactor folders — see [Changelog layer names](#changelog-layer-names).
 
 ---
 
-## File Structure
+### 1. Domain Layer (`domain/`)
+
+Source of truth for business meaning. Pure Python + Pydantic models; no I/O.
+
+**Responsibility**
+
+- Entities and value objects (`schemas.py`, `content_schemas.py`, `harness_schemas.py`, `authoring.py`, …)
+- Ports (ABCs) in `interfaces.py` and focused modules (`cache.py`, `project_review.py`, `socratic.py`, `token_counting.py`, …)
+- Invariants, safety, and curriculum lockstep enums (`invariants.py`, `input_safety.py`, `curriculum_enums.py`, `content_validators.py`)
+- Domain exceptions (`exceptions.py`)
+
+**Key modules (illustrative)**
+
+| Module | Role |
+| :--- | :--- |
+| `interfaces.py` | Ports: repositories, search, video, graph search, authoring backend factory |
+| `curriculum_enums.py` | DB/FE lockstep enums (e.g. `project_file_kind`) |
+| `content_validators.py` | Quiz/project/lesson validation used by authoring tools |
+| `authoring.py` | Authoring DTOs and save contracts |
+| `caller_identity.py` | Authenticated caller model for privileged tools |
+
+---
+
+### 2. Application Layer (`application/`)
+
+Use-case orchestration. Depends on **domain ports**, not adapters.
+
+**Responsibility**
+
+- LangGraph agent packages under `agents/` (content generation, research article, RAG retrieval/validation, Socratic, project review, Tavily/YouTube search graphs)
+- Workflow runners and traces (`workflows.py`, `*_runner.py`, `workflow_*.py`)
+- LLM factory and routing (`llm.py`, `llm_router.py`, `routing_chat_model.py`, `llm_models.py`)
+- Authoring application services (`authoring_service.py`, `mock_test_authoring.py`)
+- Runtime accessors set by wiring (`workflow_runtime.py`, `mcp_tool_cache_runtime.py`, `mcp_tool_auth_runtime.py`, `retrieval_runtime.py`, …)
+
+**Agent packages** (`application/agents/<name>/`)
+
+Each package typically owns `graph.py`, `nodes.py`, `state.py`, and optionally `prompts.py` / loaders. Graphs are invoked from interface tools or runners — not from infrastructure.
+
+---
+
+### 3. Interface Layer (`interface/`)
+
+MCP (and local UI) adapters. Translates protocol I/O ↔ application/domain.
+
+**Responsibility**
+
+- MCP server and tool registration (`mcp_server.py`, `custom_tools*.py`)
+- Pydantic request/response validation (`validation.py`, `validation_workflow.py`)
+- Domain → protocol error mapping (`error_mapping.py`)
+- Privileged tool auth gates (`privileged_tool_auth.py`)
+- Local workflow UI API (`local_ui/`)
+
+**Tool modules**
+
+| Module | Tools (names) |
+| :--- | :--- |
+| `custom_tools.py` | `health_check`, `search_youtube`, `find_documents` |
+| `custom_tools_workflow.py` | `run_workflow` |
+| `custom_tools_agent_workflows.py` | `research_article`, `content_generation` |
+| `custom_tools_authoring.py` | `validate_*`, `save_to_backend`, `author_lesson_pipeline`, `search_graph_nodes`, `generate_mock_test_structure`, `validate_mock_test` |
+| `custom_tools_socratic.py` | `socratic_tutor` |
+| `custom_tools_project_review.py` | `collect_project_review_context`, `project_review` |
+
+Tools must stay thin: validate → call application/domain → map errors. No Supabase or YouTube SDKs inside tool bodies.
+
+---
+
+### 4. Infrastructure Layer (`infrastructure/`)
+
+Adapters that implement domain ports.
+
+**Responsibility**
+
+- Supabase / graph / project-review repositories
+- Search and video clients (DuckDuckGo, Tavily, YouTube)
+- Groq LLM adapter and model catalog/cache
+- Redis / in-process cache, rate limiting, observability wrappers
+- Embeddings, chunking, rerank, vector retrieval (Chroma / Supabase backends)
+- Authoring backend HTTP client (manager JWT + anon key → Supabase RPCs)
+
+**Subpackages**
+
+| Path | Role |
+| :--- | :--- |
+| `retrieval/` | Vector index writers/retrievers, backend selection |
+| `embeddings/` | FastEmbed adapters and model catalog |
+| `chunking/` | LangChain-based chunking adapter |
+| `rerank/` | FastEmbed / noop / lazy rerankers |
+| `token_counting/` | Tiktoken counter |
+
+---
+
+### 5. Entrypoint / Composition Root
+
+Not a DDD “ring” but the only place allowed to construct the full graph.
+
+| File | Role |
+| :--- | :--- |
+| `main.py` | MCP process entry (`mcp-server`) |
+| `wiring.py` | `ApplicationContext`, DI, cache/auth/retrieval wiring |
+| `settings.py` | Pydantic Settings (secrets + aliases, e.g. anon key) |
+| `operational_config.py` | Non-secret `config.json` loader |
+| `env_bootstrap.py` | Early env / logging bootstrap |
+| `workflow_api_main.py` / `local_ui_main.py` | Optional workflow UI / API entrypoints |
+
+---
+
+### 6. Tests (`tests/`)
+
+Pytest suites mirror layers (`test_domain_*`, `test_interface_*`, infrastructure adapters, architecture lint). Fakes live under `tests/fakes/`. Architecture lint (`npm run lint:architecture` / `test_architecture_lint.py`) enforces import boundaries.
+
+---
+
+## Changelog layer names
+
+Agent memory under `changelog/{YYYY-MM-DD}/{LAYER}/` uses:
+
+| `{LAYER}` | Use for |
+| :--- | :--- |
+| `domain` | Entities, ports, validators, enums |
+| `application` | Agents, runners, application services |
+| `interface` | MCP tools, validation, UI API |
+| `infrastructure` | Adapters, clients, cache, retrieval |
+| `entrypoint` | Wiring, settings, process bootstrap |
+| `tests` | Test inventories / homologation |
+| `performance` | Performance audits |
+| `code-health` | Maintainability audits |
+| `refactor` | Merged refactor plans from audits |
+
+Protocol and file roles: `.cursor/rules/changelog-agent-memory.mdc` and the [README documentation matrix](./README.md#documentation-matrix).
+
+---
+
+## File Structure (canonical tree)
 
 ```text
-config.json                         # Operational tuning (non-secret): retries, workflow timeouts
-src/
-└── mcp_server/
-    ├── __init__.py
-    ├── domain/                     # Pure Business Logic
-    │   ├── __init__.py
-    │   ├── exceptions.py           # Domain exceptions (e.g., ResourceNotFound)
-    │   ├── invariants.py           # Pure guard helpers (empty query, positive limits, credentials)
-    │   ├── interfaces.py           # Abstract base classes (Ports) for DB/Search/Video
-    │   └── schemas.py              # Core entity definitions
-    ├── application/                # LangChain & Orchestration
-    │   ├── __init__.py
-    │   ├── agent.py                # LangChain agent/graph definitions
-    │   ├── workflow_config.py      # WorkflowExecutionConfig runtime view (set by wiring)
-    │   ├── workflow_runtime.py     # DocumentVideoWorkflow runtime accessor (set by wiring)
-    │   ├── mcp_tool_cache_runtime.py  # McpToolCachePort accessor for interface tools
-    │   ├── llm.py                  # create_chat_model() factory; Groq builder injection
-    │   ├── llm_models.py           # AVAILABLE_LANGUAGE_MODELS registry for LLM factory
-    │   └── workflows.py            # Use-case orchestrators tying tools together (incl. document + video discovery)
-    ├── interface/                  # MCP Adapter & Strict Validation
-    │   ├── __init__.py
-    │   ├── mcp_server.py           # MCP Server instantiation & tool routing
-    │   ├── error_mapping.py        # DomainError → MCP protocol error translation
-    │   ├── validation.py           # Pydantic validation layer for incoming/outgoing data
-    │   └── custom_tools.py         # MCP tool wrappers around application workflows
-    ├── infrastructure/             # External Integrations (Adapters)
-    │   ├── __init__.py
-    │   ├── supabase_client.py      # Supabase repository implementation
-    │   ├── search_client.py        # Open-source web search implementation (e.g., DuckDuckGo)
-    │   ├── youtube_client.py       # YouTube Data API adapter for educational video search
-    │   ├── groq_adapter.py         # Groq ChatGroq adapter for LLM completions
-    │   ├── cached_llm.py           # Cache-aside wrapper for LangChain chat models (async _agenerate only)
-    │   ├── cache_envelope.py       # Pydantic envelope for typed MCP tool cache serialization
-    │   └── cache_observability.py  # Cache hit/miss debug logging and in-process counters
-    ├── settings.py                 # Typed secrets/config from environment (Pydantic Settings)
-    ├── operational_config.py       # Pydantic loader for repo-root config.json
-    ├── wiring.py                   # Composition root — ApplicationContext, shared cache wiring
-    └── main.py                     # Entrypoint (Transport initialization: Stdio/SSE)
+config.json
+src/mcp_server/
+├── domain/                 # Pure business logic + ports
+├── application/            # Workflows, agents/, runners, LLM routing
+│   └── agents/             # One package per LangGraph workflow
+├── interface/              # MCP tools + local_ui/
+│   ├── custom_tools*.py
+│   └── local_ui/
+├── infrastructure/         # Adapters (retrieval/, embeddings/, …)
+├── settings.py
+├── operational_config.py
+├── wiring.py               # Composition root
+├── main.py
+├── workflow_api_main.py
+└── local_ui_main.py
+tests/                      # pytest + architecture lint
+changelog/                  # Agent memory by date + layer (local)
+ui/                         # React workflow explorer
 ```
 
 ---
 
 ## Dependency Stack & Usage
 
-| Dependency | Primary Use Case | Which Layer? |
+| Dependency | Primary use | Layer |
 | :--- | :--- | :--- |
-| **`mcp` / `fastmcp`** | The core MCP server transport and protocol handler. Exposes tools to external clients. | Interface / Entrypoint |
-| **`langchain` / `langgraph`** | Orchestrating multi-step workflows, agent reasoning, and wrapping customized tools for LLM consumption. | Application |
-| **`pydantic` (v2)** | The strict validation layer. Enforcing schema rules on inputs/outputs before they reach the reasoning engine. | Domain / Interface |
-| **`supabase`** | Postgres database client for querying, vector search (pgvector), and handling structured application data. | Infrastructure |
-| **`duckduckgo-search`** (or `tavily-python`) | Open-source web search integration for real-time information retrieval. | Infrastructure |
-| **`google-api-python-client`** | YouTube Data API v3 client for searching educational videos by topic, channel, or document-derived keywords. | Infrastructure |
-| **`python-dotenv`** | Managing environment variables (Supabase URL/Keys, API keys). | Entrypoint |
-| **`chromadb`** (`full` extra only) | Local vector fallback. Render/prod image uses extra `prod` (FastEmbed + splitters, no Chroma). | Infrastructure (lazy import when `VECTOR_STORE_BACKEND=chroma`) |
+| `mcp` / FastMCP | Tool transport | Interface / entrypoint |
+| `langchain` / `langgraph` | Agent graphs and orchestration | Application |
+| `pydantic` v2 | Schemas and settings | Domain / Interface / Entrypoint |
+| `supabase` | Postgres / RPC / vectors | Infrastructure |
+| `duckduckgo-search` / Tavily | Web search | Infrastructure |
+| `google-api-python-client` | YouTube Data API | Infrastructure |
+| Redis client | Tool/LLM cache (when enabled) | Infrastructure |
+| FastEmbed / Chroma | Embeddings / local vectors | Infrastructure |
+| FastAPI | Local workflow UI API | Interface (`local_ui`) |
 
 ---
 
 ## Core Patterns
 
-### 1. Pydantic Validation Layer Pattern
-All incoming MCP tool calls must be intercepted by a strict Pydantic validation layer before reaching LangChain or Domain logic.
-*   **Rule:** Define request and response schemas in `interface/validation.py`. Validate inputs directly within the MCP tool decorators using these models. This prevents malformed JSON or AI hallucinations from polluting the reasoning engine and guarantees type safety.
+### 1. Pydantic at the boundary
+MCP tool inputs/outputs go through `interface/validation*.py` before application logic.
 
-### 2. External Integration Pattern (Ports & Adapters)
-External tools (like the search tool or customized 3rd-party APIs) must not be tightly coupled directly to LangChain logic.
-*   **Rule:** Define an interface like `ISearchClient` (Port) in `domain/interfaces.py`. Implement `DuckDuckGoSearchClient` (Adapter) in `infrastructure/`. The LangChain tool in `application/` receives this interface via Dependency Injection, making the system highly testable and agnostic to the specific search provider.
+### 2. Ports & adapters
+Define ports in Domain; implement in Infrastructure; inject via `wiring.py`. Application and tools never construct HTTP/DB clients.
 
-### 3. Database Integration Pattern (Supabase Repository)
-Direct database queries should never occur within tools or application logic.
-*   **Rule:** Use the Repository Pattern. Define `IDataRepository` in the domain. Create `SupabaseRepository` in the infrastructure layer. This encapsulates the `supabase-py` client logic, ensuring that connection pooling, querying, and data mapping are centralized.
+### 3. Thin MCP tools
+Decorator → validate → privileged auth (if needed) → application/service → map errors. No SQL, no YouTube SDK, no agent graph construction inside the tool module beyond invoking a runner.
 
-### 4. YouTube Video Search Pattern (Document-Aware Discovery)
-Educational video discovery must be decoupled from MCP tools and LangChain agents, and must enrich — not replace — document retrieval.
-*   **Rule:** Define `IVideoSearchClient` (Port) in `domain/interfaces.py` with domain entities such as `VideoResult` (title, channel, URL, duration, relevance score) in `domain/schemas.py`. Implement `YouTubeDataApiClient` (Adapter) in `infrastructure/youtube_client.py`.
-*   **Document linkage:** Application workflows in `workflows.py` extract search terms from validated document metadata or user queries (e.g., lesson title, topic tags from Supabase), then call `IVideoSearchClient` to find complementary videos. The workflow merges document hits and video results into a single, ranked response — never exposing raw YouTube API payloads to the MCP layer.
-*   **Validation:** MCP tool inputs for video search (query, max results, language, safe-search flag) and outputs (normalized `VideoResult` list) must pass through Pydantic schemas in `interface/validation.py` before reaching Application logic.
-*   **Credentials:** YouTube API keys are loaded at the Entrypoint and injected into the Infrastructure adapter only. Never embed keys in tool definitions or LangChain prompts.
+### 4. Curriculum lockstep
+Enums and shapes shared with Supabase / PraxisWeb (e.g. `project_file_kind`) live in `domain/curriculum_enums.py` and are covered by lockstep tests.
 
-### 5. Schema Evolution Pattern
-*   **Rule:** Maintain a clear boundary between *External Schemas* (MCP protocol contracts), *Validation Schemas* (Pydantic), and *Domain Entities*. Ensure database-specific fields (like internal IDs or Supabase metadata) do not leak into the MCP External Schemas unless explicitly required by the LLM client.
+### 5. Schema evolution
+Keep MCP external schemas, validation models, and domain entities distinct. Do not leak PostgREST or provider blobs to clients.
 
 ---
 
 ## Anti-Patterns (What to Avoid)
 
-| Anti-Pattern | Description | Why it's harmful |
-| :--- | :--- | :--- |
-| **"Smart" Tools** | Writing LangChain routing logic or Supabase queries directly inside the MCP tool decorator. | Impossible to test independently; violates Single Responsibility. |
-| **Leaky Contexts** | Passing MCP `Context` objects directly into Supabase queries or LangChain agents. | Binds the core data and reasoning layers to the transport protocol. |
-| **Unvalidated I/O** | Trusting the LLM's JSON output without passing it through Pydantic first. | Leads to runtime crashes when the AI hallucinates parameters or omits required fields. |
-| **Direct YouTube API Calls in Tools** | Calling the YouTube Data API inside an MCP tool decorator or LangChain agent node. | Bypasses the Port/Adapter boundary; makes video search untestable and couples transport to a third-party API. |
-| **Raw API Leakage** | Returning YouTube API response blobs directly to the LLM client. | Exposes provider-specific fields, wastes context tokens, and breaks the External Schema boundary. |
+| Anti-Pattern | Why it hurts |
+| :--- | :--- |
+| **"Smart" tools** | Logic in the decorator bypasses tests and SRP |
+| **Leaky MCP Context** | Couples domain/application to transport |
+| **Unvalidated I/O** | Hallucinated tool args crash workflows |
+| **Infrastructure imports in domain/application** | Breaks dependency rule; architecture lint fails |
+| **Direct YouTube/Supabase in tools** | Untestable; skips ports |
+| **Raw API leakage** | Provider fields waste tokens and break contracts |
+| **Changelog layer mismatch** | Memory under the wrong `{LAYER}` is hard to resume |

@@ -10,46 +10,55 @@ External MCP clients call **MCP tools** that validate input with Pydantic, deleg
 
 ### MCP tools
 
-| Tool | Purpose |
-| :--- | :--- |
-| `health_check` | Liveness probe |
-| `find_documents` | Document retrieval enriched with related videos (pruned response payloads) |
-| `search_youtube` | YouTube video search for educational content |
-| `run_workflow` | Full document + video discovery LangGraph workflow |
+| Tool | Module | Purpose |
+| :--- | :--- | :--- |
+| `health_check` | `custom_tools` | Liveness probe |
+| `find_documents` | `custom_tools` | Document retrieval enriched with related videos |
+| `search_youtube` | `custom_tools` | Educational YouTube search |
+| `run_workflow` | `custom_tools_workflow` | Document + video discovery LangGraph workflow |
+| `research_article` | `custom_tools_agent_workflows` | Research article generation workflow |
+| `content_generation` | `custom_tools_agent_workflows` | Lesson/quiz/project content generation |
+| `author_lesson_pipeline` | `custom_tools_authoring` | Graph leaf → generate → validate → save (draft/publish) |
+| `search_graph_nodes` | `custom_tools_authoring` | Curriculum graph leaf search |
+| `validate_lesson` / `validate_quiz` / `validate_project` / `validate_test_boilerplate` | `custom_tools_authoring` | Content validation |
+| `save_to_backend` | `custom_tools_authoring` | Persist authored lesson tree via backend RPCs |
+| `generate_mock_test_structure` / `validate_mock_test` | `custom_tools_authoring` | Mock assessment scaffolding |
+| `socratic_tutor` | `custom_tools_socratic` | Socratic tutor turn |
+| `collect_project_review_context` / `project_review` | `custom_tools_project_review` | Project mentor review |
 
-All tool handlers are wrapped with **MCP tool caching** (when enabled), **per-tool latency logging**, and **domain error mapping** at the protocol boundary.
+Handlers use **MCP tool caching** (when enabled), **latency logging**, **privileged auth** where required, and **domain error mapping** at the protocol boundary.
 
 ### Integrations
 
 | Capability | Integration |
 | :--- | :--- |
-| Document retrieval | Supabase (Postgres / pgvector) |
-| Web search | DuckDuckGo (optional Tavily) — wiring deferred until HTTP adapters land |
+| Document / vector retrieval | Supabase (Postgres / pgvector) and optional Chroma |
+| Curriculum graph + authoring RPCs | Supabase RPCs via authoring backend client (anon + manager JWT) |
+| Web search | DuckDuckGo / Tavily |
 | Video discovery | YouTube Data API v3 |
 | Agent orchestration | LangChain / LangGraph |
-| Caching | Redis (`CACHE_ENABLED=true` required in production) |
-| Local workflow UI | FastAPI + React (dev tooling) |
-
-> **Adapter status:** Infrastructure adapters are scaffolded with domain guards and exception taxonomy; full HTTP implementations (BL-022) are deferred. MCP tools exercise the workflow and port contracts through the composition root.
+| Caching | Redis when `CACHE_ENABLED=true` |
+| Local workflow UI | FastAPI + React (`ui/`) |
 
 ## Architecture
 
-The codebase follows **Clean Architecture** with five layers under `src/mcp_server/`:
+Clean Architecture under `src/mcp_server/`. **Dependency rule:** Domain has no framework I/O; Infrastructure implements Domain ports; Interface and Application depend inward only.
 
 ```text
-entrypoint  →  interface  →  application  →  domain  ←  infrastructure
-(main.py)      (MCP tools)   (agents)        (ports)     (adapters)
+entrypoint → interface → application → domain ← infrastructure
 ```
 
 | Layer | Path | Responsibility |
 | :--- | :--- | :--- |
-| **domain** | `domain/` | Entities, ports, domain exceptions — no framework imports |
-| **application** | `application/` | LangGraph workflows, agent orchestration |
-| **interface** | `interface/` | MCP tools, Pydantic validation, protocol adapters |
-| **infrastructure** | `infrastructure/` | Supabase, search, YouTube, Redis adapters |
-| **entrypoint** | `main.py`, `settings.py`, `wiring.py` | Bootstrap, settings, dependency injection |
+| **domain** | `domain/` | Entities, ports, validators, curriculum enums — no MCP/LangGraph/Supabase |
+| **application** | `application/` | LangGraph `agents/`, runners, LLM routing, authoring services |
+| **interface** | `interface/` | MCP tools (`custom_tools*.py`), validation, error mapping, local UI API |
+| **infrastructure** | `infrastructure/` | Supabase, search, YouTube, Groq, Redis, retrieval/embeddings/rerank |
+| **entrypoint** | `main.py`, `wiring.py`, `settings.py`, … | Bootstrap and composition root only |
 
-**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) for layer rules, patterns, and anti-patterns. [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) for LLM wiring, tool taxonomy, and agent flows. [OBSERVABILITY.md](./OBSERVABILITY.md) for the local LangGraph workflow UI, execution replay, and trace debugging.
+**Changelog folders** use the same names plus `tests`, `performance`, `code-health`, `refactor` — see [ARCHITECTURE.md § Changelog layer names](./ARCHITECTURE.md#changelog-layer-names).
+
+**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) (layer rules, tree, anti-patterns) · [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) (graphs / tools) · [OBSERVABILITY.md](./OBSERVABILITY.md) (workflow UI / traces).
 
 ## Quick start
 
@@ -177,18 +186,23 @@ Run quality-gate commands from the **repository root** (`ed-tech-system-mcp/`), 
 
 ```text
 .
-├── src/mcp_server/          # Application source (layered)
-├── tests/                   # pytest suites
+├── src/mcp_server/
+│   ├── domain/              # Entities, ports, validators, enums
+│   ├── application/         # Agents, runners, LLM routing, authoring services
+│   │   └── agents/          # LangGraph packages (content_generation, socratic, …)
+│   ├── interface/           # MCP tools + local_ui API
+│   ├── infrastructure/      # Adapters (retrieval, embeddings, cache, clients)
+│   ├── wiring.py            # Composition root
+│   ├── settings.py
+│   └── main.py              # mcp-server entry
+├── tests/                   # pytest + architecture lint
+├── changelog/               # Agent memory: {DATE}/{LAYER}/ (local)
 ├── ui/                      # React workflow graph UI
-├── scripts/
-│   ├── doppler/             # Secret bootstrap and local setup
-│   ├── hooks/               # Husky pre-commit guards
-│   └── dev/                 # Dev tooling (workflow UI launcher)
-├── docs/
-│   └── assets/              # README screenshots (workflow UI)
-├── ARCHITECTURE.md          # Layer boundaries and patterns
+├── scripts/                 # Doppler, hooks, Render, dev UI
+├── docs/assets/             # README screenshots
+├── ARCHITECTURE.md          # Layer boundaries (canonical)
 ├── AGENTIC_ARCHITECTURE.md  # Agent graphs and tool orchestration
-├── OBSERVABILITY.md         # Workflow UI, trace replay, debugging
+├── OBSERVABILITY.md         # Workflow UI, trace replay
 └── ENVIRONMENT_SETUP.md     # uv, secrets, CI, MCP client config
 ```
 
@@ -238,7 +252,9 @@ Read the **minimum** doc set for your task. Do not load everything.
 
 ### Changelog memory (`changelog/{DATE}/{LAYER}/`)
 
-Local engineering memory for investigations, implementations, reviews, audits, and test homologation (gitignored — not published).
+Local engineering memory (often gitignored). `{LAYER}` must match an architecture layer or audit folder:
+
+`domain` · `application` · `interface` · `infrastructure` · `entrypoint` · `tests` · `performance` · `code-health` · `refactor`
 
 | File pattern | Purpose |
 | :--- | :--- |
@@ -250,8 +266,9 @@ Local engineering memory for investigations, implementations, reviews, audits, a
 | `PERFORMANCE_AUDIT{N}.md` | Performance bottleneck findings |
 | `CODE_HEALTH_AUDIT{N}.md` | Maintainability / dead-code findings |
 | `REFACTOR{N}.md` | Merged refactor actions from audits |
+| `LOOP_BREAK{N}.md` | Recursive-loop parameters and iteration log |
 
-**Pairing:** `IMPLEMENTATION{N}` ↔ `INVESTIGATION{N}`; `CODE_REVIEW{N}` ↔ same `{N}`.
+**Pairing:** `IMPLEMENTATION{N}` ↔ `INVESTIGATION{N}`; `CODE_REVIEW{N}` ↔ same `{N}`. Full protocol: `.cursor/rules/changelog-agent-memory.mdc`.
 
 ### Quick routing
 
