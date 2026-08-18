@@ -12,6 +12,7 @@ from mcp_server.interface.validation import (
     document_hit_to_summary,
 )
 from mcp_server.interface.validation_workflow import (
+    ContentGenerationRunRequest,
     RagRetrievalRunRequest,
     WorkflowRunRequest,
     rag_retrieval_state_to_run_response,
@@ -95,6 +96,22 @@ def test_t17_workflow_run_request_validation() -> None:
         WorkflowRunRequest(query="x", document_limit=51)
     with pytest.raises(ValidationError):
         WorkflowRunRequest(query="x", video_limit=0)
+
+
+def test_content_generation_run_request_accepts_path_like_graph_node_id() -> None:
+    request = ContentGenerationRunRequest(
+        topic="Iterative Optimization",
+        tenant_id="8d9cad71-55db-43e4-87f3-89b9077c174f",
+        course_slug="javascript",
+        module_id="6a04eed1-a967-5375-80cb-a5940a068084",
+        lesson_slug="iterative-optimization",
+        graph_node_id="lesson:javascript:07-technical-interview-preparation:07.5-iterative-optimization",
+        graph_query="Iterative Optimization",
+    )
+    assert (
+        request.graph_node_id
+        == "lesson:javascript:07-technical-interview-preparation:07.5-iterative-optimization"
+    )
 
 
 def test_t_rf10_workflow_state_to_run_response_maps_state_fields() -> None:

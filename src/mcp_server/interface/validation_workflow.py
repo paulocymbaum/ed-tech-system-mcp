@@ -143,7 +143,9 @@ class ContentGenerationRunRequest(BaseModel):
     course_slug: str | None = Field(default=None, min_length=1)
     module_id: str | None = Field(default=None, min_length=36, max_length=36)
     lesson_slug: str | None = Field(default=None, min_length=1)
-    graph_node_id: str | None = Field(default=None, min_length=36, max_length=36)
+    # Graph leaves may be UUIDs or stable path-like ids such as
+    # `lesson:javascript:07-module:07.5-topic`; do not force UUID length here.
+    graph_node_id: str | None = Field(default=None, min_length=1)
     graph_query: str | None = Field(default=None, min_length=1)
 
     @field_validator(
