@@ -355,6 +355,65 @@ def test_scan_entropy_allows_safe_content(tmp_path: Path) -> None:
     assert result.stderr == ""
 
 
+def test_scan_entropy_logs_size_skip(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(
+        tmp_path,
+        SCAN_ENTROPY,
+        "src/big.py",
+        content="x" * 52001,
+    )
+    assert result.returncode == 0
+    assert "skipped path=src/big.py rule=size" in result.stderr
+
+
+def test_scan_entropy_does_not_size_skip_dotenv(tmp_path: Path) -> None:
+    result = _run_hook_in_repo(
+        tmp_path,
+        SCAN_ENTROPY,
+        ".env",
+        content=_leaked_groq_token_content() + ("x" * 52000),
+    )
+    assert result.returncode == 1
+    assert "skipped" not in result.stderr
+    assert "potential secrets" in result.stderr.lower()
+
+
+def test_scan_entropy_logs_binary_skip_but_scans_dotenv(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    _init_test_repo(repo_dir)
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed gitignore", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    png = repo_dir / "asset.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+    _stage_file(repo_dir, "asset.png", force=True)
+
+    env_file = repo_dir / ".env"
+    env_file.write_bytes(b"\x89PNG\r\n\x1a\n" + _leaked_groq_token_content().encode("utf-8"))
+    _stage_file(repo_dir, ".env", force=True)
+
+    result = subprocess.run(
+        ["bash", str(SCAN_ENTROPY)],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    assert "skipped path=asset.png rule=binary" in result.stderr
+    assert "skipped path=.env" not in result.stderr
+    assert result.returncode == 1
+    assert "potential secrets" in result.stderr.lower()
+
+
 def test_scan_staged_content_rejects_groq_key(tmp_path: Path) -> None:
     result = _run_hook_in_repo(
         tmp_path,
@@ -374,7 +433,9 @@ def test_sensitive_files_library_is_not_gitignored() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 1, "sensitive-files.sh must be committable (not matched by lib/ gitignore)"
+    assert result.returncode == 1, (
+        "sensitive-files.sh must be committable (not matched by lib/ gitignore)"
+    )
 
 
 def test_scan_allowlist_is_not_gitignored() -> None:
@@ -385,7 +446,9 @@ def test_scan_allowlist_is_not_gitignored() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 1, "scan-allowlist.sh must be committable (not matched by lib/ gitignore)"
+    assert result.returncode == 1, (
+        "scan-allowlist.sh must be committable (not matched by lib/ gitignore)"
+    )
 
 
 def test_test_hooks_fixture_tokens_avoid_literal_secret_prefixes() -> None:
@@ -393,7 +456,8 @@ def test_test_hooks_fixture_tokens_avoid_literal_secret_prefixes() -> None:
     fixture_section = content.split("def test_block_sensitive_files_rejects_dotenv", maxsplit=1)[0]
     for literal in ("ghp_", "gsk_", "AKIA", "sb_secret_", "sbp_"):
         assert literal not in fixture_section, (
-            f"hook test fixtures must build {literal!r} via concatenation so scanners do not false-positive"
+            f"hook test fixtures must build {literal!r} via concatenation "
+            "so scanners do not false-positive"
         )
 
 
@@ -658,7 +722,12 @@ def test_scan_push_secrets_allows_clean_branch_over_pushed_main_secret(tmp_path:
     repo_dir = tmp_path / "repo"
     origin_dir = tmp_path / "origin.git"
     _init_test_repo(repo_dir)
-    subprocess.run(["git", "init", "--bare", str(origin_dir)], check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "init", "--bare", str(origin_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     subprocess.run(
         ["git", "remote", "add", "origin", str(origin_dir)],
         cwd=repo_dir,

@@ -105,3 +105,17 @@ async def test_ingest_upserts_parent_document_before_chunks(
     await ingest._ingest(args)
 
     assert call_order == ["upsert_document", "upsert_chunks"]
+
+
+def test_ingest_cli_bootstraps_environment_from_composition_root() -> None:
+    source = _INGEST_PATH.read_text(encoding="utf-8")
+    assert "from mcp_server.env_bootstrap import bootstrap_environment" in source
+    assert "load_dotenv" not in source
+
+
+def test_rag_optimize_bootstraps_environment_from_composition_root() -> None:
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts" / "rag_optimize_hyperparameters.py"
+    ).read_text(encoding="utf-8")
+    assert "from mcp_server.env_bootstrap import bootstrap_environment" in source
+    assert "load_dotenv" not in source

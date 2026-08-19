@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp_server.domain.input_safety import wrap_user_content_for_prompt
 from mcp_server.domain.project_review import ProjectReviewContext
 
 
@@ -26,12 +27,22 @@ def grade_user_prompt(context: ProjectReviewContext) -> str:
     ) or "(no starter files)"
     deliveries = []
     for index, delivery in enumerate(context.deliveries, start=1):
+        fenced = wrap_user_content_for_prompt(
+            delivery.content[:12000],
+            label=f"delivery_{index}",
+        )
         deliveries.append(
-            f"### Delivery {index} id={delivery.id} at={delivery.submitted_at}\n"
-            f"{delivery.content[:12000]}"
+            f"### Delivery {index} id={delivery.id} at={delivery.submitted_at}\n{fenced}"
         )
     delivery_block = "\n\n".join(deliveries) or "(no deliveries)"
-    latest = context.deliveries[-1].content[:16000] if context.deliveries else "(none)"
+    latest = (
+        wrap_user_content_for_prompt(
+            context.deliveries[-1].content[:16000],
+            label="latest_delivery",
+        )
+        if context.deliveries
+        else "(none)"
+    )
     return (
         f"## Lesson context\n{context.lesson_markdown[:6000] or '(none)'}\n\n"
         f"## Project README\n{context.readme_markdown[:12000] or '(none)'}\n\n"

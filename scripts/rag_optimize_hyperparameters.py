@@ -30,7 +30,8 @@ from mcp_server.application.agents.rag_validation.test_dataset_loader import (
     load_test_dataset_scenarios,
 )
 from mcp_server.domain.rag_hyperparameters import RagHyperparameterSearchSpace
-from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
+from mcp_server.env_bootstrap import bootstrap_environment
+from mcp_server.main import bootstrap_application_runtime
 
 
 def _parse_args() -> argparse.Namespace:

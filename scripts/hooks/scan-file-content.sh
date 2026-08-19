@@ -91,7 +91,7 @@ scan_git_blobs_for_secrets() {
         continue
       fi
 
-      if _content_is_probably_binary "$blob_content"; then
+      if _content_is_probably_binary "$blob_content" && ! is_env_named_path "$file"; then
         echo "WARN: scan-file-content.sh skipped path=${file} rule=binary" >&2
         continue
       fi

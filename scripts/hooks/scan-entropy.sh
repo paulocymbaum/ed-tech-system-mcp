@@ -41,7 +41,7 @@ for file in "${staged_files[@]}"; do
     continue
   fi
 
-  if is_probably_binary "$file"; then
+  if is_probably_binary "$file" && ! is_env_named_path "$file"; then
     echo "WARN: scan-entropy.sh skipped path=${file} rule=binary" >&2
     continue
   fi
