@@ -36,21 +36,35 @@ def harness_quiz_to_rpc_payload(quiz: dict[str, Any] | HarnessQuizDraft) -> dict
         for opt_pos, option in enumerate(question.get("options") or [], start=1):
             if not isinstance(option, dict):
                 continue
+            opt_slug = str(option.get("id") or option.get("slug") or "").strip()
+            if not opt_slug:
+                continue
             options_out.append(
                 {
-                    "slug": option.get("id") or option.get("slug"),
+                    "slug": opt_slug,
                     "position": opt_pos,
                     "text": option.get("text"),
                 }
             )
+        slugs = [str(o["slug"]) for o in options_out if o.get("slug")]
+        raw_correct = str(
+            question.get("correctOptionId") or question.get("correct_option_slug") or ""
+        ).strip()
+        correct = next((slug for slug in slugs if slug == raw_correct), None)
+        if correct is None and raw_correct:
+            correct = next(
+                (slug for slug in slugs if slug.lower() == raw_correct.lower()),
+                None,
+            )
+        if len(slugs) < 2 or not correct:
+            continue
         questions_out.append(
             {
                 "slug": question.get("id") or question.get("slug"),
                 "position": position,
                 "prompt": question.get("prompt"),
                 "explanation": question.get("explanation"),
-                "correct_option_slug": question.get("correctOptionId")
-                or question.get("correct_option_slug"),
+                "correct_option_slug": correct,
                 "options": options_out,
             }
         )

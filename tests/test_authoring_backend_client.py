@@ -92,3 +92,28 @@ def test_harness_quiz_to_rpc_maps_option_slugs() -> None:
     )
     assert payload["questions"][0]["correct_option_slug"] == "b"
     assert payload["questions"][0]["options"][0]["slug"] == "a"
+
+
+def test_harness_quiz_to_rpc_skips_questions_without_matching_key() -> None:
+    payload = harness_quiz_to_rpc_payload(
+        {
+            "id": "quiz",
+            "title": "T",
+            "questions": [
+                {
+                    "id": "q1",
+                    "prompt": "P",
+                    "correctOptionId": "B",
+                    "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+                },
+                {
+                    "id": "q2",
+                    "prompt": "Bad",
+                    "correctOptionId": "z",
+                    "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+                },
+            ],
+        }
+    )
+    assert len(payload["questions"]) == 1
+    assert payload["questions"][0]["correct_option_slug"] == "b"

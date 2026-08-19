@@ -127,7 +127,12 @@ def quiz_user_prompt(
         f"Base the quiz on this lesson title: {lesson_title}",
     ]
     if graph_scoped:
-        lines.append("Use slug ids for questions/options (e.g. q1, a, b) and correctOptionId.")
+        lines.append(
+            "Use slug ids for questions and options (q1, a, b, c). "
+            "correctOptionId MUST be exactly one option.id — never the option text, "
+            "never an index, never a UUID. Include at least 2 options per question "
+            "and a short explanation."
+        )
         if lesson_slug:
             lines.append(f"Set lessonId to: {lesson_slug}")
         if graph_index:
@@ -136,6 +141,9 @@ def quiz_user_prompt(
         lines.append("Objectives:")
         lines.extend(f"- {objective}" for objective in objectives)
         lines.append("Include at least three multiple-choice questions with explanations.")
+        lines.append(
+            "Each question needs unique option ids and correctOptionId equal to one of those ids."
+        )
     if validation_errors:
         lines.append("Fix these validation errors from your previous attempt:")
         lines.extend(f"- {error}" for error in validation_errors)
@@ -178,7 +186,8 @@ def pbl_user_prompt(
     if graph_scoped:
         lines.append(
             "Include readme_markdown with required PBL sections, starter/index.js, "
-            "starter/tests.json cases, and files[] + test_cases[] for backend upsert."
+            "starter/tests.json cases, and files[] + test_cases[] for backend upsert. "
+            "Every test_cases entry needs id, stdin, and expectedStdout."
         )
         if lesson_slug and graph_index:
             lines.append(
