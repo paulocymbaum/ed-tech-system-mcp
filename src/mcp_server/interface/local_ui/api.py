@@ -58,7 +58,7 @@ from mcp_server.application.benchmark_runner import (
 )
 from mcp_server.application.workflow_graph import WorkflowGraphView, workflow_graph_view
 from mcp_server.application.workflow_trace import invoke_graph_with_trace
-from mcp_server.domain.exceptions import ResourceNotFoundError
+from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
 from mcp_server.domain.rag_hyperparameters import RagHyperparameters
 from mcp_server.interface.local_ui.benchmark_schemas import (
     BenchmarkCompleteEventView,
@@ -73,6 +73,7 @@ from mcp_server.interface.local_ui.benchmark_schemas import (
     RagOptimizationRequest,
     TestDatasetSummaryView,
 )
+from mcp_server.interface.local_ui.cors import resolve_workflow_ui_cors
 from mcp_server.interface.local_ui.schemas import WorkflowListResponse
 from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
@@ -95,7 +96,6 @@ from mcp_server.interface.validation_workflow import (
     tavily_search_state_to_run_response,
     youtube_search_state_to_run_response,
 )
-from mcp_server.interface.local_ui.cors import resolve_workflow_ui_cors
 from mcp_server.main import bootstrap_application_runtime, bootstrap_environment
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -219,6 +219,7 @@ async def _run_rag_retrieval_workflow(body: dict[str, object]) -> RagRetrievalRu
             retrieve_limit=request.retrieve_limit,
             rerank_top_n=request.rerank_top_n,
             rerank_enabled=request.rerank_enabled,
+            tenant_id=request.tenant_id,
             course_id=request.course_id,
             tags=request.tags,
             language=request.language,
@@ -230,6 +231,8 @@ async def _run_rag_retrieval_workflow(body: dict[str, object]) -> RagRetrievalRu
         )
     except ResourceNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TimeoutError as exc:

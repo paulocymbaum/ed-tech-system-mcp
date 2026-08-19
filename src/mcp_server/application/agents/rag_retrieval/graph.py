@@ -105,6 +105,7 @@ def initial_rag_retrieval_state(
     retrieve_limit: int = 20,
     rerank_top_n: int = 6,
     rerank_enabled: bool = False,
+    tenant_id: str | None = None,
     course_id: str | None = None,
     tags: list[str] | None = None,
     language: str | None = None,
@@ -117,6 +118,8 @@ def initial_rag_retrieval_state(
         "rerank_enabled": rerank_enabled,
         "retrieval_complete": False,
     }
+    if tenant_id is not None:
+        state["tenant_id"] = tenant_id
     if course_id is not None:
         state["course_id"] = course_id
     if tags is not None:
@@ -133,6 +136,7 @@ async def run_rag_retrieval_graph(
     retrieve_limit: int = 20,
     rerank_top_n: int = 6,
     rerank_enabled: bool = False,
+    tenant_id: str | None = None,
     course_id: str | None = None,
     tags: list[str] | None = None,
     language: str | None = None,
@@ -146,6 +150,7 @@ async def run_rag_retrieval_graph(
         retrieve_limit=retrieve_limit,
         rerank_top_n=rerank_top_n,
         rerank_enabled=rerank_enabled,
+        tenant_id=tenant_id,
         course_id=course_id,
         tags=tags,
         language=language,

@@ -391,10 +391,18 @@ def test_scan_allowlist_is_not_gitignored() -> None:
 def test_test_hooks_fixture_tokens_avoid_literal_secret_prefixes() -> None:
     content = (REPO_ROOT / "tests/test_hooks.py").read_text(encoding="utf-8")
     fixture_section = content.split("def test_block_sensitive_files_rejects_dotenv", maxsplit=1)[0]
-    for literal in ("ghp_", "gsk_", "AKIA"):
+    for literal in ("ghp_", "gsk_", "AKIA", "sb_secret_", "sbp_"):
         assert literal not in fixture_section, (
             f"hook test fixtures must build {literal!r} via concatenation so scanners do not false-positive"
         )
+
+
+def test_scan_patterns_cover_current_key_prefixes() -> None:
+    patterns = (REPO_ROOT / "scripts/hooks/scan-patterns.sh").read_text(encoding="utf-8")
+    gitleaks = (REPO_ROOT / ".gitleaks.toml").read_text(encoding="utf-8")
+    for needle in ("sb_secret_", "sbp_", "dp\\.", "VITE_"):
+        assert needle in patterns
+        assert needle.replace("\\", "") in gitleaks or needle in gitleaks
 
 
 def test_scan_staged_content_rejects_aws_access_key(tmp_path: Path) -> None:
@@ -525,6 +533,7 @@ def test_scan_secrets_falls_back_to_staged_content_when_no_scanners(tmp_path: Pa
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()
     env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env["ALLOW_BASH_SECRET_FALLBACK"] = "1"
 
     result = subprocess.run(
         ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-secrets.sh")],
@@ -535,6 +544,44 @@ def test_scan_secrets_falls_back_to_staged_content_when_no_scanners(tmp_path: Pa
     )
     assert result.returncode == 1, result.stderr or result.stdout
     assert "potential secrets" in result.stderr.lower()
+
+
+def test_scan_secrets_fails_closed_without_scanners_or_fallback(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    _init_test_repo(repo_dir)
+    _write_gitignore(repo_dir)
+    _copy_hooks_to_repo(repo_dir)
+    subprocess.run(
+        ["git", "add", ".gitignore"], cwd=repo_dir, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed", "--no-verify"],
+        cwd=repo_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    safe_file = repo_dir / "src/safe.py"
+    safe_file.parent.mkdir(parents=True, exist_ok=True)
+    safe_file.write_text("def ok():\n    return True\n", encoding="utf-8")
+    _stage_file(repo_dir, "src/safe.py")
+
+    env = os.environ.copy()
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env.pop("ALLOW_BASH_SECRET_FALLBACK", None)
+
+    result = subprocess.run(
+        ["/usr/bin/bash", str(repo_dir / "scripts/hooks/scan-secrets.sh")],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 1
+    assert "refuse bash fallback" in result.stderr.lower()
 
 
 def _zero_sha() -> str:
@@ -600,6 +647,7 @@ def test_scan_push_secrets_rejects_leaked_token_in_push_range(tmp_path: Path) ->
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()
     env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env["ALLOW_BASH_SECRET_FALLBACK"] = "1"
 
     result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
     assert result.returncode == 1, result.stderr or result.stdout
@@ -690,6 +738,7 @@ def test_scan_push_secrets_allows_clean_branch_over_pushed_main_secret(tmp_path:
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()
     env["PATH"] = f"{empty_bin}:/usr/bin:/bin"
+    env["ALLOW_BASH_SECRET_FALLBACK"] = "1"
 
     result = _run_scan_push_secrets(repo_dir, local_sha, _zero_sha(), env=env)
     assert result.returncode == 0, result.stderr or result.stdout

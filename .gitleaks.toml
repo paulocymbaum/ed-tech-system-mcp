@@ -29,3 +29,28 @@ regex = '''gsk_[a-zA-Z0-9]{20,}'''
 id = "google-api-key"
 description = "Google API key"
 regex = '''AIza[0-9A-Za-z\-_]{35}'''
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret key prefix"
+regex = '''sb_secret_[a-zA-Z0-9]{20,}'''
+
+[[rules]]
+id = "supabase-publishable-or-secret-sbp"
+description = "Supabase sbp_ key prefix"
+regex = '''sbp_[a-zA-Z0-9]{20,}'''
+
+[[rules]]
+id = "doppler-token"
+description = "Doppler token prefix"
+regex = '''dp\.[a-zA-Z0-9._-]{20,}'''
+
+[[rules]]
+id = "vite-privileged-assignment"
+description = "Privileged VITE_* secret assignment"
+regex = '''VITE_[A-Z0-9_]*(SECRET|SERVICE_ROLE|PRIVATE_KEY|TOKEN)[A-Z0-9_]*\s*[=:]\s*[''"]?[A-Za-z0-9_/=+-]{16,}'''
+
+[[rules]]
+id = "service-role-assignment"
+description = "service_role key assignment"
+regex = '''service_role\s*[=:]\s*[''"]?[A-Za-z0-9_/=+-]{20,}'''

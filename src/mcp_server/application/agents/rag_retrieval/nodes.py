@@ -47,6 +47,7 @@ def _require_reranker() -> IReranker:
 
 def _build_filters(state: RagRetrievalState) -> ChunkRetrievalFilter:
     return ChunkRetrievalFilter(
+        tenant_id=state.get("tenant_id"),
         course_id=state.get("course_id"),
         tags=state.get("tags"),
         language=state.get("language"),

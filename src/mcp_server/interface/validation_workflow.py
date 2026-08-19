@@ -196,6 +196,7 @@ class RagRetrievalRunRequest(BaseModel):
     retrieve_limit: int = Field(default=20, ge=1, le=100)
     rerank_top_n: int = Field(default=6, ge=1, le=50)
     rerank_enabled: bool = False
+    tenant_id: str | None = Field(default=None, min_length=36, max_length=36)
     course_id: str | None = None
     tags: list[str] | None = None
     language: str | None = Field(default=None, min_length=2, max_length=10)

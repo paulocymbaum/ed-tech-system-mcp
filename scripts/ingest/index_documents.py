@@ -10,8 +10,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from dotenv import load_dotenv
-
+from mcp_server.env_bootstrap import bootstrap_environment
 from mcp_server.settings import load_settings
 from mcp_server.wiring import (
     build_chunking_strategy,
@@ -85,7 +84,7 @@ async def _ingest(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    load_dotenv(override=False)
+    bootstrap_environment()
     args = _parse_args()
     asyncio.run(_ingest(args))
 

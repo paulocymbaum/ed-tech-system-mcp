@@ -478,6 +478,12 @@ def initialize_application_runtime(
         configure_lazy_integration_clients(None)
         configure_lazy_retrieval_clients(None)
         set_mcp_tool_cache(None)
+        from mcp_server.application.inbound_rate_limit_runtime import (
+            InboundRateLimitRuntime,
+            set_inbound_rate_limit_runtime,
+        )
+
+        set_inbound_rate_limit_runtime(InboundRateLimitRuntime(enabled=False, limiter=None))
         _runtime_cache_store = cache_store
         return ApplicationContext(
             workflow_execution_config=config,
@@ -577,6 +583,25 @@ def initialize_application_runtime(
         McpToolAuthRuntime(
             require_caller_jwt=settings.mcp_require_caller_jwt,
             identity=identity,
+        )
+    )
+    from mcp_server.application.inbound_rate_limit_runtime import (
+        InboundRateLimitRuntime,
+        set_inbound_rate_limit_runtime,
+    )
+    from mcp_server.infrastructure.inbound_rate_limiter import (
+        KeyedSlidingWindowInboundRateLimiter,
+    )
+
+    http_like = settings.mcp_transport in {"http", "sse", "streamable-http"}
+    set_inbound_rate_limit_runtime(
+        InboundRateLimitRuntime(
+            enabled=http_like,
+            limiter=KeyedSlidingWindowInboundRateLimiter(
+                settings.mcp_inbound_limit_per_minute,
+            )
+            if http_like
+            else None,
         )
     )
 

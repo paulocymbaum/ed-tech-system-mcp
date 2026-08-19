@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_server.application.agent import ainvoke_with_workflow_timeout
 from mcp_server.application.agents.socratic.graph import (
@@ -16,6 +16,7 @@ from mcp_server.application.agents.socratic.graph import (
     initial_socratic_tutor_state,
     result_from_state,
 )
+from mcp_server.domain.input_safety import require_safe_user_text
 from mcp_server.domain.socratic import (
     SocraticGrounding,
     SocraticMessage,
@@ -30,6 +31,11 @@ class SocraticHistoryItem(BaseModel):
     role: str = Field(pattern="^(user|assistant)$")
     content: str = Field(min_length=1, max_length=4000)
 
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        return require_safe_user_text(value, field="content")
+
 
 class SocraticTutorRequest(BaseModel):
     tenant_id: str = Field(min_length=1)
@@ -43,6 +49,11 @@ class SocraticTutorRequest(BaseModel):
     locale: str = "en"
     want_full_solution: bool = False
     grounding: dict[str, Any] | None = None
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        return require_safe_user_text(value, field="message")
 
 
 @mcp.tool

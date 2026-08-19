@@ -47,7 +47,8 @@ scan_files_for_secrets() {
     fi
 
     size=$(wc -c <"$file" | tr -d ' ')
-    if ((size > MAX_SCAN_FILE_SIZE)); then
+    if ((size > MAX_SCAN_FILE_SIZE)) && ! is_env_named_path "$file"; then
+      echo "WARN: scan-file-content.sh skipped path=${file} rule=size" >&2
       continue
     fi
 
@@ -91,11 +92,13 @@ scan_git_blobs_for_secrets() {
       fi
 
       if _content_is_probably_binary "$blob_content"; then
+        echo "WARN: scan-file-content.sh skipped path=${file} rule=binary" >&2
         continue
       fi
 
       size=${#blob_content}
-      if ((size > MAX_SCAN_FILE_SIZE)); then
+      if ((size > MAX_SCAN_FILE_SIZE)) && ! is_env_named_path "$file"; then
+        echo "WARN: scan-file-content.sh skipped path=${file} rule=size" >&2
         continue
       fi
 

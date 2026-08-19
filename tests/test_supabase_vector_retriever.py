@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_server.domain.exceptions import DomainValidationError
 from mcp_server.domain.schemas import ChunkRetrievalFilter
 from mcp_server.infrastructure.retrieval.supabase_vector_retriever import SupabasePgvectorRetriever
 
@@ -42,7 +43,7 @@ async def test_vector_mode_calls_match_chunks_rpc() -> None:
         hits = await retriever.retrieve(
             [0.1] * 384,
             limit=5,
-            filters=ChunkRetrievalFilter(),
+            filters=ChunkRetrievalFilter(tenant_id="8d9cad71-55db-43e4-87f3-89b9077c174f"),
             mode="vector",
         )
 
@@ -51,7 +52,7 @@ async def test_vector_mode_calls_match_chunks_rpc() -> None:
         {
             "query_embedding": [0.1] * 384,
             "match_count": 5,
-            "filter": {},
+            "filter": {"tenant_id": "8d9cad71-55db-43e4-87f3-89b9077c174f"},
         },
     )
     assert len(hits) == 1
@@ -64,7 +65,12 @@ async def test_vector_mode_calls_match_chunks_rpc() -> None:
 async def test_hybrid_mode_calls_hybrid_search_rpc() -> None:
     client = _mock_client([_sample_row()])
     retriever = SupabasePgvectorRetriever("https://test.supabase.co", "service-key")
-    filters = ChunkRetrievalFilter(course_id="bio-101", language="en", tags=["plants"])
+    filters = ChunkRetrievalFilter(
+        tenant_id="8d9cad71-55db-43e4-87f3-89b9077c174f",
+        course_id="bio-101",
+        language="en",
+        tags=["plants"],
+    )
 
     with patch(
         "mcp_server.infrastructure.retrieval.supabase_vector_retriever.create_client",
@@ -85,6 +91,7 @@ async def test_hybrid_mode_calls_hybrid_search_rpc() -> None:
             "query_embedding": [0.2] * 384,
             "match_count": 10,
             "filter": {
+                "tenant_id": "8d9cad71-55db-43e4-87f3-89b9077c174f",
                 "course_id": "bio-101",
                 "language": "en",
                 "tags": ["plants"],
@@ -108,7 +115,19 @@ async def test_hybrid_mode_requires_query_text() -> None:
         await retriever.retrieve(
             [0.1] * 384,
             limit=5,
-            filters=ChunkRetrievalFilter(),
+            filters=ChunkRetrievalFilter(tenant_id="8d9cad71-55db-43e4-87f3-89b9077c174f"),
             mode="hybrid",
             query_text=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_retrieve_requires_tenant_id() -> None:
+    retriever = SupabasePgvectorRetriever("https://test.supabase.co", "service-key")
+    with pytest.raises(DomainValidationError, match="tenant_id is required"):
+        await retriever.retrieve(
+            [0.1] * 384,
+            limit=5,
+            filters=ChunkRetrievalFilter(course_id="bio-101"),
+            mode="vector",
         )

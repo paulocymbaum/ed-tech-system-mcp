@@ -57,4 +57,9 @@ if ((scanners_available > 0)); then
   exit 0
 fi
 
+if [[ "${ALLOW_BASH_SECRET_FALLBACK:-}" != "1" ]]; then
+  echo "ERROR: scan-secrets.sh: gitleaks and secretlint are missing; refuse bash fallback (set ALLOW_BASH_SECRET_FALLBACK=1 to override)." >&2
+  exit 1
+fi
+
 bash "$hooks_dir/scan-staged-content.sh"

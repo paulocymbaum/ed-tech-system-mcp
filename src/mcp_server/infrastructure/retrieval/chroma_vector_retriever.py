@@ -8,13 +8,15 @@ from typing import Any, Literal, cast
 import chromadb
 
 from mcp_server.domain.interfaces import IVectorRetriever
-from mcp_server.domain.invariants import require_positive_int
+from mcp_server.domain.invariants import require_positive_int, require_tenant_retrieval_filter
 from mcp_server.domain.schemas import ChunkHit, ChunkRetrievalFilter
 from mcp_server.infrastructure.retrieval.chunk_hit_mapping import row_to_chunk_hit
 
 
 def _chroma_where(filters: ChunkRetrievalFilter) -> dict[str, Any] | None:
     clauses: list[dict[str, Any]] = []
+    if filters.tenant_id is not None:
+        clauses.append({"tenant_id": filters.tenant_id})
     if filters.course_id is not None:
         clauses.append({"course_id": filters.course_id})
     if filters.language is not None:
@@ -69,6 +71,7 @@ class ChromaVectorRetriever(IVectorRetriever):
         query_text: str | None = None,
     ) -> list[ChunkHit]:
         limit = require_positive_int(limit, field="limit")
+        filters = require_tenant_retrieval_filter(filters)
         _ = mode, query_text
         return await asyncio.to_thread(
             self._retrieve_sync,

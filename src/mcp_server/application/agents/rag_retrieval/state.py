@@ -15,6 +15,7 @@ class RagRetrievalState(TypedDict):
     retrieve_limit: int
     rerank_top_n: int
     rerank_enabled: bool
+    tenant_id: NotRequired[str]
     course_id: NotRequired[str]
     tags: NotRequired[list[str]]
     language: NotRequired[str]

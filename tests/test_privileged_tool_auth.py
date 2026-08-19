@@ -7,13 +7,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from mcp_server.interface import privileged_tool_auth as privileged_mod
-
 from mcp_server.application.mcp_tool_auth_runtime import (
     McpToolAuthRuntime,
     set_mcp_tool_auth_runtime,
 )
 from mcp_server.domain.exceptions import DomainAuthorizationError
+from mcp_server.interface import privileged_tool_auth as privileged_mod
 from mcp_server.interface.privileged_tool_auth import _enforce_caller
 
 
@@ -38,7 +37,11 @@ async def test_enforce_caller_rejects_missing_jwt(monkeypatch: pytest.MonkeyPatc
     )
     runtime = McpToolAuthRuntime(require_caller_jwt=True, identity=FakeIdentity())
     with pytest.raises(DomainAuthorizationError):
-        await _enforce_caller(runtime, "project_review", {"user_id": "user-1", "tenant_id": "tenant-1"})
+        await _enforce_caller(
+            runtime,
+            "project_review",
+            {"user_id": "user-1", "tenant_id": "tenant-1"},
+        )
 
 
 async def test_enforce_caller_rejects_user_id_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -77,6 +80,48 @@ def test_require_inbound_token_fails_closed(monkeypatch: pytest.MonkeyPatch) -> 
     settings = Settings()  # type: ignore[call-arg]
     with pytest.raises(RuntimeError, match="MCP_INBOUND_TOKEN"):
         settings.assert_inbound_token_if_required()
+
+
+def test_http_transport_defaults_auth_flags_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("MCP_TRANSPORT", "http")
+    monkeypatch.delenv("MCP_REQUIRE_INBOUND_TOKEN", raising=False)
+    monkeypatch.delenv("MCP_REQUIRE_CALLER_JWT", raising=False)
+    from mcp_server.settings import Settings
+
+    settings = Settings()  # type: ignore[call-arg]
+    assert settings.mcp_require_inbound_token is True
+    assert settings.mcp_require_caller_jwt is True
+    with pytest.raises(RuntimeError, match="MCP_INBOUND_TOKEN"):
+        settings.assert_inbound_token_if_required()
+
+
+def test_stdio_transport_keeps_auth_flags_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.delenv("MCP_TRANSPORT", raising=False)
+    monkeypatch.delenv("MCP_REQUIRE_INBOUND_TOKEN", raising=False)
+    monkeypatch.delenv("MCP_REQUIRE_CALLER_JWT", raising=False)
+    from mcp_server.settings import Settings
+
+    settings = Settings()  # type: ignore[call-arg]
+    assert settings.mcp_transport == "stdio"
+    assert settings.mcp_require_inbound_token is False
+    assert settings.mcp_require_caller_jwt is False
+
+
+def test_http_transport_allows_explicit_auth_opt_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("MCP_TRANSPORT", "streamable-http")
+    monkeypatch.setenv("MCP_REQUIRE_INBOUND_TOKEN", "false")
+    monkeypatch.setenv("MCP_REQUIRE_CALLER_JWT", "false")
+    from mcp_server.settings import Settings
+
+    settings = Settings()  # type: ignore[call-arg]
+    assert settings.mcp_require_inbound_token is False
+    assert settings.mcp_require_caller_jwt is False
 
 
 def test_set_runtime_can_disable_gate() -> None:

@@ -8,7 +8,11 @@ from typing import Any, Literal, cast
 from supabase import Client, create_client
 
 from mcp_server.domain.interfaces import IVectorRetriever
-from mcp_server.domain.invariants import require_credential, require_positive_int
+from mcp_server.domain.invariants import (
+    require_credential,
+    require_positive_int,
+    require_tenant_retrieval_filter,
+)
 from mcp_server.domain.schemas import ChunkHit, ChunkRetrievalFilter
 from mcp_server.infrastructure.retrieval.chunk_hit_mapping import row_to_chunk_hit
 
@@ -69,6 +73,7 @@ class SupabasePgvectorRetriever(IVectorRetriever):
         query_text: str | None = None,
     ) -> list[ChunkHit]:
         limit = require_positive_int(limit, field="limit")
+        filters = require_tenant_retrieval_filter(filters)
         return await asyncio.to_thread(
             self._retrieve_sync,
             query_embedding,

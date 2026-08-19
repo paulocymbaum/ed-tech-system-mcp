@@ -4,9 +4,11 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from mcp_server.interface.inbound_tool_rate_limit import InboundToolRateLimitMiddleware
 from mcp_server.interface.privileged_tool_auth import PrivilegedToolAuthMiddleware
 
 mcp = FastMCP("ed-tech-system")
+mcp.add_middleware(InboundToolRateLimitMiddleware())
 mcp.add_middleware(PrivilegedToolAuthMiddleware())
 
 

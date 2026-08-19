@@ -1,9 +1,11 @@
 """Typed application configuration validated at startup."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_HTTP_MCP_TRANSPORTS = frozenset({"http", "sse", "streamable-http"})
 
 
 class Settings(BaseSettings):
@@ -61,6 +63,11 @@ class Settings(BaseSettings):
         alias="MCP_REQUIRE_INBOUND_TOKEN",
     )
     mcp_require_caller_jwt: bool = Field(default=False, alias="MCP_REQUIRE_CALLER_JWT")
+    mcp_inbound_limit_per_minute: int = Field(
+        default=60,
+        alias="MCP_INBOUND_LIMIT_PER_MINUTE",
+        ge=1,
+    )
     workflow_api_host: str = Field(default="0.0.0.0", alias="WORKFLOW_API_HOST", min_length=1)
     workflow_api_port: int = Field(default=8877, alias="WORKFLOW_API_PORT", gt=0, le=65535)
     workflow_ui_cors_origins: str = Field(default="", alias="WORKFLOW_UI_CORS_ORIGINS")
@@ -89,6 +96,24 @@ class Settings(BaseSettings):
             return False
         msg = "MCP_HOST_ORIGIN_PROTECTION must be true, false, auto, or empty"
         raise ValueError(msg)
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_http_auth_requirements(cls, data: Any) -> Any:
+        """Fail closed on HTTP/SSE unless the flags are set explicitly."""
+        if not isinstance(data, dict):
+            return data
+        transport_raw = data.get("mcp_transport", data.get("MCP_TRANSPORT", "stdio"))
+        transport = str(transport_raw or "stdio").strip().lower()
+        http_like = transport in _HTTP_MCP_TRANSPORTS
+        inbound_keys = ("mcp_require_inbound_token", "MCP_REQUIRE_INBOUND_TOKEN")
+        caller_keys = ("mcp_require_caller_jwt", "MCP_REQUIRE_CALLER_JWT")
+        if not any(key in data and data[key] not in (None, "") for key in inbound_keys):
+            data["MCP_REQUIRE_INBOUND_TOKEN"] = http_like
+        if not any(key in data and data[key] not in (None, "") for key in caller_keys):
+            data["MCP_REQUIRE_CALLER_JWT"] = http_like
+        return data
+
     groq_model_catalog_cache_path: str = Field(
         default=".cache/groq_model_catalog.json",
         alias="GROQ_MODEL_CATALOG_CACHE_PATH",

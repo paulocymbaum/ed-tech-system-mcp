@@ -150,6 +150,11 @@ if ((scanners_available > 0)); then
   exit 0
 fi
 
+if [[ "${ALLOW_BASH_SECRET_FALLBACK:-}" != "1" ]]; then
+  echo "ERROR: scan-push-secrets.sh: gitleaks and secretlint are missing; refuse bash fallback (set ALLOW_BASH_SECRET_FALLBACK=1 to override)." >&2
+  exit 1
+fi
+
 # shellcheck source=scan-file-content.sh
 source "$hooks_dir/scan-file-content.sh"
 scan_git_blobs_for_secrets "commits being pushed" "${push_commits[@]}"

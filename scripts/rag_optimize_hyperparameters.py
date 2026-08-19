@@ -9,8 +9,6 @@ import json
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from mcp_server.application.agents.rag_validation.fixture import (
     OPTIMIZATION_REPORT_PATH,
     OPTIMIZED_HYPERPARAMETERS_PATH,
@@ -156,7 +154,6 @@ async def _run(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    load_dotenv(override=False)
     bootstrap_environment()
     bootstrap_application_runtime()
     args = _parse_args()

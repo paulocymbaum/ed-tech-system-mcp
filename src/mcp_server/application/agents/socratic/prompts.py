@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp_server.domain.input_safety import wrap_user_content_for_prompt
 from mcp_server.domain.socratic import SocraticGrounding, SocraticMessage
 
 _LOCALE_NAMES = {
@@ -81,8 +82,14 @@ def socratic_user_prompt(
             parts.append(f"Related documents:\n{docs}")
 
     if history:
-        hist = "\n".join(f"{m.role}: {m.content[:500]}" for m in history[-6:])
+        hist = "\n".join(
+            f"{m.role}: {wrap_user_content_for_prompt(m.content[:500], label='history_turn')}"
+            for m in history[-6:]
+        )
         parts.append(f"Recent chat:\n{hist}")
 
-    parts.append(f"Learner message:\n{message}")
+    parts.append(
+        "Learner message:\n"
+        + wrap_user_content_for_prompt(message, label="learner_message")
+    )
     return "\n\n".join(parts)
