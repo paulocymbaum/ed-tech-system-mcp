@@ -13,6 +13,7 @@ from mcp_server.domain.authoring import (
 )
 from mcp_server.domain.content_validators import validate_mock_test_bundle
 from mcp_server.interface.custom_tools_authoring import (
+    _resolve_graph_node,
     generate_mock_test_structure,
     register_authoring_tools,
     search_graph_nodes,
@@ -103,6 +104,31 @@ async def test_generate_mock_test_structure_returns_ef2_fragment() -> None:
     assert result.mock_test.module_slug == "01-javascript-fundamentals-mock"
     assert len(result.mock_test.sections) == 3
     assert result.ef2_fragment["mock_tests"][0]["module_slug"].endswith("-mock")
+
+
+def test_resolve_graph_node_does_not_default_omitted_id_to_first_hit() -> None:
+    node_id, hits = _resolve_graph_node(
+        tenant_id="00000000-0000-4000-8000-000000000001",
+        course_slug="javascript",
+        graph_node_id=None,
+        graph_query="binary search",
+        topic="variables",
+    )
+    assert node_id is None
+    assert len(hits) == 1
+    assert hits[0]["node_id"] == "node-1"
+
+
+def test_resolve_graph_node_forwards_explicit_id() -> None:
+    node_id, hits = _resolve_graph_node(
+        tenant_id="00000000-0000-4000-8000-000000000001",
+        course_slug="javascript",
+        graph_node_id="11111111-1111-4111-8111-111111111111",
+        graph_query=None,
+        topic="variables",
+    )
+    assert node_id == "11111111-1111-4111-8111-111111111111"
+    assert len(hits) == 1
 
 
 @pytest.mark.asyncio

@@ -92,8 +92,6 @@ def _resolve_graph_node(
     serialized = [hit.model_dump() for hit in hits]
     if graph_node_id:
         return graph_node_id, serialized
-    if hits:
-        return hits[0].node_id, serialized
     return None, serialized
 
 
