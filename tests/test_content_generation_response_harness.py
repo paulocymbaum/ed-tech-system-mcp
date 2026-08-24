@@ -34,6 +34,8 @@ def test_graph_scoped_harness_drafts_coerce_to_response() -> None:
                 options=[
                     HarnessQuizOption(id="a", text="A named storage location"),
                     HarnessQuizOption(id="b", text="A loop"),
+                    HarnessQuizOption(id="c", text="A database table"),
+                    HarnessQuizOption(id="d", text="A network request"),
                 ],
                 correctOptionId="a",
                 explanation="Variables hold values under a name.",
