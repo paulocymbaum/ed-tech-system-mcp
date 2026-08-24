@@ -13,8 +13,11 @@ SMOKE_SHELL = REPO_ROOT / "scripts/ci/mcp-smoke.sh"
 def test_mcp_smoke_script_exists() -> None:
     assert SMOKE_SCRIPT.is_file()
     assert SMOKE_SHELL.is_file()
-    assert "find_documents" in SMOKE_SCRIPT.read_text(encoding="utf-8")
-    assert "run_workflow" in SMOKE_SCRIPT.read_text(encoding="utf-8")
+    script = SMOKE_SCRIPT.read_text(encoding="utf-8")
+    assert "find_documents" not in script
+    assert "run_workflow" not in script
+    assert "search_youtube" in script
+    assert "build_lesson_enrichment_query" in script
 
 
 def test_mcp_smoke_parses_sse_payload() -> None:

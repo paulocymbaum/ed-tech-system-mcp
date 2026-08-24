@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test MCP HTTP endpoints before deploy (health + RAG tools)."""
+"""Smoke-test MCP HTTP endpoints before deploy (health + non-RAG tools)."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--query",
         default="smoke test",
-        help="Query passed to find_documents / run_workflow",
+        help="Query passed to search_youtube / build_lesson_enrichment_query",
     )
     args = parser.parse_args(argv)
     base_url = args.base_url.rstrip("/")
@@ -108,43 +108,46 @@ def main(argv: list[str] | None = None) -> int:
         )
         tools = tools_payload.get("result", {}).get("tools", [])
         tool_names = {tool["name"] for tool in tools if isinstance(tool, dict) and "name" in tool}
-        for required in ("find_documents", "run_workflow"):
+        for required in ("search_youtube", "build_lesson_enrichment_query"):
             if required not in tool_names:
                 print(f"FAIL tools/list: missing {required}", file=sys.stderr)
                 return 1
         print("PASS tools/list")
 
         if not os.environ.get("MCP_SMOKE_CALLER_JWT", "").strip():
-            print("SKIP find_documents / run_workflow (set MCP_SMOKE_CALLER_JWT)")
+            print("SKIP search_youtube / build_lesson_enrichment_query (set MCP_SMOKE_CALLER_JWT)")
             print("All MCP smoke checks passed.")
             return 0
 
-        find_result = _call_tool(
+        youtube_result = _call_tool(
             base_url,
-            "find_documents",
-            {"query": args.query, "document_limit": 3, "video_limit": 2},
+            "search_youtube",
+            {"query": args.query, "max_results": 3, "language": "en", "safe_search": True},
             timeout=args.timeout,
         )
-        structured = find_result.get("structuredContent")
+        structured = youtube_result.get("structuredContent")
         if not isinstance(structured, dict):
-            msg = f"find_documents: missing structuredContent in {find_result!r}"
+            msg = f"search_youtube: missing structuredContent in {youtube_result!r}"
             raise RuntimeError(msg)
-        print(f"PASS find_documents documents={len(structured.get('documents', []))}")
+        print(f"PASS search_youtube videos={len(structured.get('videos', []))}")
 
-        workflow_result = _call_tool(
+        query_result = _call_tool(
             base_url,
-            "run_workflow",
-            {"query": args.query, "document_limit": 3, "video_limit": 2},
+            "build_lesson_enrichment_query",
+            {
+                "course_title": "smoke course",
+                "module_title": "smoke module",
+                "lesson_title": args.query,
+            },
             timeout=args.timeout,
         )
-        workflow_structured = workflow_result.get("structuredContent")
-        if not isinstance(workflow_structured, dict):
-            msg = f"run_workflow: missing structuredContent in {workflow_result!r}"
+        query_structured = query_result.get("structuredContent")
+        if not isinstance(query_structured, dict):
+            msg = f"build_lesson_enrichment_query: missing structuredContent in {query_result!r}"
             raise RuntimeError(msg)
         print(
-            "PASS run_workflow "
-            f"documents={workflow_structured.get('document_count')} "
-            f"videos={workflow_structured.get('video_count')}"
+            "PASS build_lesson_enrichment_query "
+            f"terms={query_structured.get('terms')}"
         )
     except (urllib.error.URLError, TimeoutError, RuntimeError, json.JSONDecodeError) as exc:
         text = str(exc)

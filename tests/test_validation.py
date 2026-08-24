@@ -3,20 +3,15 @@
 import pytest
 from pydantic import ValidationError
 
-from mcp_server.domain.schemas import ChunkHit, DocumentHit, VideoResult
+from mcp_server.domain.schemas import ChunkHit, VideoResult
 from mcp_server.interface.validation import (
-    DocumentQueryRequest,
-    DocumentSummary,
     VideoSearchRequest,
     VideoSearchResponse,
-    document_hit_to_summary,
 )
 from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
     RagRetrievalRunRequest,
-    WorkflowRunRequest,
     rag_retrieval_state_to_run_response,
-    workflow_state_to_run_response,
 )
 
 
@@ -74,30 +69,6 @@ def test_t14_video_search_response_empty_list() -> None:
     assert response.videos == []
 
 
-def test_t16_document_query_request_validation() -> None:
-    with pytest.raises(ValidationError):
-        DocumentQueryRequest(query="")
-    with pytest.raises(ValidationError):
-        DocumentQueryRequest(query="x", document_limit=0)
-    with pytest.raises(ValidationError):
-        DocumentQueryRequest(query="x", video_limit=26)
-
-
-def test_t16b_document_query_request_accepts_course_id() -> None:
-    request = DocumentQueryRequest(query="arrays", course_id="javascript")
-    assert request.course_id == "javascript"
-    assert request.tenant_id is None
-
-
-def test_t17_workflow_run_request_validation() -> None:
-    with pytest.raises(ValidationError):
-        WorkflowRunRequest(query="")
-    with pytest.raises(ValidationError):
-        WorkflowRunRequest(query="x", document_limit=51)
-    with pytest.raises(ValidationError):
-        WorkflowRunRequest(query="x", video_limit=0)
-
-
 def test_content_generation_run_request_accepts_path_like_graph_node_id() -> None:
     request = ContentGenerationRunRequest(
         topic="Iterative Optimization",
@@ -112,51 +83,6 @@ def test_content_generation_run_request_accepts_path_like_graph_node_id() -> Non
         request.graph_node_id
         == "lesson:javascript:07-technical-interview-preparation:07.5-iterative-optimization"
     )
-
-
-def test_t_rf10_workflow_state_to_run_response_maps_state_fields() -> None:
-    documents = [
-        DocumentHit(id="doc-1", title="Fractions", content="Full lesson body"),
-    ]
-    videos = [VideoResult(title="Video", channel="Ch", url="https://example.com")]
-    state = {
-        "query": "fractions",
-        "search_terms": "Fractions",
-        "document_count": 1,
-        "video_count": 1,
-        "documents": documents,
-        "videos": videos,
-    }
-
-    response = workflow_state_to_run_response(state)
-
-    assert response.query == "fractions"
-    assert response.search_terms == "Fractions"
-    assert response.document_count == 1
-    assert response.video_count == 1
-    assert len(response.documents) == 1
-    assert response.documents[0].id == "doc-1"
-    assert "Full lesson body" in response.documents[0].snippet
-    assert "content" not in response.documents[0].model_dump()
-    assert response.videos == videos
-
-
-def test_t15_document_summary_prunes_content_to_snippet() -> None:
-    hit = DocumentHit(
-        id="doc-1",
-        title="Algebra",
-        content="x" * 250,
-    )
-    summary = document_hit_to_summary(hit, snippet_max_len=200)
-
-    assert isinstance(summary, DocumentSummary)
-    assert summary.id == "doc-1"
-    assert summary.title == "Algebra"
-    assert len(summary.snippet) == 203
-    assert summary.snippet.endswith("...")
-    dumped = summary.model_dump()
-    assert set(dumped) == {"id", "title", "snippet"}
-    assert "content" not in dumped
 
 
 def test_t_rag23_rag_retrieval_run_request_defaults() -> None:

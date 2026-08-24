@@ -61,25 +61,32 @@ def test_render_yaml_valid() -> None:
     assert payload["services"][0]["healthCheckPath"] == "/health"
 
 
-def test_render_yaml_sets_writable_embedding_cache_dir() -> None:
+def test_render_yaml_has_no_rag_env_vars() -> None:
     import yaml
 
     payload = yaml.safe_load(_read(RENDER_YAML))
-    env_vars = {
-        item["key"]: item["value"]
-        for item in payload["services"][0]["envVars"]
-        if "value" in item
+    env_vars = {item["key"] for item in payload["services"][0]["envVars"]}
+    assert "EMBEDDING_CACHE_DIR" not in env_vars
+    assert "EMBEDDING_WARM_ON_BOOT" not in env_vars
+    assert "RERANK_ENABLED" not in env_vars
+    assert "HF_HOME" not in env_vars
+    assert "XDG_CACHE_HOME" not in env_vars
+    assert "VECTOR_STORE_BACKEND" not in env_vars
+    assert env_vars == {
+        "APP_ENV",
+        "MCP_STATELESS_HTTP",
+        "LOG_LEVEL",
+        "MCP_HOST_ORIGIN_PROTECTION",
+        "MCP_ALLOWED_HOSTS",
+        "MCP_REQUIRE_INBOUND_TOKEN",
+        "MCP_REQUIRE_CALLER_JWT",
+        "GROQ_MODEL_CATALOG_CACHE_PATH",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "MCP_INBOUND_TOKEN",
+        "CACHE_ENABLED",
+        "REDIS_URL",
     }
-    assert env_vars["EMBEDDING_CACHE_DIR"] == "/app/model-cache/fastembed"
-    assert env_vars["EMBEDDING_WARM_ON_BOOT"] == "false"
-    assert env_vars["RERANK_ENABLED"] == "false"
-    assert env_vars["LOG_LEVEL"] == "INFO"
-    assert env_vars["MCP_REQUIRE_INBOUND_TOKEN"] == "true"
-    assert env_vars["MCP_REQUIRE_CALLER_JWT"] == "true"
-    assert env_vars["MCP_ALLOWED_HOSTS"] == "ed-tech-system-mcp.onrender.com"
-    assert env_vars["HF_HOME"] == "/tmp/hf"
-    assert env_vars["XDG_CACHE_HOME"] == "/tmp"
-    assert env_vars["GROQ_MODEL_CATALOG_CACHE_PATH"] == "/tmp/app-cache/groq_model_catalog.json"
 
 
 def test_render_md_exists() -> None:

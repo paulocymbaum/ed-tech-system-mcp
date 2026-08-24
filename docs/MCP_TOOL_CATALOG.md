@@ -27,9 +27,8 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 | Tool | Auth | Purpose |
 |------|------|---------|
 | `health_check` | none | Liveness |
-| `find_documents` | tenant | RAG documents + optional videos; optional `course_id` (course slug) scopes pgvector filter |
+| `build_lesson_enrichment_query` | caller JWT | 4-5 term enrichment query from course/module/lesson titles |
 | `search_youtube` | none | YouTube enrichment only |
-| `run_workflow` | tenant | LangGraph workflow + trace |
 | `research_article` | none / context | Web + YouTube + LLM article |
 | `content_generation` | optional tenant | Lesson → quiz → PBL drafts; graph-scoped when `tenant_id` + `course_slug` set |
 | `validate_lesson` | none | Gate lesson README + meta |
@@ -53,8 +52,7 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 
 | Need | Tool |
 |------|------|
-| Lowest-latency RAG + videos | `find_documents` |
-| Agent observability / step replay | `run_workflow` |
+| 4-5 term enrichment query for LMS search | `build_lesson_enrichment_query` |
 | Videos only | `search_youtube` |
 | Graph-scoped lesson authoring E2E | `author_lesson_pipeline` |
 | Draft-only generation | `content_generation` |
@@ -69,8 +67,8 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 
 1. `initialize` then `tools/list` / `tools/call` over JSON-RPC on `/mcp`.
 2. Accept header: `application/json, text/event-stream`.
-3. Pattern C from LMS: `mcp-health`, `mcp-find-documents`, `mcp-search-youtube`, `mcp-run-workflow` on Supabase edge — server holds MCP URL.
-4. Optional `course_id` on `find_documents` / BFF `mcp-find-documents`: course **slug** (matches `documents.course_id`). Ingest: `scripts/ingest/index_documents.py --course-id`. Ops: backend `INTEGRATION/MULTI_COURSE_OPS.md`.
+3. Pattern C from LMS: `mcp-health`, `mcp-search-youtube` on Supabase edge — server holds MCP URL. Document RAG is now served by the native backend `mcp-find-documents` endpoint (not an MCP tool).
+4. Ingestion: `services/embedding-service/index-documents` (backend) or `scripts/ingest/index_documents.py` (deprecated). Ops: backend `INTEGRATION/MULTI_COURSE_OPS.md`.
 5. Writes that touch curriculum assert manager membership via the **user** token in `manager_jwt`.
 
 ---

@@ -35,8 +35,6 @@ from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCac
 from mcp_server.settings import load_settings
 from mcp_server.wiring import (
     ApplicationContext,
-    build_data_repository,
-    build_document_video_workflow,
     build_mcp_tool_cache,
     create_cache_store,
     initialize_application_runtime,
@@ -491,46 +489,6 @@ def test_c09b_rag_redis_cache_operations_always_disabled(monkeypatch: pytest.Mon
         assert rule.enabled is False
 
 
-def test_c11b_build_data_repository_never_wraps_rag_with_redis(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
-    monkeypatch.setenv("CACHE_ENABLED", "true")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-
-    settings = load_settings()
-    repository = build_data_repository(settings, create_cache_store(settings))
-
-    assert type(repository).__name__ == "RateLimitedDataRepository"
-
-
-def test_c10_build_document_video_workflow_returns_workflow(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
-    monkeypatch.setenv("CACHE_ENABLED", "false")
-
-    settings = load_settings()
-    workflow = build_document_video_workflow(settings)
-
-    assert workflow is not None
-
-
-def test_c11_build_data_repository_without_cache_is_uncached(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
-    monkeypatch.setenv("CACHE_ENABLED", "false")
-
-    settings = load_settings()
-    repository = build_data_repository(settings, create_cache_store(settings))
-
-    assert type(repository).__name__ == "RateLimitedDataRepository"
-
-
 def test_c19_build_mcp_tool_cache_returns_helper_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -580,7 +538,6 @@ def test_c21_initialize_application_runtime_creates_single_cache_store(
 
     assert isinstance(context, ApplicationContext)
     assert create_calls == 1
-    assert context.document_video_workflow is None
     assert context.mcp_tool_cache is not None
 
 

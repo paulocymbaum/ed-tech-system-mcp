@@ -51,19 +51,17 @@ def test_sync_dev_script_uses_dev_config_by_default() -> None:
     assert "REQUIRED_DEV_KEYS" in content
 
 
-def test_sync_dev_script_includes_writable_cache_defaults() -> None:
+def test_sync_dev_script_has_no_rag_optional_keys() -> None:
     content = SYNC_DEV.read_text(encoding="utf-8")
-    assert "EMBEDDING_CACHE_DIR" in content
-    assert "EMBEDDING_WARM_ON_BOOT" in content
-    assert "HF_HOME" in content
+    assert "EMBEDDING_CACHE_DIR" not in content
+    assert "EMBEDDING_WARM_ON_BOOT" not in content
+    assert "RERANK_ENABLED" not in content
+    assert "HF_HOME" not in content
+    assert "VECTOR_STORE_BACKEND" not in content
     assert "GROQ_MODEL_CATALOG_CACHE_PATH" in content
-    assert '[EMBEDDING_CACHE_DIR]="/app/model-cache/fastembed"' in content
-    assert '[EMBEDDING_WARM_ON_BOOT]="false"' in content
+    assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
     assert "MCP_INBOUND_TOKEN" in content
     assert "MCP_REQUIRE_CALLER_JWT" in content
-    assert '[RERANK_ENABLED]="false"' in content
-    assert '[HF_HOME]="/tmp/hf"' in content
-    assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
 
 
 def test_sync_prd_wrapper_delegates_to_dev() -> None:

@@ -98,7 +98,7 @@ Requires `RENDER_API_KEY` and `RENDER_SERVICE_ID` in Doppler `github_ci`. CI run
 curl -sS "https://<service>.onrender.com/health"
 # {"status":"ok","service":"ed-tech-system-mcp"}
 
-# Full RAG smoke (health + tools/list + find_documents + run_workflow):
+# Tools smoke (health + tools/list + search_youtube + build_lesson_enrichment_query):
 MCP_BASE_URL="https://<service>.onrender.com" bash scripts/ci/mcp-smoke.sh
 
 # MCP clients: https://<service>.onrender.com/mcp
@@ -106,21 +106,9 @@ MCP_BASE_URL="https://<service>.onrender.com" bash scripts/ci/mcp-smoke.sh
 
 ---
 
-## 4.1 RAG embedding model cache (server-side only)
+## 4.1 Model catalog cache (server-side only)
 
-Render containers use a **read-only root filesystem**. RAG **chunk** results are **not** cached in Redis on this MCP layer — Supabase/pgvector owns retrieval freshness.
-
-What **is** cached server-side on the MCP host:
-
-| Mechanism | Path / env | Purpose |
-| :--- | :--- | :--- |
-| Docker image bake | `/app/model-cache/fastembed` | ONNX model weights (`scripts/ci/warm_embedding_cache.py` at build) |
-| Boot warm-up | `EMBEDDING_WARM_ON_BOOT=false` (free) | Lazy-load ONNX on first RAG request; `true` OOMs 512Mi at deploy |
-| HF hub scratch | `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp` | Writable temp for any HuggingFace hub I/O |
-
-Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingface` on a read-only path → `find_documents` / `run_workflow` fail with 502/503.
-
-**Do not** enable Redis caching for `vector.retrieve`, `supabase.find_documents`, or `embedding.query` on this service — `wiring.py` keeps those rules disabled regardless of `CACHE_ENABLED`.
+Render containers use a **read-only root filesystem**. The MCP service only needs a writable scratch directory for the Groq model catalog cache.
 
 **Do** set `CACHE_ENABLED=true` and `REDIS_URL` (managed Redis, not localhost) on staging/production for LLM completions, YouTube, Tavily, and MCP tool responses. Provision Redis in the Render dashboard or Doppler `stg`/`prd`, then sync. The process warns at boot if those are missing; it does not fail closed.
 
@@ -130,7 +118,7 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 
 - **750 instance-hours / month** on the free plan. A process that stays awake 24/7 exhausts the quota in ~31 days. Sleep after ~15 min idle is expected, not an OOM.
 - **Liveness:** Render health check and CI post-deploy probe are **`GET /health` only**. Do **not** schedule `POST /mcp` (JSON-RPC `initialize` / `tools/list`) as a keep-alive — that prevents sleep and burns hours. Cursor and LMS clients connect on demand. CI pytest stays local; it must not add a cron against hosted `/mcp`.
-- **512 MB RAM**: keep `EMBEDDING_WARM_ON_BOOT=false` and `RERANK_ENABLED=false`. Deploys with warm-on-boot get `update_failed` / `oomKilled` (seen 2026-08-12/13). Capacity choice **A**: stay on 512Mi unless `/health` is 5xx/OOM on boot.
+- **512 MB RAM**: free tier is sufficient for the current tool catalog (no local embedding/RAG models). Capacity choice **A**: stay on 512Mi unless `/health` is 5xx/OOM on boot.
 - **Auth:** `/health` is public (Render probe). `/mcp` requires `Authorization: Bearer $MCP_INBOUND_TOKEN`. Privileged tools also require `X-EdHarness-Caller-Jwt` (learner/manager access token — never `service_role`). Set `MCP_INBOUND_TOKEN` in Doppler `dev` before deploy or boot fails closed (`MCP_REQUIRE_INBOUND_TOKEN=true`).
 - First request after sleep can take 30–60+ seconds. Retry `/health` once; do not hammer `/mcp`.
 
@@ -141,11 +129,8 @@ Without `HF_HOME` / `XDG_CACHE_HOME`, fastembed falls back to `~/.cache/huggingf
 | Issue | Fix |
 | :--- | :--- |
 | `/health` 500 after deploy | Set `SUPABASE_*` in Render env; check service logs |
-| `find_documents` / `run_workflow` 502 or 503 | Set `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp`; redeploy image with baked model (`EMBEDDING_CACHE_DIR=/app/model-cache/fastembed`) |
-| `find_documents` slow on first request | Expected on free tier with warm-on-boot off (lazy ONNX load) |
-| Deploy `update_failed` + `oomKilled` 512Mi | Set `EMBEDDING_WARM_ON_BOOT=false` in Render + Doppler `dev`, redeploy |
 | CI deploy skipped | Add `RENDER_DEPLOY_HOOK_URL` to GitHub secrets |
-| OOM on startup | Keep warm-on-boot off, or upgrade Render plan |
+| OOM on startup | Check service logs for LLM model catalog cache path; consider paid always-on plan |
 | Cold start timeout | Retry after wake-up; consider paid always-on plan |
 
 ---

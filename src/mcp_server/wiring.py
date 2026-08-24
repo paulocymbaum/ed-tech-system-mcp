@@ -38,17 +38,10 @@ from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
     set_workflow_execution_config,
 )
-from mcp_server.application.workflow_runtime import (
-    WorkflowSettings,
-    configure_lazy_document_video_workflow,
-    register_document_video_workflow_builder,
-)
-from mcp_server.application.workflows import DocumentVideoWorkflow
 from mcp_server.domain.cache import ICacheStore
 from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
 from mcp_server.domain.interfaces import (
     IChunkingStrategy,
-    IDataRepository,
     IEmbeddingProvider,
     IReranker,
     ISearchClient,
@@ -73,7 +66,6 @@ from mcp_server.infrastructure.groq_model_registry import GroqModelRegistry
 from mcp_server.infrastructure.llm_debounce import IntervalLLMDebounceGate
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
 from mcp_server.infrastructure.rate_limited_adapters import (
-    RateLimitedDataRepository,
     RateLimitedSearchClient,
     RateLimitedVideoSearchClient,
 )
@@ -84,7 +76,6 @@ from mcp_server.infrastructure.retrieval.supabase_vector_index_writer import (
 from mcp_server.infrastructure.retrieval.supabase_vector_retriever import SupabasePgvectorRetriever
 from mcp_server.infrastructure.retrieval.vector_store_backend import resolve_vector_store_backend
 from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
-from mcp_server.infrastructure.supabase_client import SupabaseRepository
 from mcp_server.infrastructure.tavily_search_client import TavilySearchClient
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
 from mcp_server.operational_config import OperationalConfig
@@ -113,7 +104,6 @@ class ApplicationContext:
 
     workflow_execution_config: WorkflowExecutionConfig
     cache_store: ICacheStore
-    document_video_workflow: DocumentVideoWorkflow | None
     mcp_tool_cache: McpToolInteractionCache | None
 
 
@@ -283,27 +273,6 @@ def build_external_rate_limiter(settings: Settings) -> IExternalRequestRateLimit
     return _wired_external_rate_limiter
 
 
-def build_data_repository(
-    settings: Settings,
-    cache: ICacheStore | None = None,
-    rate_limiter: IExternalRequestRateLimiter | None = None,
-) -> IDataRepository:
-    """Build the document repository, optionally wrapped with cache-aside."""
-    retrieval_mode = settings.retrieval_mode
-    if retrieval_mode not in ("vector", "hybrid"):
-        retrieval_mode = "hybrid"
-    repository: IDataRepository = SupabaseRepository(
-        settings.supabase_url,
-        settings.supabase_service_role_key.get_secret_value(),
-        embedding_provider=build_embedding_provider(settings, cache),
-        vector_retriever=build_vector_retriever(settings, cache),
-        retrieval_mode=retrieval_mode,  # type: ignore[arg-type]
-    )
-    limiter = rate_limiter or build_external_rate_limiter(settings)
-    _ = cache
-    return RateLimitedDataRepository(repository, limiter)
-
-
 def build_search_client(
     settings: Settings,
     cache: ICacheStore | None = None,
@@ -429,25 +398,6 @@ def build_chat_model(
     )
 
 
-def build_document_video_workflow(
-    settings: Settings,
-    cache: ICacheStore | None = None,
-) -> DocumentVideoWorkflow:
-    """Wire application workflow with cached adapters when cache is enabled.
-
-    When ``CACHE_ENABLED=true``, ``cache`` must be the shared store from
-    ``initialize_application_runtime()`` — do not call this builder directly
-    with caching enabled.
-    """
-    if settings.cache_enabled and cache is None:
-        raise ValueError(_CACHE_STORE_REQUIRED_MSG)
-    store = cache if cache is not None else create_cache_store(settings)
-    repository = build_data_repository(settings, store)
-    video_client = build_video_client(settings, store)
-    search_client = build_search_client(settings, store)
-    return DocumentVideoWorkflow(repository, video_client, search_client)
-
-
 def build_mcp_tool_cache(
     settings: Settings,
     cache: ICacheStore | None = None,
@@ -475,7 +425,6 @@ def initialize_application_runtime(
     if settings is None:
         cache_store: ICacheStore = NoOpCacheStore()
         configure_lazy_chat_model(None)
-        configure_lazy_document_video_workflow(None)
         configure_lazy_integration_clients(None)
         configure_lazy_retrieval_clients(None)
         set_mcp_tool_cache(None)
@@ -489,7 +438,6 @@ def initialize_application_runtime(
         return ApplicationContext(
             workflow_execution_config=config,
             cache_store=cache_store,
-            document_video_workflow=None,
             mcp_tool_cache=None,
         )
 
@@ -501,7 +449,6 @@ def initialize_application_runtime(
     set_token_counter(TiktokenTokenCounter())
     cache_store = create_cache_store(settings)
     configure_lazy_chat_model(settings, cache_store)
-    configure_lazy_document_video_workflow(settings, cache_store)
     configure_lazy_integration_clients(settings, cache_store)
     configure_lazy_retrieval_clients(settings, cache_store)
     warm_embedding_provider_on_boot(settings, cache_store)
@@ -610,7 +557,6 @@ def initialize_application_runtime(
     return ApplicationContext(
         workflow_execution_config=config,
         cache_store=cache_store,
-        document_video_workflow=None,
         mcp_tool_cache=tool_cache,
     )
 
@@ -622,43 +568,36 @@ def _lazy_build_chat_model(
     return build_chat_model(settings, cache)  # type: ignore[arg-type]
 
 
-def _lazy_build_document_video_workflow(
-    settings: WorkflowSettings,
-    cache: ICacheStore | None,
-) -> DocumentVideoWorkflow:
-    return build_document_video_workflow(settings, cache)  # type: ignore[arg-type]
-
-
 def _lazy_build_search_client(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> ISearchClient:
     return build_search_client(settings, cache)  # type: ignore[arg-type]
 
 
 def _lazy_build_video_client(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IVideoSearchClient:
     return build_video_client(settings, cache)  # type: ignore[arg-type]
 
 
 def _lazy_build_embedding_provider(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IEmbeddingProvider:
     return build_embedding_provider(settings, cache)  # type: ignore[arg-type]
 
 
 def _lazy_build_vector_retriever(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IVectorRetriever:
     return build_vector_retriever(settings, cache)  # type: ignore[arg-type]
 
 
 def _lazy_build_vector_index_writer(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IVectorIndexWriter:
     _ = cache
@@ -666,7 +605,7 @@ def _lazy_build_vector_index_writer(
 
 
 def _lazy_build_reranker(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IReranker:
     _ = cache
@@ -674,7 +613,7 @@ def _lazy_build_reranker(
 
 
 def _lazy_build_chunking_strategy(
-    settings: WorkflowSettings,
+    settings: "Settings",
     cache: ICacheStore | None,
 ) -> IChunkingStrategy:
     _ = cache
@@ -682,7 +621,6 @@ def _lazy_build_chunking_strategy(
 
 
 register_chat_model_builder(_lazy_build_chat_model)
-register_document_video_workflow_builder(_lazy_build_document_video_workflow)
 register_search_client_builder(_lazy_build_search_client)
 register_video_client_builder(_lazy_build_video_client)
 register_embedding_provider_builder(_lazy_build_embedding_provider)

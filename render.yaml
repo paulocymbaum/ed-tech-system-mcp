@@ -10,15 +10,6 @@ services:
         value: production
       - key: MCP_STATELESS_HTTP
         value: "true"
-      - key: VECTOR_STORE_BACKEND
-        value: supabase
-      - key: EMBEDDING_CACHE_DIR
-        value: /app/model-cache/fastembed
-      - key: EMBEDDING_WARM_ON_BOOT
-        # Free plan is 512Mi; warming ONNX at boot OOM-kills deploys (update_failed).
-        value: "false"
-      - key: RERANK_ENABLED
-        value: "false"
       - key: LOG_LEVEL
         value: INFO
       - key: MCP_HOST_ORIGIN_PROTECTION
@@ -29,10 +20,6 @@ services:
         value: "true"
       - key: MCP_REQUIRE_CALLER_JWT
         value: "true"
-      - key: HF_HOME
-        value: /tmp/hf
-      - key: XDG_CACHE_HOME
-        value: /tmp
       - key: GROQ_MODEL_CATALOG_CACHE_PATH
         value: /tmp/app-cache/groq_model_catalog.json
       # Set runtime secrets in the Render dashboard or via scripts/doppler/sync-dev-to-render.sh

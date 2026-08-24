@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from mcp_server.application.agent import DocumentVideoState
 from mcp_server.application.agents.content_generation.state import ContentGenerationState
 from mcp_server.application.agents.rag_retrieval.state import RagRetrievalState
 from mcp_server.application.agents.rag_validation.state import RagValidationState
@@ -15,10 +14,6 @@ from mcp_server.application.workflow_trace import WorkflowTraceStep
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.input_safety import require_safe_user_text
 from mcp_server.domain.schemas import ChunkHit, VideoResult
-from mcp_server.interface.validation import (
-    DocumentSummary,
-    document_hits_to_summaries,
-)
 
 
 class WorkflowTraceStepView(BaseModel):
@@ -33,32 +28,6 @@ class WorkflowTraceStepView(BaseModel):
     input_snapshot: dict[str, Any] = Field(default_factory=dict)
     output_update: dict[str, Any] = Field(default_factory=dict)
     llm_io: dict[str, Any] | None = None
-
-
-class WorkflowRunRequest(BaseModel):
-    """Validated input for LangGraph workflow execution."""
-
-    query: str = Field(min_length=1)
-    document_limit: int = Field(default=10, ge=1, le=50)
-    video_limit: int = Field(default=5, ge=1, le=25)
-    tenant_id: str | None = Field(default=None, min_length=36, max_length=36)
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str) -> str:
-        return require_safe_user_text(value, field="query")
-
-
-class WorkflowRunResponse(BaseModel):
-    """Validated output for LangGraph workflow execution."""
-
-    query: str
-    search_terms: str
-    document_count: int = Field(ge=0)
-    video_count: int = Field(ge=0)
-    documents: list[DocumentSummary]
-    videos: list[VideoResult]
-    trace: list[WorkflowTraceStepView] = Field(default_factory=list)
 
 
 class TavilySearchRunRequest(BaseModel):
@@ -310,25 +279,6 @@ def trace_steps_to_views(steps: list[WorkflowTraceStep]) -> list[WorkflowTraceSt
         )
         for step in steps
     ]
-
-
-def workflow_state_to_run_response(
-    state: DocumentVideoState,
-    *,
-    trace: list[WorkflowTraceStep] | None = None,
-) -> WorkflowRunResponse:
-    """Map a document-video graph state to the MCP/local UI workflow response."""
-    documents = state.get("documents", [])
-    videos = state.get("videos", [])
-    return WorkflowRunResponse(
-        query=state["query"],
-        search_terms=state["search_terms"],
-        document_count=state["document_count"],
-        video_count=state["video_count"],
-        documents=document_hits_to_summaries(documents),
-        videos=videos,
-        trace=trace_steps_to_views(trace or []),
-    )
 
 
 def tavily_search_state_to_run_response(

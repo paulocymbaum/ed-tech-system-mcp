@@ -2,7 +2,6 @@
 
 Changelog: changelog/2026-07-21/interface/IMPLEMENTATION1.md (BL-006, BL-013, BL-011)
 Changelog: changelog/2026-07-21/infrastructure/IMPLEMENTATION3.md (BL-019)
-Changelog: changelog/2026-07-21/domain/IMPLEMENTATION1.md (BL-009)
 """
 
 from __future__ import annotations
@@ -16,21 +15,19 @@ from collections.abc import Awaitable, Callable
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
+from mcp_server.application.integration_runtime import get_video_client
 from mcp_server.application.llm import get_chat_model
 from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
-from mcp_server.application.workflow_runtime import get_document_video_workflow
 from mcp_server.domain.exceptions import DomainError, ResourceNotFoundError
+from mcp_server.domain.interfaces import IVideoSearchClient
 from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.interface.error_mapping import raise_as_mcp_error
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation import (
-    DocumentQueryRequest,
-    DocumentQueryResponse,
     VideoSearchRequest,
     VideoSearchResponse,
-    document_hits_to_summaries,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,33 +109,18 @@ async def _invoke_health_check() -> str:
 
 
 async def _invoke_search_youtube(request: VideoSearchRequest) -> VideoSearchResponse:
-    workflow = get_document_video_workflow()
-    if workflow is None:
-        raise ResourceNotFoundError("Document video workflow has not been initialized")
-    videos = await workflow.search_videos(
+    client = get_video_client()
+    if client is None:
+        raise ResourceNotFoundError("Video search client has not been initialized")
+    if not isinstance(client, IVideoSearchClient):
+        raise ResourceNotFoundError("Configured video client is not a video search client")
+    videos = await client.search_videos(
         request.query,
-        request.max_results,
+        max_results=request.max_results,
         language=request.language,
         safe_search=request.safe_search,
     )
     return VideoSearchResponse(videos=videos)
-
-
-async def _invoke_find_documents(request: DocumentQueryRequest) -> DocumentQueryResponse:
-    workflow = get_document_video_workflow()
-    if workflow is None:
-        raise ResourceNotFoundError("Document video workflow has not been initialized")
-    documents, videos = await workflow.retrieve_with_videos(
-        request.query,
-        document_limit=request.document_limit,
-        video_limit=request.video_limit,
-        tenant_id=request.tenant_id,
-        course_id=request.course_id,
-    )
-    return DocumentQueryResponse(
-        documents=document_hits_to_summaries(documents),
-        videos=videos,
-    )
 
 
 async def _cached_tool_invoke[T](
@@ -204,30 +186,6 @@ async def search_youtube(
         "search_youtube",
         args,
         lambda: _invoke_search_youtube(request),
-    )
-
-
-@mcp.tool
-async def find_documents(
-    query: str,
-    document_limit: int = 10,
-    video_limit: int = 5,
-    tenant_id: str | None = None,
-    course_id: str | None = None,
-) -> DocumentQueryResponse:
-    """Retrieve educational documents enriched with complementary videos."""
-    request = DocumentQueryRequest(
-        query=query,
-        document_limit=document_limit,
-        video_limit=video_limit,
-        tenant_id=tenant_id,
-        course_id=course_id,
-    )
-    args = request.model_dump()
-    return await _cached_tool_invoke(
-        "find_documents",
-        args,
-        lambda: _invoke_find_documents(request),
     )
 
 

@@ -27,13 +27,7 @@ OPTIONAL_RUNTIME_KEYS=(
   EXTERNAL_REQUEST_LIMIT_PER_MINUTE
   MCP_TRANSPORT
   MCP_STATELESS_HTTP
-  VECTOR_STORE_BACKEND
-  EMBEDDING_CACHE_DIR
-  EMBEDDING_WARM_ON_BOOT
-  HF_HOME
-  XDG_CACHE_HOME
   GROQ_MODEL_CATALOG_CACHE_PATH
-  RERANK_ENABLED
   MCP_HOST_ORIGIN_PROTECTION
   MCP_ALLOWED_HOSTS
   MCP_REQUIRE_INBOUND_TOKEN
@@ -49,13 +43,7 @@ declare -A RUNTIME_DEFAULTS=(
   [EXTERNAL_REQUEST_LIMIT_PER_MINUTE]="60"
   [MCP_TRANSPORT]="streamable-http"
   [MCP_STATELESS_HTTP]="true"
-  [VECTOR_STORE_BACKEND]="supabase"
-  [EMBEDDING_CACHE_DIR]="/app/model-cache/fastembed"
-  [EMBEDDING_WARM_ON_BOOT]="false"
-  [HF_HOME]="/tmp/hf"
-  [XDG_CACHE_HOME]="/tmp"
   [GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"
-  [RERANK_ENABLED]="false"
   [MCP_HOST_ORIGIN_PROTECTION]="true"
   [MCP_ALLOWED_HOSTS]="ed-tech-system-mcp.onrender.com"
   [MCP_REQUIRE_INBOUND_TOKEN]="true"
@@ -119,25 +107,6 @@ for key in "${OPTIONAL_RUNTIME_KEYS[@]}"; do
   fi
   RUNTIME_VALUES["$key"]="$value"
 done
-
-# Free Render (512Mi) OOMs when ONNX warms at boot. Keep false unless explicitly overridden.
-if [[ "${FORCE_EMBEDDING_WARM_ON_BOOT:-}" == "true" ]]; then
-  RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]="true"
-  echo "→ FORCE_EMBEDDING_WARM_ON_BOOT=true (larger Render plan required)"
-else
-  if [[ "${RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]:-}" == "true" ]]; then
-    echo "→ Overriding EMBEDDING_WARM_ON_BOOT=true from Doppler → false (free-tier OOM guard)"
-  fi
-  RUNTIME_VALUES[EMBEDDING_WARM_ON_BOOT]="${RUNTIME_DEFAULTS[EMBEDDING_WARM_ON_BOOT]}"
-fi
-
-# Keep the second ONNX model off on free Render (512Mi).
-if [[ "${FORCE_RERANK_ENABLED:-}" == "true" ]]; then
-  RUNTIME_VALUES[RERANK_ENABLED]="true"
-  echo "→ FORCE_RERANK_ENABLED=true (larger Render plan required)"
-else
-  RUNTIME_VALUES[RERANK_ENABLED]="false"
-fi
 
 RUNTIME_VALUES["LOG_LEVEL"]="INFO"
 
