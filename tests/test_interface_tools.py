@@ -303,8 +303,14 @@ async def test_t33_build_lesson_enrichment_query_returns_terms_and_query() -> No
         lesson_title="Adding fractions",
     )
 
-    assert response.terms == ["fractions", "numerator", "denominator", "common denominator"]
-    assert response.query == "fractions numerator denominator common denominator"
+    assert response.terms == [
+        "fractions",
+        "numerator",
+        "denominator",
+        "common",
+        "mathematics",
+    ]
+    assert response.query == "fractions numerator denominator common mathematics"
 
 
 async def test_t34_build_lesson_enrichment_query_falls_back_to_titles() -> None:
@@ -312,9 +318,9 @@ async def test_t34_build_lesson_enrichment_query_falls_back_to_titles() -> None:
 
     response = await build_lesson_enrichment_query(
         course_title="Mathematics",
-        module_title="Fractions",
-        lesson_title="Adding fractions",
+        module_title="Basic Fractions",
+        lesson_title="Adding Fractions",
     )
 
-    assert response.terms == ["Mathematics", "Fractions", "Adding fractions"]
-    assert response.query == "Mathematics Fractions Adding fractions"
+    assert response.terms == ["mathematics", "basic", "fractions", "adding"]
+    assert response.query == "mathematics basic fractions adding"

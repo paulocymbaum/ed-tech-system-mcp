@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 
@@ -33,6 +34,77 @@ from mcp_server.interface.validation import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Search terms should be single words or short phrases without numerals, IDs, or slugs.
+_ENRICHMENT_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
+
+
+_WORD_RE = re.compile(r"[a-zA-Z]+")
+
+
+def _clean_search_words(text: str) -> list[str]:
+    """Extract significant, lowercase search words from a title or term.
+
+    Removes numerals, punctuation, and common stop words.
+    """
+    words = [w.lower() for w in _WORD_RE.findall(text)]
+    return [w for w in words if len(w) > 1 and w not in _ENRICHMENT_STOP_WORDS]
+
+
+def _build_enrichment_terms(
+    course_title: str,
+    module_title: str,
+    lesson_title: str,
+    raw_terms: list[str],
+) -> list[str]:
+    """Build a clean, deduplicated list of 4-5 search terms.
+
+    Terms are sourced from the LLM first, then the course title is appended
+    (so it is always represented), and module/lesson titles fill any remaining
+    slots up to 5 terms. All numerals and slugs are stripped.
+    """
+    seen: set[str] = set()
+    terms: list[str] = []
+
+    def add_word(word: str) -> None:
+        if not word or len(word) < 2 or word in seen or word in _ENRICHMENT_STOP_WORDS:
+            return
+        seen.add(word)
+        terms.append(word)
+
+    for phrase in raw_terms:
+        for word in _clean_search_words(phrase):
+            add_word(word)
+
+    for word in _clean_search_words(course_title):
+        add_word(word)
+
+    for word in _clean_search_words(module_title):
+        add_word(word)
+
+    for word in _clean_search_words(lesson_title):
+        add_word(word)
+
+    return terms[:5]
 
 
 async def _invoke_health_check() -> str:
@@ -190,7 +262,9 @@ async def _invoke_build_lesson_enrichment_query(
         f"Course title: {course_title}\n"
         f"Module title: {module_title}\n"
         f"Lesson title: {lesson_title}\n\n"
-        "Return a JSON array of 4 to 5 concise, relevant search terms a student would use. "
+        "Return a JSON array of 4 to 5 concise, relevant search terms a student would type. "
+        "Prefer single lowercase words. Do not include numerals, IDs, slugs, or hyphens. "
+        "Include a term for the course name. Avoid repeating terms. "
         "Return ONLY the JSON array, with no markdown or explanation."
     )
     result = await model.ainvoke(
@@ -206,17 +280,20 @@ async def _invoke_build_lesson_enrichment_query(
         llm_complexity=int(LLMComplexity.LOW),
     )
 
-    terms: list[str] = []
+    raw_terms: list[str] = []
     try:
         parsed = json.loads(raw)
         if isinstance(parsed, list):
-            terms = [str(t).strip() for t in parsed if str(t).strip()]
+            raw_terms = [str(t).strip() for t in parsed if str(t).strip()]
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
 
-    if len(terms) < 4:
-        fallback = [course_title, module_title, lesson_title]
-        terms = [t for t in (terms + fallback) if t.strip()][:5]
+    terms = _build_enrichment_terms(
+        course_title,
+        module_title,
+        lesson_title,
+        raw_terms,
+    )
 
     return BuildLessonEnrichmentQueryResponse(
         terms=terms,
