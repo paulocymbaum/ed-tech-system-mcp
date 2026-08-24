@@ -104,10 +104,10 @@ class LLMRouter:
             raise RuntimeError(msg)
 
         fallback_chain = list(pool)
+        # Prefer only when the id is already in the dynamic allowlist — never
+        # inject an env-pinned / retired model ahead of active catalog rows.
         if preferred_model_id and preferred_model_id in fallback_chain:
             fallback_chain.remove(preferred_model_id)
-            fallback_chain.insert(0, preferred_model_id)
-        elif preferred_model_id:
             fallback_chain.insert(0, preferred_model_id)
 
         return fallback_chain

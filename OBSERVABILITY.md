@@ -253,7 +253,7 @@ These tests verify retry recording, LLM I/O capture, model name propagation, and
 | `node_retries` | `config.json` | Validation retry budget (conditional edges) |
 | `agent_node_timeout` | `config.json` | Per-node LangGraph timeout |
 | `GROQ_API_KEY` | Doppler / `.env` | Required for live LLM traces |
-| `LLM_MODEL` | Doppler / `.env` | Preferred model; router may fall back |
+| `LLM_MODEL` | Doppler / `.env` | Optional / unused for normal routing; allowlist is `list_active_groq_models` |
 | `LLM_COMPLEXITY` | Doppler / `.env` | Default complexity when not overridden per node |
 | `LOG_LEVEL` | Doppler / `.env` | Verbosity of application logs |
 

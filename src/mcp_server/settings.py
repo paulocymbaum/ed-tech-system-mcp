@@ -27,7 +27,14 @@ class Settings(BaseSettings):
     youtube_api_key: SecretStr | None = Field(default=None, alias="YOUTUBE_API_KEY")
     tavily_api_key: SecretStr | None = Field(default=None, alias="TAVILY_API_KEY")
     groq_api_key: SecretStr | None = Field(default=None, alias="GROQ_API_KEY")
-    llm_model: str = Field(default="llama-3.3-70b-versatile", alias="LLM_MODEL")
+    llm_model: str | None = Field(
+        default=None,
+        alias="LLM_MODEL",
+        description=(
+            "Optional legacy pin; ignored for normal routing. "
+            "Candidates come from list_active_groq_models by complexity."
+        ),
+    )
     llm_temperature: float = Field(default=0.0, alias="LLM_TEMPERATURE", ge=0.0, le=2.0)
     llm_complexity: int = Field(default=2, alias="LLM_COMPLEXITY", ge=1, le=3)
     llm_router_debounce_seconds: float = Field(

@@ -778,7 +778,7 @@ Extend `Settings` in `settings.py` (RAG fields shipped in Phase A):
 | Variable | Used by |
 | :--- | :--- |
 | `GROQ_API_KEY` | `application/llm.py` via `LLMRouter` |
-| `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_COMPLEXITY` | Chat model factory defaults and router tiers |
+| `LLM_TEMPERATURE`, `LLM_COMPLEXITY` | Chat sampling + default complexity tier; **model ids** come from `list_active_groq_models` (not `LLM_MODEL`) |
 | `TAVILY_API_KEY` | `TavilySearchClient` via `build_search_client()` |
 | `YOUTUBE_API_KEY` | `YouTubeDataApiClient` via `build_video_client()` |
 | `CACHE_TTL_*`, `CACHE_KEY_PREFIX_*` | Cache-aside for LLM, YouTube, web search, MCP tools (**not** RAG chunks) |

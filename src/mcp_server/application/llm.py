@@ -29,7 +29,6 @@ class LLMSettings(Protocol):
     """Settings subset required to build a chat model."""
 
     groq_api_key: SecretStr | None
-    llm_model: str
     llm_temperature: float
     llm_complexity: int
 
@@ -111,27 +110,35 @@ def create_chat_model(
     model_id: str | None = None,
     temperature: float | None = None,
 ) -> BaseChatModel:
-    """Return a LangChain chat model for the configured provider."""
-    resolved_id = model_id or settings.llm_model
+    """Return a LangChain chat model that routes via the dynamic Groq allowlist.
+
+    ``model_id`` is an explicit override (tests / rare callers). The default path
+    does **not** pin ``LLM_MODEL`` from env — candidates come from
+    ``list_active_groq_models`` by complexity tier.
+    """
     resolved_temperature = settings.llm_temperature if temperature is None else temperature
-    spec = resolve_language_model(resolved_id)
 
-    if spec["provider"] == "groq":
-        if settings.groq_api_key is None:
-            msg = "GROQ_API_KEY is required for Groq language models"
+    if settings.groq_api_key is None:
+        msg = "GROQ_API_KEY is required for Groq language models"
+        raise ValueError(msg)
+    if _groq_model_builder is None:
+        msg = "Groq model builder has not been registered"
+        raise RuntimeError(msg)
+    if _llm_router is None:
+        msg = "LLM router has not been registered"
+        raise RuntimeError(msg)
+
+    preferred: str | None = None
+    if model_id is not None:
+        spec = resolve_language_model(model_id)
+        if spec["provider"] != "groq":
+            msg = f"Unsupported language model provider: {spec['provider']}"
             raise ValueError(msg)
-        if _groq_model_builder is None:
-            msg = "Groq model builder has not been registered"
-            raise RuntimeError(msg)
-        if _llm_router is None:
-            msg = "LLM router has not been registered"
-            raise RuntimeError(msg)
-        _llm_router.set_temperature(resolved_temperature)
-        return RoutingChatModel(
-            _llm_router,
-            default_complexity=LLMComplexity(settings.llm_complexity),
-            preferred_model_id=spec["id"],
-        )
+        preferred = spec["id"]
 
-    msg = f"Unsupported language model provider: {spec['provider']}"
-    raise ValueError(msg)
+    _llm_router.set_temperature(resolved_temperature)
+    return RoutingChatModel(
+        _llm_router,
+        default_complexity=LLMComplexity(settings.llm_complexity),
+        preferred_model_id=preferred,
+    )

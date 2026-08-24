@@ -775,6 +775,40 @@ def test_llm13_router_maps_complexity_to_model_tiers() -> None:
     assert high == ["llama-3.3-70b-versatile"]
 
 
+def test_llm13c_router_ignores_preferred_outside_active_pool() -> None:
+    router = _register_test_router(
+        ["openai/gpt-oss-20b"],
+        complexity_by_id={"openai/gpt-oss-20b": frozenset({1, 2})},
+    )
+
+    candidates = router.candidate_model_ids(
+        LLMComplexity.LOW,
+        preferred_model_id="llama-3.1-8b-instant",
+    )
+
+    assert candidates == ["openai/gpt-oss-20b"]
+
+
+def test_llm13d_create_chat_model_default_does_not_pin_env_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
+    monkeypatch.setenv("LLM_MODEL", "llama-3.1-8b-instant")
+    _register_test_router(["openai/gpt-oss-20b", "openai/gpt-oss-120b"])
+    settings = load_settings()
+
+    model = create_chat_model(settings)
+
+    assert isinstance(model, RoutingChatModel)
+    assert model._preferred_model_id is None  # noqa: SLF001
+    assert set(model._router.candidate_model_ids(LLMComplexity.MEDIUM)) == {  # noqa: SLF001
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+    }
+
+
 def test_llm13b_router_falls_back_to_medium_when_tier_empty() -> None:
     router = _register_test_router(
         ["llama-3.3-70b-versatile"],

@@ -425,7 +425,7 @@ def build_chat_model(
         model,
         store,
         build_cache_rule_set(settings),
-        model_name=settings.llm_model,
+        model_name="routing-groq",
     )
 
 
