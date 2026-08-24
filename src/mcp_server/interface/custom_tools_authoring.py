@@ -199,6 +199,7 @@ async def author_lesson_pipeline(
         lesson_slug=lesson_slug,
         graph_node_id=resolved_node_id,
         graph_query=graph_query,
+        graph_hits=graph_hits,
     )
     generation = await invoke_content_generation(
         gen_request,

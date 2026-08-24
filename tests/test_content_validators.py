@@ -9,36 +9,51 @@ from mcp_server.domain.content_validators import (
     validate_quiz_payload,
 )
 
+FOUR_OPTIONS = [
+    {"id": "a", "text": "Alpha"},
+    {"id": "b", "text": "Bravo"},
+    {"id": "c", "text": "Charlie"},
+    {"id": "d", "text": "Delta"},
+]
+
+HARNESS_QUIZ_QUESTION = {
+    "id": "q1",
+    "prompt": "Pick one",
+    "options": FOUR_OPTIONS,
+    "correctOptionId": "a",
+    "explanation": "Alpha is correct.",
+}
+
+HARNESS_QUIZ = {
+    "id": "quiz",
+    "title": "Check",
+    "questions": [HARNESS_QUIZ_QUESTION],
+}
+
 
 def test_validate_quiz_accepts_harness_shape() -> None:
+    report = validate_quiz_payload(HARNESS_QUIZ)
+    assert report.ok
+
+
+def test_validate_quiz_rejects_wrong_option_count() -> None:
     quiz = {
-        "id": "quiz",
-        "title": "Check",
+        **HARNESS_QUIZ,
         "questions": [
             {
-                "id": "q1",
-                "prompt": "Pick one",
-                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
-                "correctOptionId": "a",
+                **HARNESS_QUIZ_QUESTION,
+                "options": HARNESS_QUIZ_QUESTION["options"][:2],
             }
         ],
     }
     report = validate_quiz_payload(quiz)
-    assert report.ok
+    assert not report.ok
 
 
 def test_validate_quiz_rejects_missing_correct_option() -> None:
     quiz = {
-        "id": "quiz",
-        "title": "Check",
-        "questions": [
-            {
-                "id": "q1",
-                "prompt": "Pick one",
-                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
-                "correctOptionId": "z",
-            }
-        ],
+        **HARNESS_QUIZ,
+        "questions": [{**HARNESS_QUIZ_QUESTION, "correctOptionId": "z"}],
     }
     report = validate_quiz_payload(quiz)
     assert not report.ok

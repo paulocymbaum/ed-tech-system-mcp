@@ -12,6 +12,20 @@ from mcp_server.application.authoring_service import (
 )
 from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClient
 
+FOUR_OPTIONS = [
+    {"id": "a", "text": "Alpha"},
+    {"id": "b", "text": "Bravo"},
+    {"id": "c", "text": "Charlie"},
+    {"id": "d", "text": "Delta"},
+]
+
+HARNESS_QUIZ_QUESTION = {
+    "id": "q1",
+    "prompt": "Q?",
+    "options": FOUR_OPTIONS,
+    "correctOptionId": "a",
+}
+
 
 def test_authoring_client_requires_anon_key() -> None:
     from mcp_server.domain.exceptions import DomainValidationError
@@ -58,14 +72,7 @@ async def test_save_lesson_bundle_calls_rpc_sequence() -> None:
             quiz={
                 "id": "quiz",
                 "title": "Quiz",
-                "questions": [
-                    {
-                        "id": "q1",
-                        "prompt": "Q?",
-                        "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
-                        "correctOptionId": "a",
-                    }
-                ],
+                "questions": [HARNESS_QUIZ_QUESTION],
             },
         )
 
@@ -85,7 +92,7 @@ def test_harness_quiz_to_rpc_maps_option_slugs() -> None:
                     "id": "q1",
                     "prompt": "P",
                     "correctOptionId": "b",
-                    "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+                    "options": FOUR_OPTIONS,
                 }
             ],
         }
@@ -104,13 +111,13 @@ def test_harness_quiz_to_rpc_skips_questions_without_matching_key() -> None:
                     "id": "q1",
                     "prompt": "P",
                     "correctOptionId": "B",
-                    "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+                    "options": FOUR_OPTIONS,
                 },
                 {
                     "id": "q2",
                     "prompt": "Bad",
                     "correctOptionId": "z",
-                    "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+                    "options": FOUR_OPTIONS,
                 },
             ],
         }

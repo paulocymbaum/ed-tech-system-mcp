@@ -11,10 +11,23 @@ from mcp_server.application.agents.content_generation.graph import (
     initial_content_generation_state,
 )
 from mcp_server.domain.authoring import GraphNodeHit, GraphSearchPort
+from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
     content_generation_state_to_run_response,
 )
+
+
+def _graph_hits_from_request(request: ContentGenerationRunRequest) -> list[GraphNodeHit]:
+    if not request.graph_hits:
+        return []
+    hits: list[GraphNodeHit] = []
+    for raw in request.graph_hits:
+        if isinstance(raw, GraphNodeHit):
+            hits.append(raw)
+        elif isinstance(raw, dict):
+            hits.append(GraphNodeHit.model_validate(raw))
+    return hits
 
 
 async def invoke_content_generation(
@@ -29,7 +42,10 @@ async def invoke_content_generation(
         if graph_search is None:
             msg = "Graph search repository is required for graph-scoped content generation"
             raise RuntimeError(msg)
-        if request.graph_query or not resolved_node:
+        preloaded = _graph_hits_from_request(request)
+        if preloaded:
+            graph_hits = preloaded
+        elif request.graph_query or not resolved_node:
             hits = await asyncio.to_thread(
                 graph_search.search_graph_nodes,
                 tenant_id=request.tenant_id,
