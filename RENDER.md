@@ -1,6 +1,6 @@
 # Render deployment (Docker MCP)
 
-The **MCP server** deploys to **Render** as a **Docker Web Service**. The Docker image uses `uv sync --frozen --no-dev --extra prod` (workflow + RAG **without** Chroma). Local Chroma fallback is extra `full` via `uv`, not the Render image.
+The **MCP server** deploys to **Render** as a **Docker Web Service**. The Docker image uses `uv sync --frozen --no-dev --extra prod` (LLM orchestration + web/YouTube search tools). Document embedding/RAG and Chroma were removed; document search lives in the backend embedding service.
 
 ---
 
@@ -35,8 +35,6 @@ Health       ──▶  https://<service>.onrender.com/health
 | Component | Host | Purpose |
 | :--- | :--- | :--- |
 | MCP (`/mcp`, `/health`) | **Render** (Docker) | Primary — streamable HTTP MCP transport |
-| Workflow API (`/api/*`) | **Docker** (optional 2nd Render service) | LangGraph explorer API |
-| React UI (`ui/dist`) | Optional static host | Graph explorer |
 
 Entrypoint: `mcp-server` CLI via `Dockerfile` `CMD`.
 

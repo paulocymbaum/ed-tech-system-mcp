@@ -15,9 +15,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.status.build_manifest import build_manifest  # noqa: E402
 from scripts.status.models import (  # noqa: E402
     INCIDENT_TYPES,
+    CoverageSnapshot,
     IncidentState,
     StatusLogRecord,
-    CoverageSnapshot,
     build_filename,
     transition_state,
 )

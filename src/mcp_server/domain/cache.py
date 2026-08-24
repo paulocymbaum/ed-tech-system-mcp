@@ -14,13 +14,10 @@ from pydantic import BaseModel, Field
 class CacheOperationType(StrEnum):
     """Supported cacheable operation identifiers."""
 
-    SUPABASE_FIND_DOCUMENTS = "supabase.find_documents"
     YOUTUBE_SEARCH_VIDEOS = "youtube.search_videos"
     WEB_SEARCH = "web.search"
     MCP_TOOL = "mcp.tool"
     LLM_COMPLETION = "llm.completion"
-    EMBEDDING_QUERY = "embedding.query"
-    VECTOR_RETRIEVE = "vector.retrieve"
 
 
 class CacheRule(BaseModel):
@@ -47,23 +44,7 @@ class CacheRuleSet(BaseModel):
         return rule is not None and rule.enabled
 
 
-# Redis cache-aside for RAG retrieval is intentionally disabled at the MCP layer.
-# Chunk freshness and any retrieval caching belong in Supabase/pgvector (backend).
-# ONNX embedding model weights use ``EMBEDDING_CACHE_DIR`` (image bake), not Redis.
-RAG_REDIS_CACHE_OPERATIONS: frozenset[CacheOperationType] = frozenset(
-    {
-        CacheOperationType.SUPABASE_FIND_DOCUMENTS,
-        CacheOperationType.EMBEDDING_QUERY,
-        CacheOperationType.VECTOR_RETRIEVE,
-    }
-)
-
 DEFAULT_CACHE_RULES: dict[CacheOperationType, CacheRule] = {
-    CacheOperationType.SUPABASE_FIND_DOCUMENTS: CacheRule(
-        operation=CacheOperationType.SUPABASE_FIND_DOCUMENTS,
-        ttl_seconds=600,
-        key_prefix="supabase",
-    ),
     CacheOperationType.YOUTUBE_SEARCH_VIDEOS: CacheRule(
         operation=CacheOperationType.YOUTUBE_SEARCH_VIDEOS,
         ttl_seconds=3600,
@@ -83,16 +64,6 @@ DEFAULT_CACHE_RULES: dict[CacheOperationType, CacheRule] = {
         operation=CacheOperationType.LLM_COMPLETION,
         ttl_seconds=3600,
         key_prefix="llm",
-    ),
-    CacheOperationType.EMBEDDING_QUERY: CacheRule(
-        operation=CacheOperationType.EMBEDDING_QUERY,
-        ttl_seconds=3600,
-        key_prefix="embed",
-    ),
-    CacheOperationType.VECTOR_RETRIEVE: CacheRule(
-        operation=CacheOperationType.VECTOR_RETRIEVE,
-        ttl_seconds=600,
-        key_prefix="vector",
     ),
 }
 

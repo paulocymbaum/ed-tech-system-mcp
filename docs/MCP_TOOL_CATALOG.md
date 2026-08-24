@@ -68,7 +68,7 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 1. `initialize` then `tools/list` / `tools/call` over JSON-RPC on `/mcp`.
 2. Accept header: `application/json, text/event-stream`.
 3. Pattern C from LMS: `mcp-health`, `mcp-search-youtube` on Supabase edge — server holds MCP URL. Document RAG is now served by the native backend `mcp-find-documents` endpoint (not an MCP tool).
-4. Ingestion: `services/embedding-service/index-documents` (backend) or `scripts/ingest/index_documents.py` (deprecated). Ops: backend `INTEGRATION/MULTI_COURSE_OPS.md`.
+4. Ingestion: `services/embedding-service/index-documents` (backend). Ops: backend `INTEGRATION/MULTI_COURSE_OPS.md`.
 5. Writes that touch curriculum assert manager membership via the **user** token in `manager_jwt`.
 
 ---

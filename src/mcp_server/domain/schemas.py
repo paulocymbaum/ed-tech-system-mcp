@@ -1,7 +1,5 @@
 """Core domain entity definitions."""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -13,90 +11,6 @@ class VideoResult(BaseModel):
     url: str
     duration_seconds: int | None = None
     relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
-
-
-class DocumentHit(BaseModel):
-    """Document retrieval result from the data repository."""
-
-    id: str
-    title: str
-    content: str
-    metadata: dict[str, str] = Field(default_factory=dict)
-
-
-class TextChunk(BaseModel):
-    """Indexed passage derived from a parent document."""
-
-    id: str | None = None
-    document_id: str
-    content: str
-    content_hash: str
-    language: str | None = None
-    metadata: dict[str, str] = Field(default_factory=dict)
-    chunk_index: int = Field(ge=0)
-
-
-class ChunkRetrievalFilter(BaseModel):
-    """Optional filters applied during vector or hybrid chunk retrieval."""
-
-    tenant_id: str | None = None
-    course_id: str | None = None
-    tags: list[str] | None = None
-    language: str | None = None
-
-
-class DocumentListFilter(BaseModel):
-    """Optional filters for listing documents from Supabase."""
-
-    course_id: str | None = None
-    tags: list[str] | None = None
-    language: str | None = None
-
-
-class DocumentListItem(BaseModel):
-    """Pruned document row for list responses."""
-
-    id: str
-    title: str
-    course_id: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    language: str | None = None
-    updated_at: str | None = None
-    content_preview: str
-
-
-class DocumentDetail(BaseModel):
-    """Full document row for single-document reads."""
-
-    id: str
-    title: str
-    content: str
-    course_id: str | None = None
-    tags: list[str] = Field(default_factory=list)
-    language: str | None = None
-    updated_at: str | None = None
-
-
-class DocumentChunkRecord(BaseModel):
-    """Active document chunk row (no embeddings or soft-deleted rows)."""
-
-    id: str
-    document_id: str
-    content: str
-    chunk_index: int = Field(ge=0)
-    language: str | None = None
-    metadata: dict[str, str] = Field(default_factory=dict)
-
-
-class ChunkHit(BaseModel):
-    """Semantic retrieval unit — may aggregate into DocumentHit for MCP compatibility."""
-
-    id: str
-    document_id: str
-    title: str | None = None
-    content: str
-    score: float = Field(default=0.0, ge=0.0, le=1.0)
-    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class GraphEntity(BaseModel):
@@ -115,15 +29,3 @@ class GraphRelation(BaseModel):
     target_id: str
     relation_type: str
     weight: float = Field(default=1.0, ge=0.0)
-
-
-RetrievalMode = Literal["vector", "hybrid", "graph"]
-
-
-class RetrievalResult(BaseModel):
-    """Structured output from a RAG retrieval pipeline."""
-
-    chunks: list[ChunkHit]
-    entities: list[GraphEntity] = Field(default_factory=list)
-    relations: list[GraphRelation] = Field(default_factory=list)
-    mode: RetrievalMode

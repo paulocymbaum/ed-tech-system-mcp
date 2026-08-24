@@ -3,41 +3,8 @@
 from __future__ import annotations
 
 from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
-from mcp_server.domain.interfaces import IDataRepository, ISearchClient, IVideoSearchClient
-from mcp_server.domain.schemas import ChunkHit, ChunkRetrievalFilter, DocumentHit, VideoResult
-
-
-class RateLimitedDataRepository(IDataRepository):
-    """Reserve external quota before Supabase document lookups."""
-
-    def __init__(
-        self,
-        inner: IDataRepository,
-        limiter: IExternalRequestRateLimiter,
-        *,
-        provider: str = "supabase",
-    ) -> None:
-        self._inner = inner
-        self._limiter = limiter
-        self._provider = provider
-
-    async def has_documents(
-        self,
-        *,
-        filters: ChunkRetrievalFilter | None = None,
-    ) -> bool:
-        await self._limiter.acquire(provider=self._provider)
-        return await self._inner.has_documents(filters=filters)
-
-    async def find_documents(
-        self,
-        query: str,
-        limit: int = 10,
-        *,
-        filters: ChunkRetrievalFilter | None = None,
-    ) -> list[DocumentHit]:
-        await self._limiter.acquire(provider=self._provider)
-        return await self._inner.find_documents(query, limit=limit, filters=filters)
+from mcp_server.domain.interfaces import ISearchClient, IVideoSearchClient
+from mcp_server.domain.schemas import VideoResult
 
 
 class RateLimitedSearchClient(ISearchClient):

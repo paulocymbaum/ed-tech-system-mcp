@@ -7,6 +7,16 @@ from pathlib import Path
 
 import pytest
 
+from mcp_server.domain.content_validators import (
+    KNOWN_LESSON_STACKS,
+    KNOWN_PROJECT_FILE_KINDS,
+    KNOWN_RUN_DEPENDENCY_KINDS,
+    KNOWN_RUNNER_KINDS,
+    validate_lesson_stack,
+    validate_project_files_for_rpc,
+    validate_run_dependencies,
+    validate_test_boilerplate,
+)
 from mcp_server.domain.curriculum_enums import (
     GRAPH_NODE_KINDS,
     LESSON_STACKS,
@@ -17,16 +27,6 @@ from mcp_server.domain.curriculum_enums import (
     RUN_DEPENDENCY_KINDS,
     RUNNER_KINDS,
     normalize_project_file_kind,
-)
-from mcp_server.domain.content_validators import (
-    KNOWN_LESSON_STACKS,
-    KNOWN_PROJECT_FILE_KINDS,
-    KNOWN_RUN_DEPENDENCY_KINDS,
-    KNOWN_RUNNER_KINDS,
-    validate_lesson_stack,
-    validate_project_files_for_rpc,
-    validate_run_dependencies,
-    validate_test_boilerplate,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

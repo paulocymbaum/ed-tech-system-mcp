@@ -3,16 +3,12 @@
 import pytest
 from pydantic import ValidationError
 
-from mcp_server.domain.schemas import ChunkHit, VideoResult
+from mcp_server.domain.schemas import VideoResult
 from mcp_server.interface.validation import (
     VideoSearchRequest,
     VideoSearchResponse,
 )
-from mcp_server.interface.validation_workflow import (
-    ContentGenerationRunRequest,
-    RagRetrievalRunRequest,
-    rag_retrieval_state_to_run_response,
-)
+from mcp_server.interface.validation_workflow import ContentGenerationRunRequest
 
 
 def test_t08_video_search_request_happy_path() -> None:
@@ -84,47 +80,3 @@ def test_content_generation_run_request_accepts_path_like_graph_node_id() -> Non
         == "lesson:javascript:07-technical-interview-preparation:07.5-iterative-optimization"
     )
 
-
-def test_t_rag23_rag_retrieval_run_request_defaults() -> None:
-    request = RagRetrievalRunRequest(query="photosynthesis")
-    assert request.retrieval_mode == "hybrid"
-    assert request.retrieve_limit == 20
-    assert request.rerank_top_n == 6
-    assert request.rerank_enabled is False
-    assert request.course_id is None
-
-
-def test_t_rag24_rag_retrieval_run_request_empty_query() -> None:
-    with pytest.raises(ValidationError):
-        RagRetrievalRunRequest(query="")
-
-
-def test_t_rag25_rag_retrieval_run_request_retrieve_limit_bounds() -> None:
-    with pytest.raises(ValidationError):
-        RagRetrievalRunRequest(query="x", retrieve_limit=0)
-    with pytest.raises(ValidationError):
-        RagRetrievalRunRequest(query="x", retrieve_limit=101)
-
-
-def test_t_rag26_rag_retrieval_state_to_run_response_prefers_reranked() -> None:
-    retrieved = [
-        ChunkHit(id="chunk-1", document_id="doc-1", content="retrieved", score=0.5),
-    ]
-    reranked = [
-        ChunkHit(id="chunk-2", document_id="doc-1", content="reranked", score=0.9),
-    ]
-    state = {
-        "query": "biology",
-        "retrieval_mode": "hybrid",
-        "retrieval_complete": True,
-        "retrieved_chunks": retrieved,
-        "reranked_chunks": reranked,
-        "merged_context": "reranked",
-    }
-
-    response = rag_retrieval_state_to_run_response(state)
-
-    assert response.query == "biology"
-    assert response.chunk_count == 1
-    assert response.chunks == reranked
-    assert response.merged_context == "reranked"

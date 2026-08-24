@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
-from mcp_server.domain.schemas import ChunkRetrievalFilter
 
 
 def require_non_empty_text(value: str, *, field: str) -> str:
@@ -30,13 +29,3 @@ def require_credential(value: str, *, resource: str) -> str:
         msg = f"{resource} credentials are not configured"
         raise ResourceNotFoundError(msg)
     return stripped
-
-
-def require_tenant_retrieval_filter(filters: ChunkRetrievalFilter) -> ChunkRetrievalFilter:
-    """Refuse unscoped chunk retrieval — tenant_id is mandatory."""
-    tenant_id = (filters.tenant_id or "").strip()
-    if not tenant_id:
-        msg = "tenant_id is required for chunk retrieval"
-        raise DomainValidationError(msg)
-    filters.tenant_id = tenant_id
-    return filters

@@ -1,8 +1,6 @@
 # ed-tech-system-mcp
 
-Domain-Driven MCP (Model Context Protocol) server for ed-tech workflows. The server exposes validated MCP tools backed by LangGraph agents, Supabase document retrieval, web search, and YouTube video discovery — all organized with Clean Architecture and DDD.
-
-![LangGraph Workflow Explorer — browse workflows, run traces, and inspect node I/O locally](docs/assets/workflow-ui-explorer.png)
+Domain-Driven MCP (Model Context Protocol) server for ed-tech workflows. The server exposes validated MCP tools backed by LangGraph agents, web search, and YouTube video discovery — all organized with Clean Architecture and DDD. Document embedding and retrieval live in the backend (`ed-tech-system-backend` embedding service); the MCP server no longer runs RAG.
 
 ## What this project does
 
@@ -13,9 +11,8 @@ External MCP clients call **MCP tools** that validate input with Pydantic, deleg
 | Tool | Module | Purpose |
 | :--- | :--- | :--- |
 | `health_check` | `custom_tools` | Liveness probe |
-| `find_documents` | `custom_tools` | Document retrieval enriched with related videos |
 | `search_youtube` | `custom_tools` | Educational YouTube search |
-| `run_workflow` | `custom_tools_workflow` | Document + video discovery LangGraph workflow |
+| `build_lesson_enrichment_query` | `custom_tools` | Expand lesson metadata into 4–5 search terms for document/video lookup |
 | `research_article` | `custom_tools_agent_workflows` | Research article generation workflow |
 | `content_generation` | `custom_tools_agent_workflows` | Lesson/quiz/project content generation |
 | `author_lesson_pipeline` | `custom_tools_authoring` | Graph leaf → generate → validate → save (draft/publish) |
@@ -32,13 +29,12 @@ Handlers use **MCP tool caching** (when enabled), **latency logging**, **privile
 
 | Capability | Integration |
 | :--- | :--- |
-| Document / vector retrieval | Supabase (Postgres / pgvector) and optional Chroma |
 | Curriculum graph + authoring RPCs | Supabase RPCs via authoring backend client (anon + manager JWT) |
 | Web search | DuckDuckGo / Tavily |
 | Video discovery | YouTube Data API v3 |
 | Agent orchestration | LangChain / LangGraph |
 | Caching | Redis when `CACHE_ENABLED=true` |
-| Local workflow UI | FastAPI + React (`ui/`) |
+| Document embedding / RAG | Backend `ed-tech-system-backend` embedding service + `mcp-find-documents` edge function |
 
 ## Architecture
 
@@ -52,13 +48,13 @@ entrypoint → interface → application → domain ← infrastructure
 | :--- | :--- | :--- |
 | **domain** | `domain/` | Entities, ports, validators, curriculum enums — no MCP/LangGraph/Supabase |
 | **application** | `application/` | LangGraph `agents/`, runners, LLM routing, authoring services |
-| **interface** | `interface/` | MCP tools (`custom_tools*.py`), validation, error mapping, local UI API |
-| **infrastructure** | `infrastructure/` | Supabase, search, YouTube, Groq, Redis, retrieval/embeddings/rerank |
+| **interface** | `interface/` | MCP tools (`custom_tools*.py`), validation, error mapping |
+| **infrastructure** | `infrastructure/` | Supabase, search, YouTube, Groq, Redis, cache adapters |
 | **entrypoint** | `main.py`, `wiring.py`, `settings.py`, … | Bootstrap and composition root only |
 
 **Changelog folders** use the same names plus `tests`, `performance`, `code-health`, `refactor` — see [ARCHITECTURE.md § Changelog layer names](./ARCHITECTURE.md#changelog-layer-names).
 
-**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) (layer rules, tree, anti-patterns) · [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) (graphs / tools) · [OBSERVABILITY.md](./OBSERVABILITY.md) (workflow UI / traces).
+**Read next:** [ARCHITECTURE.md](./ARCHITECTURE.md) (layer rules, tree, anti-patterns) · [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) (graphs / tools) · [OBSERVABILITY.md](./OBSERVABILITY.md) (execution traces).
 
 ## Quick start
 
@@ -102,45 +98,9 @@ doppler run -- uv run mcp-server
 uv run mcp-server
 ```
 
-### Run the workflow UI (optional)
+### Inspect traces in tests
 
-Local dev UI for inspecting workflow graphs, running test executions, and replaying traces:
-
-```bash
-./scripts/dev/run-workflow-ui.sh
-```
-
-API: `http://127.0.0.1:8877` (default) · React dev server: `http://127.0.0.1:4173`
-
-| View | What it shows |
-| :--- | :--- |
-| **Workflow explorer** | Sidebar of registered LangGraph workflows with run forms |
-| **Graph canvas** | Compiled nodes, forward/retry/failure edges, live replay highlighting |
-| **Execution replay** | Step-by-step trace with validation errors and retry decisions |
-| **Node I/O inspector** | Per-step state snapshots, LLM prompts, and raw model output |
-
-**Graph visualization** — retry loops and parallel branches are rendered on the canvas:
-
-| Content generation (validation retries) | Research article (parallel tool calls) |
-| :---: | :---: |
-| ![Content generation workflow graph with retry edges](docs/assets/workflow-graph-content-generation.png) | ![Research article workflow graph with parallel search nodes](docs/assets/workflow-graph-research-article.png) |
-
-**Trace replay & debugging** — after a run, scrub through each node, inspect failures, and read LLM I/O:
-
-![Workflow trace replay with run summary, graph highlighting, and node I/O inspector](docs/assets/workflow-trace-replay.png)
-
-**Node I/O inspector** — per-step state snapshots, validation errors, and LLM prompts/raw output:
-
-![Node I/O inspector showing input state, output update, and LLM prompts for a retry step](docs/assets/workflow-step-inspector.png)
-
-See [OBSERVABILITY.md](./OBSERVABILITY.md) for graph replay, node I/O inspection, and trace API details.
-
-To refresh README screenshots after UI changes:
-
-```bash
-./scripts/dev/run-workflow-ui.sh   # in one terminal
-npx -p playwright node scripts/dev/capture-ui-screenshots.mjs   # in another
-```
+Traces are captured programmatically by `workflow_trace.py` and `workflow_llm_trace.py` and asserted in pytest. See [OBSERVABILITY.md](./OBSERVABILITY.md) for trace field details and debugging patterns.
 
 ## Development
 
@@ -190,15 +150,14 @@ Run quality-gate commands from the **repository root** (`ed-tech-system-mcp/`), 
 │   ├── domain/              # Entities, ports, validators, enums
 │   ├── application/         # Agents, runners, LLM routing, authoring services
 │   │   └── agents/          # LangGraph packages (content_generation, socratic, …)
-│   ├── interface/           # MCP tools + local_ui API
-│   ├── infrastructure/      # Adapters (retrieval, embeddings, cache, clients)
+│   ├── interface/           # MCP tools + validation
+│   ├── infrastructure/      # Adapters (search, video, LLM, cache, clients)
 │   ├── wiring.py            # Composition root
 │   ├── settings.py
 │   └── main.py              # mcp-server entry
 ├── tests/                   # pytest + architecture lint
 ├── changelog/               # Agent memory: {DATE}/{LAYER}/ (local)
-├── ui/                      # React workflow graph UI
-├── scripts/                 # Doppler, hooks, Render, dev UI
+├── scripts/                 # Doppler, hooks, Render, dev helpers
 ├── docs/assets/             # README screenshots
 ├── ARCHITECTURE.md          # Layer boundaries (canonical)
 ├── AGENTIC_ARCHITECTURE.md  # Agent graphs and tool orchestration
@@ -235,10 +194,10 @@ Read the **minimum** doc set for your task. Do not load everything.
 
 | Document | Read when |
 | :--- | :--- |
-| [README.md](./README.md) | First visit — overview, quick start, MCP tools, workflow UI |
+| [README.md](./README.md) | First visit — overview, quick start, MCP tools |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Any code change — layers, ports/adapters, deps per layer, file layout, anti-patterns |
 | [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md) | LangGraph/LangChain agents, LLM wiring, tool taxonomy, DB/web/video flows |
-| [OBSERVABILITY.md](./OBSERVABILITY.md) | Local workflow UI, execution replay, trace/API debugging |
+| [OBSERVABILITY.md](./OBSERVABILITY.md) | Execution traces and debugging |
 | [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) | `uv`, lockfile, deps, env vars, `ruff`/`mypy`/`pytest`, CI, MCP client setup |
 
 **Conflict resolution:** `ARCHITECTURE.md` wins on layer boundaries; `AGENTIC_ARCHITECTURE.md` wins on orchestration semantics.
@@ -274,7 +233,7 @@ Local engineering memory (often gitignored). `{LAYER}` must match an architectur
 
 ```text
 Code in a layer?        → ARCHITECTURE.md (+ AGENTIC_ARCHITECTURE.md if agents/tools/LLM)
-Workflow UI / traces?   → OBSERVABILITY.md
+Traces / debugging?     → OBSERVABILITY.md
 Environment / CI?       → ENVIRONMENT_SETUP.md
 Secrets / Doppler?      → ENVIRONMENT_SETUP.md § Secrets & safety
 Tests / merge gate?     → pytest + quality gates in ENVIRONMENT_SETUP.md

@@ -13,25 +13,17 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     reset_content_generation_graph_cache,
 )
-from mcp_server.application.agents.rag_retrieval.graph import (
-    get_rag_retrieval_graph,
-    reset_rag_retrieval_graph_cache,
-)
-from mcp_server.application.agents.rag_validation.graph import (
-    get_rag_validation_graph,
-    reset_rag_validation_graph_cache,
-)
 from mcp_server.application.agents.project_review.graph import (
     get_project_review_graph,
     reset_project_review_graph_cache,
 )
-from mcp_server.application.agents.socratic.graph import (
-    get_socratic_tutor_graph,
-    reset_socratic_tutor_graph_cache,
-)
 from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     reset_research_article_graph_cache,
+)
+from mcp_server.application.agents.socratic.graph import (
+    get_socratic_tutor_graph,
+    reset_socratic_tutor_graph_cache,
 )
 from mcp_server.application.agents.tavily_search.graph import (
     get_tavily_search_graph,
@@ -48,6 +40,8 @@ from mcp_server.application.workflow_config import (
     read_node_retry_policy,
 )
 from mcp_server.application.workflow_graph import RegisteredWorkflow
+
+
 def _workflow_runtime_config() -> WorkflowExecutionConfig:
     """Return runtime config, falling back to repo-root defaults when not initialized."""
     try:
@@ -142,27 +136,9 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             name="Socratic Tutor",
             description=(
                 "Hint-ladder tutoring grounded in catalog/graph from the backend. "
-                "Never assigns grades or project scores. MCP does not run RAG embeddings."
+                "Never assigns grades or project scores."
             ),
             graph=get_socratic_tutor_graph(),
-        ),
-        RegisteredWorkflow(
-            id="rag-retrieval",
-            name="RAG Retrieval",
-            description=(
-                "Embed a query, retrieve document chunks via the configured vector store "
-                "(Supabase pgvector), optionally rerank, and merge context."
-            ),
-            graph=get_rag_retrieval_graph(),
-        ),
-        RegisteredWorkflow(
-            id="rag-validation",
-            name="RAG Validation",
-            description=(
-                "Index the bundled photosynthesis fixture, run the full RAG pipeline, "
-                "and assert expected phrases appear in retrieved context."
-            ),
-            graph=get_rag_validation_graph(),
         ),
     ]
 
@@ -185,5 +161,3 @@ def reset_registered_workflows_cache() -> None:
     reset_tavily_search_graph_cache()
     reset_youtube_search_graph_cache()
     reset_research_article_graph_cache()
-    reset_rag_retrieval_graph_cache()
-    reset_rag_validation_graph_cache()

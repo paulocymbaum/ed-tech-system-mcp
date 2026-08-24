@@ -180,10 +180,10 @@ For production-like installs (runtime only):
 uv sync --frozen --no-dev --extra prod
 ```
 
-Render/Docker uses extra **`prod`** (LangGraph + FastEmbed, **no** `chromadb`). Local Chroma fallback:
+Render/Docker uses extra **`prod`** (LangGraph + web/YouTube tools, **no** RAG/Chroma). RAG dependencies were removed from the MCP server; document embedding lives in the backend service.
 
 ```bash
-uv sync --frozen --all-groups --extra full
+uv sync --frozen --all-groups
 ```
 
 | Flag | When to use |
@@ -314,9 +314,6 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
     redis_port: int = Field(default=6379, alias="REDIS_PORT")
     redis_password: SecretStr | None = Field(default=None, alias="REDIS_PASSWORD")
-    cache_ttl_supabase_find_documents: int | None = Field(
-        default=None, alias="CACHE_TTL_SUPABASE_FIND_DOCUMENTS"
-    )
     cache_ttl_youtube_search_videos: int | None = Field(
         default=None, alias="CACHE_TTL_YOUTUBE_SEARCH_VIDEOS"
     )
@@ -340,11 +337,11 @@ When `CACHE_ENABLED=false`, adapters are not wrapped and no Redis connection is 
 
 #### Production cache requirement
 
-In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), enable the shared Redis cache store for **LLM completions, YouTube, web search, and MCP tool I/O** at the composition root. **Do not** use Redis to cache RAG chunks, document hits, or query embeddings on this MCP layer — retrieval freshness belongs in **Supabase/pgvector** (backend).
+In **staging** and **production** (`APP_ENV=staging` or `APP_ENV=production`), enable the shared Redis cache store for **LLM completions, YouTube, web search, and MCP tool I/O** at the composition root.
 
 | Variable | Production value | Notes |
 | :--- | :--- | :--- |
-| `CACHE_ENABLED` | `true` | **Required** in staging/production. Enables Redis for LLM / YouTube / web / MCP tool I/O (not RAG chunks). Python default remains `false` for local and CI. |
+| `CACHE_ENABLED` | `true` | **Required** in staging/production. Enables Redis for LLM / YouTube / web / MCP tool I/O. Python default remains `false` for local and CI. |
 | `REDIS_URL` | Managed Redis endpoint | **Required** with `CACHE_ENABLED` in staging/production. Prefer a single URL (e.g. `redis://:password@host:6379/0`). Do not rely on localhost. |
 | `REDIS_HOST` / `REDIS_PORT` | Fallback when `REDIS_URL` unset | Use only when your platform injects a **non-localhost** host/port separately |
 
@@ -360,42 +357,21 @@ Boot logs a warning (does not crash) when `APP_ENV` is `staging` or `production`
 
 Local development may keep `CACHE_ENABLED=false` (default). CI tests run with cache disabled unless a dedicated Redis service is added to the workflow.
 
-#### RAG settings (Phase A — shipped in `settings.py`)
+#### RAG settings (removed from MCP server)
 
-See [INVESTIGATION1.md](changelog/2026-07-22/domain/INVESTIGATION1.md) for library and port design.
+Document embedding, vector retrieval, chunking, reranking, and the `find_documents` / `run_workflow` MCP tools were removed from this repository. Document RAG is now implemented in the backend repository (`ed-tech-system-backend`):
 
-**Caching policy (MCP vs backend):**
+- Backend FastAPI embedding service: `services/embedding-service/`
+- Document ingestion script: `services/embedding-service/src/embedding_service/ingest.py`
+- Backend edge function: `supabase/functions/mcp-find-documents/`
+- Supabase vector storage: `document_chunks` table + `hybrid_search_chunks` RPC
 
-| Layer | What is cached | Where |
-| :--- | :--- | :--- |
-| **MCP server (this repo)** | ONNX **model weights** only | `EMBEDDING_CACHE_DIR` — baked into the Docker image on Render (`/app/model-cache/fastembed`) |
-| **MCP server** | HuggingFace hub scratch | `HF_HOME=/tmp/hf`, `XDG_CACHE_HOME=/tmp` (writable on read-only containers) |
-| **MCP server** | **Not** RAG chunks, document hits, or query-embedding vectors | Redis rules for `vector.retrieve`, `supabase.find_documents`, `embedding.query` are **always disabled** in `wiring.py` |
-| **Backend (Supabase)** | Chunk index + pgvector retrieval | `document_chunks` table, `match_chunks` / `hybrid_search_chunks` RPCs — any retrieval cache belongs here |
+The MCP server still provides `search_youtube` and `build_lesson_enrichment_query` (search-term expansion). The following environment variables are no longer used by the MCP server and should be configured in the backend instead:
 
-| Variable | Default (local) | Render / production |
-| :--- | :--- | :--- |
-| `EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Same (fastembed ONNX) |
-| `EMBEDDING_DIMENSION` | `384` | Must match pgvector column |
-| `EMBEDDING_WARM_ON_BOOT` | `false` | **`false`** on free Render (512Mi); set `true` only on larger plans |
-| `EMBEDDING_CACHE_DIR` | `.cache/fastembed` | **`/app/model-cache/fastembed`** (image bake) |
-| `HF_HOME` | (unset) | **`/tmp/hf`** |
-| `XDG_CACHE_HOME` | (unset) | **`/tmp`** |
-| `RETRIEVAL_MODE` | `hybrid` | `vector` or `hybrid` |
-| `RETRIEVE_LIMIT` | `20` | Pre-rerank candidate cap |
-| `RERANK_ENABLED` | `false` | MVP default off |
-| `RERANKER_MODEL` | `BAAI/bge-reranker-base` | When rerank enabled (MIT, fastembed ONNX) |
-| `RERANK_TOP_N` | `6` | Post-rerank cap |
-| `CACHE_TTL_EMBEDDING_QUERY` | `3600` | **Ignored** — MCP layer does not Redis-cache query embeddings |
-| `CACHE_TTL_VECTOR_RETRIEVE` | `600` | **Ignored** — MCP layer does not Redis-cache chunk hits |
-| `VECTOR_STORE_BACKEND` | `auto` | **`supabase`** on Render |
-| `CHROMA_PERSIST_PATH` | `.cache/chromadb` | Local Chroma only |
-
-**Vector store default:** `VECTOR_STORE_BACKEND=auto` with `SUPABASE_VECTOR_ENABLED=false` uses **ChromaDB** locally until Supabase migrations are applied; set `SUPABASE_VECTOR_ENABLED=true` (or `VECTOR_STORE_BACKEND=supabase`) to switch.
-
-**ChromaDB version:** locked to `>=0.6.3,<1.0.0` (embedded `PersistentClient` only). Versions `1.0.0`–`1.5.9` are affected by [CVE-2026-45829](https://github.com/advisories/GHSA-f4j7-r4q5-qw2c) (pre-auth code injection in the HTTP server API). This project does not run Chroma in server mode; upgrade to a patched `1.x` release when published.
-
-**Blocked for commercial ed-tech:** `RERANKER_MODEL=jinaai/jina-reranker-v2-base-multilingual` (CC-BY-NC-4.0).
+- `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, `EMBEDDING_WARM_ON_BOOT`, `EMBEDDING_CACHE_DIR`
+- `RETRIEVAL_MODE`, `RETRIEVE_LIMIT`, `RERANK_ENABLED`, `RERANKER_MODEL`, `RERANK_TOP_N`
+- `VECTOR_STORE_BACKEND`, `SUPABASE_VECTOR_ENABLED`, `CHROMA_PERSIST_PATH`
+- `CACHE_TTL_EMBEDDING_QUERY`, `CACHE_TTL_VECTOR_RETRIEVE`, `CACHE_TTL_SUPABASE_FIND_DOCUMENTS`
 
 ### Recommended secrets manager (by context)
 
@@ -524,7 +500,6 @@ YOUTUBE_API_KEY=
 
 # Groq LLM (Application — LangGraph reasoning nodes)
 GROQ_API_KEY=
-LLM_MODEL=llama-3.3-70b-versatile
 LLM_TEMPERATURE=0
 # LLM_ROUTER_DEBOUNCE_SECONDS=0.1
 # LLM_ROUTER_MAX_FALLBACKS=1
@@ -538,37 +513,20 @@ CACHE_ENABLED=false
 # REDIS_PORT=6379
 # REDIS_PASSWORD=
 # Per-operation TTL overrides (seconds; omit to use defaults)
-# CACHE_TTL_SUPABASE_FIND_DOCUMENTS=600
 # CACHE_TTL_YOUTUBE_SEARCH_VIDEOS=3600
 # CACHE_TTL_WEB_SEARCH=300
 # CACHE_TTL_MCP_TOOL=60
 # CACHE_TTL_LLM_COMPLETION=3600
 # Per-operation key prefixes (optional)
-# CACHE_KEY_PREFIX_SUPABASE=supabase
 # CACHE_KEY_PREFIX_YOUTUBE=youtube
 # CACHE_KEY_PREFIX_WEB=web
 # CACHE_KEY_PREFIX_MCP_TOOL=mcp
 # CACHE_KEY_PREFIX_LLM=llm
 
-# RAG retrieval (Phase A — Infrastructure + Application)
-# EMBEDDING_MODEL=intfloat/multilingual-e5-small
-# EMBEDDING_DIMENSION=384
-# EMBEDDING_WARM_ON_BOOT=false
-# EMBEDDING_CACHE_DIR=.cache/fastembed
-# RETRIEVAL_MODE=hybrid
-# RETRIEVE_LIMIT=20
-# RERANK_ENABLED=false
-# RERANKER_MODEL=BAAI/bge-reranker-base
-# RERANK_TOP_N=6
-# BLOCKED (NC license): RERANKER_MODEL=jinaai/jina-reranker-v2-base-multilingual
-# CACHE_TTL_EMBEDDING_QUERY=3600
-# CACHE_TTL_VECTOR_RETRIEVE=600
-# CACHE_KEY_PREFIX_EMBEDDING=embed
-# CACHE_KEY_PREFIX_VECTOR=vector
-# VECTOR_STORE_BACKEND=auto
-# SUPABASE_VECTOR_ENABLED=false
-# CHROMA_PERSIST_PATH=.cache/chromadb
-# CHROMA_COLLECTION_NAME=document_chunks
+# RAG retrieval (REMOVED from MCP server — configure in ed-tech-system-backend instead)
+# Document embedding, chunking, vector retrieval, and reranking are handled by the
+# backend embedding service and supabase/functions/mcp-find-documents. The MCP server
+# only exposes search_youtube and build_lesson_enrichment_query.
 
 # Logging
 LOG_LEVEL=INFO
@@ -578,8 +536,6 @@ LOG_LEVEL=INFO
 # RENDER_SERVICE_URL=
 # RENDER_API_KEY=
 # RENDER_SERVICE_ID=
-# Optional build-time API URL for hosted workflow UI (empty = same-origin /api)
-# VITE_API_BASE=
 ```
 
 ### Injecting secrets without committing them

@@ -13,7 +13,6 @@ from mcp_server.application.authoring_service import (
     validate_project_dict,
     validate_quiz_dict,
 )
-from mcp_server.domain.content_validators import validate_mock_test_bundle, validate_test_boilerplate
 from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
 from mcp_server.domain.authoring import (
@@ -22,6 +21,10 @@ from mcp_server.domain.authoring import (
     GraphSearchPort,
     MockTestStructureResult,
     SaveLessonResult,
+)
+from mcp_server.domain.content_validators import (
+    validate_mock_test_bundle,
+    validate_test_boilerplate,
 )
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
 from mcp_server.interface.custom_tools import _cached_tool_invoke
