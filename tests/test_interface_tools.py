@@ -1,9 +1,15 @@
 """MCP interface tool contract tests (T20+)."""
 
 import asyncio
+from typing import Any
 
 import pytest
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import Field
 
+from mcp_server.application.llm import reset_chat_model, set_chat_model
 from mcp_server.application.mcp_tool_cache_runtime import reset_mcp_tool_cache, set_mcp_tool_cache
 from mcp_server.application.workflow_config import (
     WorkflowExecutionConfig,
@@ -30,6 +36,7 @@ from mcp_server.domain.schemas import DocumentHit, VideoResult
 from mcp_server.infrastructure.mcp_tool_cache import McpToolInteractionCache
 from mcp_server.interface.custom_tools import (
     _cached_tool_invoke,
+    build_lesson_enrichment_query,
     find_documents,
     health_check,
     search_youtube,
@@ -80,16 +87,35 @@ class FakeVideoClient:
         ]
 
 
+class FakeChatModel(BaseChatModel):
+    response: str = Field(default='["fractions", "numerator", "denominator", "common denominator"]')
+
+    @property
+    def _llm_type(self) -> str:
+        return "fake"
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        return ChatResult(generations=[ChatGeneration(message=AIMessage(content=self.response))])
+
+
 @pytest.fixture(autouse=True)
 def _reset_tool_runtime() -> None:
     reset_mcp_tool_cache()
     reset_workflow_execution_config()
     reset_document_video_workflow()
+    reset_chat_model()
     set_document_video_workflow(DocumentVideoWorkflow(FakeRepository(), FakeVideoClient()))
     yield
     reset_mcp_tool_cache()
     reset_workflow_execution_config()
     reset_document_video_workflow()
+    reset_chat_model()
 
 
 async def test_t20_health_check_returns_ok() -> None:
@@ -266,3 +292,29 @@ async def test_t32_uninitialized_workflow_maps_to_not_found_error() -> None:
 
     with pytest.raises(FastMcpNotFoundError, match="Document video workflow"):
         await find_documents("fractions")
+
+
+async def test_t33_build_lesson_enrichment_query_returns_terms_and_query() -> None:
+    set_chat_model(FakeChatModel())
+
+    response = await build_lesson_enrichment_query(
+        course_title="Mathematics",
+        module_title="Fractions",
+        lesson_title="Adding fractions",
+    )
+
+    assert response.terms == ["fractions", "numerator", "denominator", "common denominator"]
+    assert response.query == "fractions numerator denominator common denominator"
+
+
+async def test_t34_build_lesson_enrichment_query_falls_back_to_titles() -> None:
+    set_chat_model(FakeChatModel(response="not a json array"))
+
+    response = await build_lesson_enrichment_query(
+        course_title="Mathematics",
+        module_title="Fractions",
+        lesson_title="Adding fractions",
+    )
+
+    assert response.terms == ["Mathematics", "Fractions", "Adding fractions"]
+    assert response.query == "Mathematics Fractions Adding fractions"

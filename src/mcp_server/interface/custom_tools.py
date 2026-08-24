@@ -7,13 +7,21 @@ Changelog: changelog/2026-07-21/domain/IMPLEMENTATION1.md (BL-009)
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
 
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel, Field
+
+from mcp_server.application.llm import get_chat_model
+from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
+from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.application.workflow_runtime import get_document_video_workflow
 from mcp_server.domain.exceptions import DomainError, ResourceNotFoundError
+from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.interface.error_mapping import raise_as_mcp_error
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation import (
@@ -148,4 +156,92 @@ async def find_documents(
         "find_documents",
         args,
         lambda: _invoke_find_documents(request),
+    )
+
+
+class BuildLessonEnrichmentQueryResponse(BaseModel):
+    """Terms generated from course/module/lesson titles for enrichment search."""
+
+    terms: list[str] = Field(
+        default_factory=list,
+        min_length=1,
+        max_length=5,
+        description="4-5 concise search terms for finding videos and library documents",
+    )
+    query: str = Field(
+        default="",
+        description="Terms joined into a single query string for legacy BFFs",
+    )
+
+
+async def _invoke_build_lesson_enrichment_query(
+    course_title: str,
+    module_title: str,
+    lesson_title: str,
+) -> BuildLessonEnrichmentQueryResponse:
+    """Use a lightweight LLM to turn lesson metadata into 4-5 search terms."""
+    model = get_chat_model()
+    if model is None:
+        raise ResourceNotFoundError("Chat model has not been initialized")
+
+    prompt = (
+        "You are helping build a search query for lesson enrichment materials "
+        "(YouTube videos and educational documents).\n\n"
+        f"Course title: {course_title}\n"
+        f"Module title: {module_title}\n"
+        f"Lesson title: {lesson_title}\n\n"
+        "Return a JSON array of 4 to 5 concise, relevant search terms a student would use. "
+        "Return ONLY the JSON array, with no markdown or explanation."
+    )
+    result = await model.ainvoke(
+        [HumanMessage(content=prompt)],
+        llm_complexity=int(LLMComplexity.LOW),
+    )
+    raw = result.content if isinstance(result.content, str) else str(result.content)
+    record_llm_invocation(
+        system_prompt="",
+        user_prompt=prompt,
+        raw_output=raw,
+        model_name=resolve_invoked_model_name(model),
+        llm_complexity=int(LLMComplexity.LOW),
+    )
+
+    terms: list[str] = []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            terms = [str(t).strip() for t in parsed if str(t).strip()]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+
+    if len(terms) < 4:
+        fallback = [course_title, module_title, lesson_title]
+        terms = [t for t in (terms + fallback) if t.strip()][:5]
+
+    return BuildLessonEnrichmentQueryResponse(
+        terms=terms,
+        query=" ".join(terms),
+    )
+
+
+@mcp.tool
+async def build_lesson_enrichment_query(
+    course_title: str,
+    module_title: str,
+    lesson_title: str,
+) -> BuildLessonEnrichmentQueryResponse:
+    """Build a 4-5 term search query for lesson enrichment from course/module/lesson titles."""
+    args = {
+        "course_title": course_title,
+        "module_title": module_title,
+        "lesson_title": lesson_title,
+    }
+    return await _cached_tool_invoke(
+        "build_lesson_enrichment_query",
+        args,
+        lambda: _invoke_build_lesson_enrichment_query(
+            course_title,
+            module_title,
+            lesson_title,
+        ),
     )

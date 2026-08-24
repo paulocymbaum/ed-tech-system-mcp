@@ -10,6 +10,7 @@ CALLER_JWT_HEADER = "x-edharness-caller-jwt"
 
 PRIVILEGED_TOOLS = frozenset(
     {
+        "build_lesson_enrichment_query",
         "find_documents",
         "run_workflow",
         "search_youtube",

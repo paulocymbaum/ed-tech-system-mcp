@@ -6,6 +6,7 @@ import sys
 from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.env_bootstrap import bootstrap_environment
 from mcp_server.interface.custom_tools import (  # noqa: F401
+    build_lesson_enrichment_query,
     find_documents,
     health_check,
     search_youtube,
