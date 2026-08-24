@@ -52,6 +52,20 @@ def max_validation_retries() -> int:
     return _workflow_runtime_config().validation_retries
 
 
+def lesson_llm_complexity(state: ContentGenerationState) -> LLMComplexity:
+    """README generation: MEDIUM on author pipeline (8b-class), HIGH for exploratory runs."""
+    if state.get("fast_authoring"):
+        return LLMComplexity.MEDIUM
+    return LLMComplexity.HIGH
+
+
+def quiz_pbl_llm_complexity(state: ContentGenerationState) -> LLMComplexity:
+    """Quiz/project follow-ups: LOW on author pipeline, MEDIUM elsewhere."""
+    if state.get("fast_authoring"):
+        return LLMComplexity.LOW
+    return LLMComplexity.MEDIUM
+
+
 def _require_chat_model() -> BaseChatModel:
     model = get_chat_model()
     if model is None:
@@ -136,7 +150,7 @@ async def generate_lesson(state: ContentGenerationState) -> dict[str, object]:
             lesson_slug=state.get("lesson_slug"),
         ),
         model_type=model_type,
-        llm_complexity=LLMComplexity.HIGH,
+        llm_complexity=lesson_llm_complexity(state),
     )
     if lesson is None:
         return {"lesson_validation_errors": errors}
@@ -177,7 +191,7 @@ async def generate_quiz(state: ContentGenerationState) -> dict[str, object]:
             graph_index=graph_index,
         ),
         model_type=model_type,
-        llm_complexity=LLMComplexity.MEDIUM,
+        llm_complexity=quiz_pbl_llm_complexity(state),
     )
     if quiz is None:
         return {"quiz_validation_errors": errors}
@@ -218,7 +232,7 @@ async def generate_pbl(state: ContentGenerationState) -> dict[str, object]:
             graph_index=graph_index,
         ),
         model_type=model_type,
-        llm_complexity=LLMComplexity.MEDIUM,
+        llm_complexity=quiz_pbl_llm_complexity(state),
     )
     if pbl is None:
         return {"pbl_validation_errors": errors}

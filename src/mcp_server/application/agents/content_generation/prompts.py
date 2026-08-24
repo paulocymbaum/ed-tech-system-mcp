@@ -128,10 +128,10 @@ def quiz_user_prompt(
     ]
     if graph_scoped:
         lines.append(
-            "Use slug ids for questions and options (q1, a, b, c). "
+            "Each question MUST have exactly four options with slug ids a, b, c, and d "
+            "(one object per letter, all four required). "
             "correctOptionId MUST be exactly one option.id — never the option text, "
-            "never an index, never a UUID. Include at least 2 options per question "
-            "and a short explanation."
+            "never an index, never a UUID. Include a short explanation per question."
         )
         if lesson_slug:
             lines.append(f"Set lessonId to: {lesson_slug}")
@@ -142,7 +142,8 @@ def quiz_user_prompt(
         lines.extend(f"- {objective}" for objective in objectives)
         lines.append("Include at least three multiple-choice questions with explanations.")
         lines.append(
-            "Each question needs unique option ids and correctOptionId equal to one of those ids."
+            "Each question needs exactly four unique options (ids a, b, c, d) "
+            "and correctOptionId equal to one of those ids."
         )
     if validation_errors:
         lines.append("Fix these validation errors from your previous attempt:")

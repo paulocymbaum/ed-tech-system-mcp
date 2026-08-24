@@ -41,7 +41,7 @@ class HarnessQuizQuestion(BaseModel):
 
     id: str = Field(min_length=1)
     prompt: str = Field(min_length=1)
-    options: list[HarnessQuizOption] = Field(min_length=2, max_length=6)
+    options: list[HarnessQuizOption] = Field(min_length=4, max_length=4)
     correct_option_id: str = Field(min_length=1, alias="correctOptionId")
     explanation: str | None = None
 

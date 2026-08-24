@@ -38,3 +38,5 @@ class ContentGenerationState(TypedDict):
     quiz_retry_count: NotRequired[int]
     pbl_retry_count: NotRequired[int]
     generation_complete: NotRequired[bool]
+    # Author pipeline (graph + module + slug): prefer faster models on quiz/project steps.
+    fast_authoring: NotRequired[bool]

@@ -147,6 +147,7 @@ class ContentGenerationRunRequest(BaseModel):
     # `lesson:javascript:07-module:07.5-topic`; do not force UUID length here.
     graph_node_id: str | None = Field(default=None, min_length=1)
     graph_query: str | None = Field(default=None, min_length=1)
+    graph_hits: list[dict[str, Any]] = Field(default_factory=list)
 
     @field_validator(
         "topic",

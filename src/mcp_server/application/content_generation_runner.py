@@ -11,7 +11,6 @@ from mcp_server.application.agents.content_generation.graph import (
     initial_content_generation_state,
 )
 from mcp_server.domain.authoring import GraphNodeHit, GraphSearchPort
-from mcp_server.interface.validation_workflow import (
     ContentGenerationRunRequest,
     ContentGenerationRunResponse,
     content_generation_state_to_run_response,

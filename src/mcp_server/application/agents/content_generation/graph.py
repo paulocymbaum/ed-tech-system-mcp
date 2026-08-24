@@ -173,6 +173,7 @@ def initial_content_generation_state(
 ) -> ContentGenerationState:
     """Build the initial graph state for content generation."""
     graph_scoped = bool(tenant_id and course_slug)
+    fast_authoring = bool(graph_scoped and module_id and lesson_slug)
     return ContentGenerationState(
         topic=topic,
         grade_level=grade_level,
@@ -187,6 +188,7 @@ def initial_content_generation_state(
         quiz_retry_count=0,
         pbl_retry_count=0,
         generation_complete=False,
+        fast_authoring=fast_authoring,
     )
 
 

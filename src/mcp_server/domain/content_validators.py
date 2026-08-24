@@ -173,9 +173,11 @@ def validate_quiz_payload(value: Any, *, file_label: str = "") -> ValidationRepo
             )
 
         options = question.get("options")
-        if not isinstance(options, list) or len(options) < 2:
+        if not isinstance(options, list) or len(options) != 4:
             report.findings.append(
-                ValidationFinding("error", f"{label}: `options` must have at least 2 entries.")
+                ValidationFinding(
+                    "error", f"{label}: `options` must contain exactly 4 entries."
+                )
             )
             continue
 
