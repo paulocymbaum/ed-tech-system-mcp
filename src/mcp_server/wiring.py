@@ -444,7 +444,8 @@ def build_document_video_workflow(
     store = cache if cache is not None else create_cache_store(settings)
     repository = build_data_repository(settings, store)
     video_client = build_video_client(settings, store)
-    return DocumentVideoWorkflow(repository, video_client)
+    search_client = build_search_client(settings, store)
+    return DocumentVideoWorkflow(repository, video_client, search_client)
 
 
 def build_mcp_tool_cache(

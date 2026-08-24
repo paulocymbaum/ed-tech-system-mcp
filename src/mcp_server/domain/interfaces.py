@@ -29,6 +29,18 @@ class IDataRepository(ABC):
     ) -> list[DocumentHit]:
         """Return documents matching the given query."""
 
+    async def has_documents(
+        self,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> bool:
+        """Lightweight existence check to avoid loading the embedding model when empty.
+
+        Defaults to True so subclasses without a cheap count still use the normal
+        retrieval path. Subclasses that can check counts cheaply should override.
+        """
+        return True
+
 
 class ISupabaseReadClient(ABC):
     """Port for allowlisted, read-only Supabase table access via PostgREST."""

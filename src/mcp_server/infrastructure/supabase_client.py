@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal, cast
+
+from supabase import Client, create_client
 
 from mcp_server.domain.interfaces import IEmbeddingProvider, IDataRepository, IVectorRetriever
 from mcp_server.domain.invariants import (
@@ -52,6 +55,30 @@ class SupabaseRepository(IDataRepository):
         self._embedding_provider = embedding_provider
         self._vector_retriever = vector_retriever
         self._retrieval_mode = retrieval_mode
+        self._client: Client | None = None
+
+    def _client_or_create(self) -> Client:
+        require_credential(self._supabase_url, resource="Supabase")
+        require_credential(self._service_role_key, resource="Supabase")
+        if self._client is None:
+            self._client = create_client(self._supabase_url, self._service_role_key)
+        return self._client
+
+    async def has_documents(
+        self,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> bool:
+        """Cheap existence check against the documents table; no embedding model loaded."""
+        require_credential(self._supabase_url, resource="Supabase")
+        require_credential(self._service_role_key, resource="Supabase")
+
+        query = self._client_or_create().table("documents").select("id")
+        if filters is not None and filters.course_id:
+            query = query.eq("course_id", filters.course_id)
+
+        response = await asyncio.to_thread(query.limit(1).execute)
+        return bool(response.data)
 
     async def find_documents(
         self,

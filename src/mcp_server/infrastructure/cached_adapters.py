@@ -50,6 +50,14 @@ class CachedDataRepository(IDataRepository):
         self._cache = cache
         self._rules = rules
 
+    async def has_documents(
+        self,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> bool:
+        # Lightweight check; skip cache to avoid stale "no documents" results after ingestion.
+        return await self._inner.has_documents(filters=filters)
+
     async def find_documents(
         self,
         query: str,

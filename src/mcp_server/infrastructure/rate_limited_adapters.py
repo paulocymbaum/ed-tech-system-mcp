@@ -21,6 +21,14 @@ class RateLimitedDataRepository(IDataRepository):
         self._limiter = limiter
         self._provider = provider
 
+    async def has_documents(
+        self,
+        *,
+        filters: ChunkRetrievalFilter | None = None,
+    ) -> bool:
+        await self._limiter.acquire(provider=self._provider)
+        return await self._inner.has_documents(filters=filters)
+
     async def find_documents(
         self,
         query: str,
