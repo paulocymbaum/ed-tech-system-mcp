@@ -13,7 +13,7 @@ Production hosting targets the **MCP HTTP transport** (`streamable-http`), not s
 | `GET /health` | Liveness probe (load balancers, Docker, Render, Fly) |
 | `POST /mcp` | MCP streamable HTTP transport (FastMCP default path) |
 
-Tools exposed: `health_check`, `search_youtube`, `build_lesson_enrichment_query`.
+Tools exposed: `health_check`, `search_youtube`, `search_web`, `build_lesson_enrichment_query`.
 
 ---
 
