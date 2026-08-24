@@ -14,8 +14,15 @@ VALID_GROQ_COMPLEXITY_TIERS: frozenset[int] = frozenset({1, 2, 3})
 
 DEVELOPER_PLAN_GROQ_MODEL_IDS: frozenset[str] = frozenset(
     {
+        # Legacy ids kept for registry/history; Groq may retire them.
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
+        # Current Groq developer-plan chat models (2026-08).
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.6-27b",
+        "groq/compound",
+        "groq/compound-mini",
     }
 )
 

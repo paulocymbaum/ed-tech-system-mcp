@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from mcp_server.domain.authoring import AuthoringBackendPort, SaveLessonResult
@@ -23,6 +24,21 @@ from mcp_server.domain.harness_schemas import (
     HarnessProjectDraft,
     HarnessQuizDraft,
 )
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def graph_node_id_for_upsert(value: object) -> str | None:
+    """Forward only RFC UUID graph node ids (drop graph-index / label strings)."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if not candidate or not _UUID_RE.fullmatch(candidate):
+        return None
+    return candidate
 
 
 def harness_quiz_to_rpc_payload(quiz: dict[str, Any] | HarnessQuizDraft) -> dict[str, Any]:
@@ -262,6 +278,7 @@ class AuthoringService:
         publish: bool = False,
         skip_validation: bool = False,
         strict_project_readme_sections: bool = True,
+        graph_node_id: str | None = None,
     ) -> SaveLessonResult:
         readme, meta = harness_lesson_fields(lesson)
         project_readme = None
@@ -290,13 +307,16 @@ class AuthoringService:
                 raise DomainValidationError("; ".join(messages))
 
         title = str(meta.get("title") or lesson_slug)
+        resolved_graph_node_id = graph_node_id_for_upsert(graph_node_id) or graph_node_id_for_upsert(
+            meta.get("graphNodeId") or meta.get("graph_node_id")
+        )
         lesson_id = await self._backend.upsert_lesson(
             module_id=module_id,
             slug=lesson_slug,
             title=title,
             description=meta.get("description"),
             graph_index=meta.get("graphIndex") or meta.get("graph_index"),
-            graph_node_id=meta.get("graphNodeId") or meta.get("graph_node_id"),
+            graph_node_id=resolved_graph_node_id,
         )
         source_path = f"lessons/{lesson_slug}/README.md"
         await self._backend.upsert_lesson_content_document(
