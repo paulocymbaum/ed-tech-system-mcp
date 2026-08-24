@@ -173,10 +173,16 @@ class ScriptedContentModel(BaseChatModel):
 
     def _payload_for_messages(self, messages: list[BaseMessage]) -> str:
         text = "\n".join(str(message.content) for message in messages)
-        if "quiz" in text.lower() and "assessment" in text.lower():
+        if (
+            "quiz" in text.lower()
+            and "assessment" in text.lower()
+            and "create a lesson" not in text.lower()
+        ):
             self.quiz_attempts += 1
             return json.dumps(_quiz_payload(topic="fractions"))
-        if "problem-based learning" in text.lower() or "pbl" in text.lower():
+        if (
+            "problem-based learning" in text.lower() or "pbl" in text.lower()
+        ) and "create a lesson" not in text.lower():
             self.pbl_attempts += 1
             return json.dumps(_pbl_payload(topic="fractions"))
         self.lesson_attempts += 1

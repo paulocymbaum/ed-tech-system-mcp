@@ -34,7 +34,11 @@ class ScriptedContentModel(BaseChatModel):
 
     def _payload_for_messages(self, messages: list[BaseMessage]) -> str:
         text = "\n".join(str(message.content) for message in messages)
-        if "quiz" in text.lower() and "assessment" in text.lower():
+        if (
+            "quiz" in text.lower()
+            and "assessment" in text.lower()
+            and "create a lesson" not in text.lower()
+        ):
             return json.dumps(
                 {
                     "title": "Quiz",
@@ -60,7 +64,10 @@ class ScriptedContentModel(BaseChatModel):
                     ],
                 }
             )
-        if "problem-based learning" in text.lower():
+        if (
+            "problem-based learning" in text.lower()
+            and "create a lesson" not in text.lower()
+        ):
             return json.dumps(
                 {
                     "title": "PBL",

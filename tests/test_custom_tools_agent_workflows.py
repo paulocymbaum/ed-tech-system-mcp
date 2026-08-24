@@ -101,7 +101,7 @@ class _ContentGenerationModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         text = "\n".join(str(message.content) for message in messages).lower()
-        if "quiz" in text and "assessment" in text:
+        if "quiz" in text and "assessment" in text and "create a lesson" not in text:
             payload = {
                 "title": "Quiz: fractions",
                 "questions": [
@@ -125,7 +125,7 @@ class _ContentGenerationModel(BaseChatModel):
                     },
                 ],
             }
-        elif "problem-based learning" in text:
+        elif "problem-based learning" in text and "create a lesson" not in text:
             payload = {
                 "title": "PBL: fractions",
                 "driving_question": "How can we apply fractions?",

@@ -89,6 +89,12 @@ def lesson_user_prompt(
             "Include clear objectives, at least two sections with substantive content, "
             "and a summary."
         )
+    lines.append(
+        "Do not include a 'Prove what you learned' section, assessment call-to-action buttons, "
+        "or links/buttons to quizzes or projects in the readme_markdown. The LMS renders the "
+        "lesson's quiz and project actions separately in the UI, so including them would "
+        "duplicate controls."
+    )
     if validation_errors:
         lines.append("Fix these validation errors from your previous attempt:")
         lines.extend(f"- {error}" for error in validation_errors)
