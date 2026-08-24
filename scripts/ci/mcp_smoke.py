@@ -108,14 +108,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         tools = tools_payload.get("result", {}).get("tools", [])
         tool_names = {tool["name"] for tool in tools if isinstance(tool, dict) and "name" in tool}
-        for required in ("search_youtube", "build_lesson_enrichment_query"):
+        for required in ("search_youtube", "search_web", "build_lesson_enrichment_query"):
             if required not in tool_names:
                 print(f"FAIL tools/list: missing {required}", file=sys.stderr)
                 return 1
         print("PASS tools/list")
 
         if not os.environ.get("MCP_SMOKE_CALLER_JWT", "").strip():
-            print("SKIP search_youtube / build_lesson_enrichment_query (set MCP_SMOKE_CALLER_JWT)")
+            print("SKIP search_youtube / search_web / build_lesson_enrichment_query (set MCP_SMOKE_CALLER_JWT)")
             print("All MCP smoke checks passed.")
             return 0
 
@@ -130,6 +130,18 @@ def main(argv: list[str] | None = None) -> int:
             msg = f"search_youtube: missing structuredContent in {youtube_result!r}"
             raise RuntimeError(msg)
         print(f"PASS search_youtube videos={len(structured.get('videos', []))}")
+
+        web_result = _call_tool(
+            base_url,
+            "search_web",
+            {"query": args.query, "max_results": 3},
+            timeout=args.timeout,
+        )
+        web_structured = web_result.get("structuredContent")
+        if not isinstance(web_structured, dict):
+            msg = f"search_web: missing structuredContent in {web_result!r}"
+            raise RuntimeError(msg)
+        print(f"PASS search_web results={len(web_structured.get('results', []))}")
 
         query_result = _call_tool(
             base_url,

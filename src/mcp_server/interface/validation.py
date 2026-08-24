@@ -25,3 +25,21 @@ class VideoSearchResponse(BaseModel):
 
     videos: list[VideoResult]
 
+
+class WebSearchRequest(BaseModel):
+    """Validated input for web search tool calls."""
+
+    query: str = Field(min_length=1)
+    max_results: int = Field(default=5, ge=1, le=25)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return require_safe_user_text(value, field="query")
+
+
+class WebSearchResponse(BaseModel):
+    """Validated output for web search tool calls."""
+
+    results: list[str]
+

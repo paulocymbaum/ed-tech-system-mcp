@@ -17,6 +17,7 @@ def test_mcp_smoke_script_exists() -> None:
     assert "find_documents" not in script
     assert "run_workflow" not in script
     assert "search_youtube" in script
+    assert "search_web" in script
     assert "build_lesson_enrichment_query" in script
 
 

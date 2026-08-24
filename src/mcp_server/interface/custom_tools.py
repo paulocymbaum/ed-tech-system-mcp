@@ -15,19 +15,24 @@ from collections.abc import Awaitable, Callable
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
-from mcp_server.application.integration_runtime import get_video_client
+from mcp_server.application.integration_runtime import (
+    get_search_client,
+    get_video_client,
+)
 from mcp_server.application.llm import get_chat_model
 from mcp_server.application.llm_model_name import resolve_invoked_model_name
 from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.domain.exceptions import DomainError, ResourceNotFoundError
-from mcp_server.domain.interfaces import IVideoSearchClient
+from mcp_server.domain.interfaces import ISearchClient, IVideoSearchClient
 from mcp_server.domain.llm_routing import LLMComplexity
 from mcp_server.interface.error_mapping import raise_as_mcp_error
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation import (
     VideoSearchRequest,
     VideoSearchResponse,
+    WebSearchRequest,
+    WebSearchResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,6 +191,31 @@ async def search_youtube(
         "search_youtube",
         args,
         lambda: _invoke_search_youtube(request),
+    )
+
+
+async def _invoke_search_web(request: WebSearchRequest) -> WebSearchResponse:
+    client = get_search_client()
+    if client is None:
+        raise ResourceNotFoundError("Web search client has not been initialized")
+    if not isinstance(client, ISearchClient):
+        raise ResourceNotFoundError("Configured search client is not a web search client")
+    results = await client.search(request.query, max_results=request.max_results)
+    return WebSearchResponse(results=results)
+
+
+@mcp.tool
+async def search_web(
+    query: str,
+    max_results: int = 5,
+) -> WebSearchResponse:
+    """Search the web for relevant snippets matching a query."""
+    request = WebSearchRequest(query=query, max_results=max_results)
+    args = request.model_dump()
+    return await _cached_tool_invoke(
+        "search_web",
+        args,
+        lambda: _invoke_search_web(request),
     )
 
 
