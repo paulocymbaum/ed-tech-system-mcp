@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from mcp_server.application.authoring_service import (
     AuthoringService,
+    graph_node_id_for_upsert,
     validate_lesson_dict,
     validate_project_dict,
     validate_quiz_dict,
@@ -85,6 +86,11 @@ def _resolve_graph_node(
     graph_query: str | None,
     topic: str,
 ) -> tuple[str | None, list[dict[str, Any]]]:
+    # FR-001 / DUP-001: FE already resolved a UUID — do not re-hit search_graph_nodes.
+    known_uuid = graph_node_id_for_upsert(graph_node_id)
+    if known_uuid:
+        return known_uuid, []
+
     search = _require_graph_search()
     query = graph_query or topic
     hits = search.search_graph_nodes(

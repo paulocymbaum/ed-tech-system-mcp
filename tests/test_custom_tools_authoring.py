@@ -119,7 +119,19 @@ def test_resolve_graph_node_does_not_default_omitted_id_to_first_hit() -> None:
     assert hits[0]["node_id"] == "node-1"
 
 
-def test_resolve_graph_node_forwards_explicit_id() -> None:
+def test_resolve_graph_node_skips_search_when_uuid_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DUP-001: known UUID must not call search_graph_nodes."""
+
+    class BoomSearch(FakeGraphSearch):
+        def search_graph_nodes(self, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("search_graph_nodes must not run for UUID graph_node_id")
+
+    monkeypatch.setattr(
+        "mcp_server.interface.custom_tools_authoring._require_graph_search",
+        lambda: BoomSearch(),
+    )
     node_id, hits = _resolve_graph_node(
         tenant_id="00000000-0000-4000-8000-000000000001",
         course_slug="javascript",
@@ -128,6 +140,18 @@ def test_resolve_graph_node_forwards_explicit_id() -> None:
         topic="variables",
     )
     assert node_id == "11111111-1111-4111-8111-111111111111"
+    assert hits == []
+
+
+def test_resolve_graph_node_forwards_non_uuid_id_with_search() -> None:
+    node_id, hits = _resolve_graph_node(
+        tenant_id="00000000-0000-4000-8000-000000000001",
+        course_slug="javascript",
+        graph_node_id="lesson:javascript:01-fundamentals:01.1-vars",
+        graph_query=None,
+        topic="variables",
+    )
+    assert node_id == "lesson:javascript:01-fundamentals:01.1-vars"
     assert len(hits) == 1
 
 
