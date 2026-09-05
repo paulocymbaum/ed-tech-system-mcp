@@ -18,6 +18,7 @@ PRIVILEGED_TOOLS = frozenset(
         "search_graph_nodes",
         "save_to_backend",
         "author_lesson_pipeline",
+        "generate_course_scaffold",
         "content_generation",
         "research_article",
     }

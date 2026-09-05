@@ -87,6 +87,60 @@ def _step_status(node_id: str, update: dict[str, Any] | None) -> TraceStepStatus
     return "ok"
 
 
+def _record_node_update(
+    *,
+    node_id: str,
+    raw_update: Any,
+    running_state: dict[str, Any],
+    attempts: dict[str, int],
+    step_index: int,
+) -> WorkflowTraceStep:
+    update = raw_update if isinstance(raw_update, dict) else None
+    attempts[node_id] += 1
+    input_snapshot = serialize_trace_value(dict(running_state))
+    llm_io = consume_llm_trace()
+    if llm_io is not None:
+        input_snapshot = {
+            **input_snapshot,
+            "llm_request": {
+                "model_name": llm_io.get("model_name"),
+                "llm_complexity": llm_io.get("llm_complexity"),
+                "input_tokens": llm_io.get("input_tokens"),
+                "output_tokens": llm_io.get("output_tokens"),
+                "total_tokens": llm_io.get("total_tokens"),
+            },
+        }
+    if update:
+        running_state.update(update)
+    output_update = serialize_trace_value(update or {})
+    if llm_io is not None:
+        output_update = {
+            **output_update,
+            "model_name": llm_io.get("model_name"),
+            "llm_complexity": llm_io.get("llm_complexity"),
+            "input_tokens": llm_io.get("input_tokens"),
+            "output_tokens": llm_io.get("output_tokens"),
+            "total_tokens": llm_io.get("total_tokens"),
+        }
+    return WorkflowTraceStep(
+        step=step_index,
+        node_id=node_id,
+        status=_step_status(node_id, update),
+        attempt=attempts[node_id],
+        validation_errors=tuple(_validation_errors(update)),
+        retry_counts=_retry_counts(update),
+        input_snapshot=input_snapshot,
+        output_update=output_update,
+        llm_io=llm_io,
+    )
+
+
+def _iter_update_chunk(chunk: Any) -> list[tuple[str, Any]]:
+    if not isinstance(chunk, dict) or not chunk:
+        return []
+    return list(chunk.items())
+
+
 async def invoke_graph_with_trace(
     graph: CompiledStateGraph[Any, Any, Any],
     state: Any,
@@ -103,48 +157,17 @@ async def invoke_graph_with_trace(
         nonlocal running_state
         step_index = 0
         async for chunk in graph.astream(state, stream_mode="updates"):
-            step_index += 1
-            node_id, raw_update = next(iter(chunk.items()))
-            update = raw_update if isinstance(raw_update, dict) else None
-            attempts[node_id] += 1
-            input_snapshot = serialize_trace_value(dict(running_state))
-            llm_io = consume_llm_trace()
-            if llm_io is not None:
-                input_snapshot = {
-                    **input_snapshot,
-                    "llm_request": {
-                        "model_name": llm_io.get("model_name"),
-                        "llm_complexity": llm_io.get("llm_complexity"),
-                        "input_tokens": llm_io.get("input_tokens"),
-                        "output_tokens": llm_io.get("output_tokens"),
-                        "total_tokens": llm_io.get("total_tokens"),
-                    },
-                }
-            if update:
-                running_state.update(update)
-            output_update = serialize_trace_value(update or {})
-            if llm_io is not None:
-                output_update = {
-                    **output_update,
-                    "model_name": llm_io.get("model_name"),
-                    "llm_complexity": llm_io.get("llm_complexity"),
-                    "input_tokens": llm_io.get("input_tokens"),
-                    "output_tokens": llm_io.get("output_tokens"),
-                    "total_tokens": llm_io.get("total_tokens"),
-                }
-            steps.append(
-                WorkflowTraceStep(
-                    step=step_index,
-                    node_id=node_id,
-                    status=_step_status(node_id, update),
-                    attempt=attempts[node_id],
-                    validation_errors=tuple(_validation_errors(update)),
-                    retry_counts=_retry_counts(update),
-                    input_snapshot=input_snapshot,
-                    output_update=output_update,
-                    llm_io=llm_io,
+            for node_id, raw_update in _iter_update_chunk(chunk):
+                step_index += 1
+                steps.append(
+                    _record_node_update(
+                        node_id=node_id,
+                        raw_update=raw_update,
+                        running_state=running_state,
+                        attempts=attempts,
+                        step_index=step_index,
+                    )
                 )
-            )
 
     await asyncio.wait_for(_stream(), timeout=timeout_seconds)
     return running_state, steps
@@ -174,48 +197,17 @@ async def stream_graph_with_trace(
         nonlocal running_state
         step_index = 0
         async for chunk in graph.astream(state, stream_mode="updates"):
-            step_index += 1
-            node_id, raw_update = next(iter(chunk.items()))
-            update = raw_update if isinstance(raw_update, dict) else None
-            attempts[node_id] += 1
-            input_snapshot = serialize_trace_value(dict(running_state))
-            llm_io = consume_llm_trace()
-            if llm_io is not None:
-                input_snapshot = {
-                    **input_snapshot,
-                    "llm_request": {
-                        "model_name": llm_io.get("model_name"),
-                        "llm_complexity": llm_io.get("llm_complexity"),
-                        "input_tokens": llm_io.get("input_tokens"),
-                        "output_tokens": llm_io.get("output_tokens"),
-                        "total_tokens": llm_io.get("total_tokens"),
-                    },
-                }
-            if update:
-                running_state.update(update)
-            output_update = serialize_trace_value(update or {})
-            if llm_io is not None:
-                output_update = {
-                    **output_update,
-                    "model_name": llm_io.get("model_name"),
-                    "llm_complexity": llm_io.get("llm_complexity"),
-                    "input_tokens": llm_io.get("input_tokens"),
-                    "output_tokens": llm_io.get("output_tokens"),
-                    "total_tokens": llm_io.get("total_tokens"),
-                }
-            step = WorkflowTraceStep(
-                step=step_index,
-                node_id=node_id,
-                status=_step_status(node_id, update),
-                attempt=attempts[node_id],
-                validation_errors=tuple(_validation_errors(update)),
-                retry_counts=_retry_counts(update),
-                input_snapshot=input_snapshot,
-                output_update=output_update,
-                llm_io=llm_io,
-            )
-            steps.append(step)
-            yield step
+            for node_id, raw_update in _iter_update_chunk(chunk):
+                step_index += 1
+                step = _record_node_update(
+                    node_id=node_id,
+                    raw_update=raw_update,
+                    running_state=running_state,
+                    attempts=attempts,
+                    step_index=step_index,
+                )
+                steps.append(step)
+                yield step
 
         yield GraphStreamComplete(state=running_state, trace=steps)
 

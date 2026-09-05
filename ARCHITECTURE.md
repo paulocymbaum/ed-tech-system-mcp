@@ -94,7 +94,7 @@ MCP adapters. Translates protocol I/O ↔ application/domain.
 | :--- | :--- |
 | `custom_tools.py` | `health_check`, `search_youtube`, `build_lesson_enrichment_query` |
 | `custom_tools_agent_workflows.py` | `research_article`, `content_generation` |
-| `custom_tools_authoring.py` | `validate_*`, `save_to_backend`, `author_lesson_pipeline`, `search_graph_nodes`, `generate_mock_test_structure`, `validate_mock_test` |
+| `custom_tools_authoring.py` | `validate_*`, `save_to_backend`, `author_lesson_pipeline`, `generate_course_scaffold`, `search_graph_nodes`, `generate_mock_test_structure`, `validate_mock_test` |
 | `custom_tools_socratic.py` | `socratic_tutor` |
 | `custom_tools_project_review.py` | `collect_project_review_context`, `project_review` |
 

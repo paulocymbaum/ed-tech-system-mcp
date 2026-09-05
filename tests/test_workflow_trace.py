@@ -195,3 +195,38 @@ async def test_stream_graph_with_trace_matches_invoke_final_state() -> None:
     assert [step.node_id for step in streamed_trace] == [
         step.node_id for step in invoked_trace
     ]
+
+
+class _MultiKeyGraph:
+    """LangGraph can emit more than one node update in a single ``updates`` chunk."""
+
+    async def astream(self, state: Any, stream_mode: str = "updates"):
+        del stream_mode
+        yield {"generate_lesson": {"topic": state["topic"]}, "validate_lesson": {"ok": True}}
+        yield {"save": {"generation_complete": True}}
+
+
+async def test_stream_and_invoke_keep_every_node_in_a_multi_key_chunk() -> None:
+    graph = _MultiKeyGraph()
+    state = {"topic": "fractions"}
+
+    invoked_state, invoked_trace = await invoke_graph_with_trace(
+        graph,  # type: ignore[arg-type]
+        state,
+        timeout_seconds=5.0,
+    )
+    streamed: list[WorkflowTraceStep | GraphStreamComplete] = []
+    async for item in stream_graph_with_trace(
+        graph,  # type: ignore[arg-type]
+        state,
+        timeout_seconds=5.0,
+    ):
+        streamed.append(item)
+
+    streamed_complete = next(item for item in streamed if isinstance(item, GraphStreamComplete))
+    node_ids = [step.node_id for step in invoked_trace]
+    assert node_ids == ["generate_lesson", "validate_lesson", "save"]
+    assert [step.node_id for step in streamed_complete.trace] == node_ids
+    assert invoked_state["generation_complete"] is True
+    assert invoked_state["ok"] is True
+    assert streamed_complete.state == invoked_state

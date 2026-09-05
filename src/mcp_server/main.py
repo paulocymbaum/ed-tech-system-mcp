@@ -16,6 +16,7 @@ from mcp_server.interface.custom_tools_agent_workflows import (  # noqa: F401
 )
 from mcp_server.interface.custom_tools_authoring import (  # noqa: F401
     author_lesson_pipeline,
+    generate_course_scaffold,
     generate_mock_test_structure,
     save_to_backend,
     search_graph_nodes,

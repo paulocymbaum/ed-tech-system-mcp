@@ -41,6 +41,7 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 | `search_graph_nodes` | tenant | Topic graph placement (EF9 / RPC) |
 | `save_to_backend` | **manager** | Upsert lesson (+ quiz/project) via public RPCs |
 | `author_lesson_pipeline` | **manager** + tenant | search → generate → validate → save → publish note |
+| `generate_course_scaffold` | **manager** + tenant | Structure-only course graph `{ nodes, edges }`. BFF persists the proposal. Does not apply the live graph. |
 | `generate_mock_test_structure` | none | EF2-shaped 3-section mock scaffold |
 | `validate_mock_test` | none | Gate mock section contract |
 | `collect_project_review_context` | tenant | README, starter, last N deliveries |
@@ -57,6 +58,7 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 | Videos only | `search_youtube` |
 | Web snippets only | `search_web` |
 | Graph-scoped lesson authoring E2E | `author_lesson_pipeline` |
+| Structure-only course outline | `generate_course_scaffold` |
 | Draft-only generation | `content_generation` |
 | Manual save after edits | `validate_*` then `save_to_backend` |
 | Topic placement | `search_graph_nodes` |

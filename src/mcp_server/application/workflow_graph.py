@@ -14,6 +14,7 @@ _RETRY_EDGES = frozenset(
         ("validate_lesson", "generate_lesson"),
         ("validate_quiz", "generate_quiz"),
         ("validate_pbl", "generate_pbl"),
+        ("validate", "generate"),
     }
 )
 
@@ -91,6 +92,12 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "ground_context",
         "generate_reply",
         "validate_reply",
+        "__end__",
+    ],
+    "course-scaffold": [
+        "__start__",
+        "generate",
+        "validate",
         "__end__",
     ],
     "rag-retrieval": [

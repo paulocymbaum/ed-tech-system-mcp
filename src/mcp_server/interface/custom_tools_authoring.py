@@ -20,6 +20,7 @@ from mcp_server.application.authoring_service import (
     validate_quiz_dict,
 )
 from mcp_server.application.content_generation_runner import invoke_content_generation
+from mcp_server.application.course_scaffold_runner import invoke_course_scaffold
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
 from mcp_server.domain.ai_generation_job import AiGenerationJobProgressPort
 from mcp_server.domain.authoring import (
@@ -32,6 +33,11 @@ from mcp_server.domain.authoring import (
 from mcp_server.domain.content_validators import (
     validate_mock_test_bundle,
     validate_test_boilerplate,
+)
+from mcp_server.domain.course_scaffold import (
+    ScaffoldEdge,
+    ScaffoldNode,
+    slugify_course_title,
 )
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
 from mcp_server.interface.custom_tools import _cached_tool_invoke
@@ -74,6 +80,13 @@ def _require_backend_factory() -> AuthoringBackendFactoryPort:
 class ValidationToolResponse(BaseModel):
     ok: bool
     findings: list[str] = Field(default_factory=list)
+
+
+class GenerateCourseScaffoldResponse(BaseModel):
+    """Structure-only proposal. BFF extractScaffoldProposal reads nodes/edges."""
+
+    nodes: list[ScaffoldNode] = Field(default_factory=list)
+    edges: list[ScaffoldEdge] = Field(default_factory=list)
 
 
 class AuthorLessonPipelineResponse(BaseModel):
@@ -184,6 +197,53 @@ async def save_to_backend(
         )
 
     return await _cached_tool_invoke("save_to_backend", args, _run)
+
+
+@mcp.tool
+async def generate_course_scaffold(
+    manager_jwt: str,
+    tenant_id: str,
+    prompt: str,
+    title: str | None = None,
+    locale: str | None = None,
+    slug: str | None = None,
+    course_slug: str | None = None,
+    job_id: str | None = None,
+) -> GenerateCourseScaffoldResponse:
+    """Generate a structure-only course graph proposal. Does not apply the live graph."""
+    if not manager_jwt.strip():
+        raise DomainValidationError("manager_jwt is required")
+    if not tenant_id.strip():
+        raise DomainValidationError("tenant_id is required")
+    if not prompt.strip():
+        raise DomainValidationError("prompt is required")
+    resolved_slug = (course_slug or slug or "").strip() or None
+    if resolved_slug is None:
+        if not (title or "").strip():
+            raise DomainValidationError("slug, course_slug, or title is required")
+        resolved_slug = slugify_course_title(title or "")
+    progress = _job_progress if job_id else None
+    try:
+        proposal = await invoke_course_scaffold(
+            tenant_id=tenant_id.strip(),
+            prompt=prompt.strip(),
+            title=(title.strip() if title else None),
+            locale=(locale.strip() if locale else None),
+            slug=(slug.strip() if slug else None),
+            course_slug=(course_slug.strip() if course_slug else None) or resolved_slug,
+            job_id=job_id,
+            job_progress=progress,
+        )
+    except Exception:
+        if job_id:
+            await report_ai_generation_job(
+                progress,
+                job_id=job_id,
+                status="failed",
+                error="Course scaffold generation failed",
+            )
+        raise
+    return GenerateCourseScaffoldResponse(nodes=proposal.nodes, edges=proposal.edges)
 
 
 @mcp.tool

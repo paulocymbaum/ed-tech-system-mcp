@@ -13,6 +13,10 @@ from mcp_server.application.agents.content_generation.graph import (
     get_content_generation_graph,
     reset_content_generation_graph_cache,
 )
+from mcp_server.application.agents.course_scaffold.graph import (
+    get_course_scaffold_graph,
+    reset_course_scaffold_graph_cache,
+)
 from mcp_server.application.agents.project_review.graph import (
     get_project_review_graph,
     reset_project_review_graph_cache,
@@ -123,6 +127,15 @@ def _build_registered_workflows() -> list[RegisteredWorkflow]:
             graph=get_content_generation_graph(),
         ),
         RegisteredWorkflow(
+            id="course-scaffold",
+            name="Course Scaffold",
+            description=(
+                "Generate a structure-only course graph (nodes and edges) from a "
+                "teacher prompt. Does not write README, quiz, or project bodies."
+            ),
+            graph=get_course_scaffold_graph(),
+        ),
+        RegisteredWorkflow(
             id="project-review",
             name="Project Delivery Review",
             description=(
@@ -156,6 +169,7 @@ def reset_registered_workflows_cache() -> None:
     global _REGISTERED_WORKFLOWS
     _REGISTERED_WORKFLOWS = None
     reset_content_generation_graph_cache()
+    reset_course_scaffold_graph_cache()
     reset_project_review_graph_cache()
     reset_socratic_tutor_graph_cache()
     reset_tavily_search_graph_cache()

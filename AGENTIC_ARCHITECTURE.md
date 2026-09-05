@@ -114,7 +114,7 @@ Use-case orchestration. Depends on **domain ports**, not adapters.
 | `workflow_llm_trace.py` | Captures LLM prompts, raw output, and model name per node |
 | `llm.py` / `llm_router.py` | `create_chat_model()`, Groq `LLMRouter` with per-complexity debounce and capped model fallback |
 | `workflow_graph.py` | Graph introspection DTOs, spine layout, async/retry edge classification |
-| `agents/*/` | One package per LangGraph workflow (`content_generation`, `research_article`, `tavily_search`, `youtube_search`, `project_review`, `socratic`) |
+| `agents/*/` | One package per LangGraph workflow (`content_generation`, `course_scaffold`, `research_article`, `tavily_search`, `youtube_search`, `project_review`, `socratic`) |
 | `langchain_tools.py` *(planned)* | `@tool` wrappers: `search_web`, `search_youtube` |
 | `parameter_builders.py` *(planned)* | Build tool/agent parameters from graph state, user intent, and prior retrieval results |
 
@@ -368,6 +368,7 @@ MCP or scripted agent: content_generation(topic, grade_level?)
 | `youtube-search` | `agents/youtube_search/` | `search_videos` | `YOUTUBE_API_KEY` |
 | `research-article` | `agents/research_article/` | plan → **parallel tools** → merge → write | Tavily + YouTube + `GROQ_API_KEY` |
 | `content-generation` | `agents/content_generation/` | lesson/quiz/pbl with validation retries | `GROQ_API_KEY` |
+| `course-scaffold` | `agents/course_scaffold/` | structure-only `{ nodes, edges }` (no lesson bodies) | `GROQ_API_KEY` |
 | `project-review` | `agents/project_review/` | collect context → grade + validate | `GROQ_API_KEY` + Supabase |
 | `socratic-tutor` | `agents/socratic/` | hint-ladder tutoring grounded in backend catalog | `GROQ_API_KEY` |
 
@@ -469,6 +470,7 @@ ed-tech-system-mcp/
         │   │
         │   └── agents/                  # ✅ One package per LangGraph workflow
         │       ├── content_generation/  #     Lesson → quiz + PBL (validation retries)
+        │       ├── course_scaffold/     #     Structure-only course graph proposal
         │       ├── research_article/    #     Plan → parallel Tavily/YouTube → article
         │       ├── tavily_search/       #     Single-node Tavily integration test
         │       ├── youtube_search/      #     Single-node YouTube integration test
@@ -556,7 +558,7 @@ All keys are `SecretStr`, loaded at entrypoint, injected via `wiring.py`. Never 
 | Path | Status | Agentic role |
 | :--- | :--- | :--- |
 | `application/agent.py` | ✅ | Workflow registry |
-| `application/agents/` | ✅ | `content_generation`, `research_article`, `tavily_search`, `youtube_search`, `project_review`, `socratic` |
+| `application/agents/` | ✅ | `content_generation`, `course_scaffold`, `research_article`, `tavily_search`, `youtube_search`, `project_review`, `socratic` |
 | `application/integration_runtime.py` | ✅ | Lazy Tavily/YouTube client accessors |
 | `application/workflow_trace.py` | ✅ | Execution trace collection |
 | `application/workflow_llm_trace.py` | ✅ | Per-node LLM I/O for observability |
