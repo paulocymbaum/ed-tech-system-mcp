@@ -306,6 +306,11 @@ def initialize_application_runtime(
         )
 
         set_inbound_rate_limit_runtime(InboundRateLimitRuntime(enabled=False, limiter=None))
+        from mcp_server.application.agents.socratic.nodes import (
+            register_tutor_session_draft,
+        )
+
+        register_tutor_session_draft(None)
         _runtime_cache_store = cache_store
         return ApplicationContext(
             workflow_execution_config=config,
@@ -329,6 +334,9 @@ def initialize_application_runtime(
         register_project_review_error_reporter,
         register_project_review_repository,
     )
+    from mcp_server.infrastructure.ai_generation_job_progress import (
+        SupabaseAiGenerationJobProgress,
+    )
     from mcp_server.infrastructure.groq_model_error_reporter import (
         GroqModelErrorReporter,
     )
@@ -337,21 +345,38 @@ def initialize_application_runtime(
         register_project_review_tool_repository,
     )
 
+    job_progress = SupabaseAiGenerationJobProgress(
+        settings.supabase_url,
+        settings.supabase_service_role_key,
+    )
     project_review_repo = ProjectReviewRepository(
         settings.supabase_url,
         settings.supabase_service_role_key,
     )
     register_project_review_repository(project_review_repo)
-    register_project_review_tool_repository(project_review_repo)
+    register_project_review_tool_repository(
+        project_review_repo,
+        job_progress=job_progress,
+    )
     register_project_review_error_reporter(
         GroqModelErrorReporter(settings.supabase_url, settings.supabase_service_role_key)
     )
 
-    from mcp_server.application.agents.socratic.nodes import register_socratic_catalog
+    from mcp_server.application.agents.socratic.nodes import (
+        register_socratic_catalog,
+        register_tutor_session_draft,
+    )
     from mcp_server.infrastructure.socratic_catalog_repository import SocraticCatalogRepository
+    from mcp_server.infrastructure.tutor_session_draft import SupabaseTutorSessionDraft
 
     register_socratic_catalog(
         SocraticCatalogRepository(settings.supabase_url, settings.supabase_service_role_key)
+    )
+    register_tutor_session_draft(
+        SupabaseTutorSessionDraft(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        )
     )
 
     from mcp_server.infrastructure.authoring_backend_client import AuthoringBackendClientFactory
@@ -372,6 +397,7 @@ def initialize_application_runtime(
             settings.supabase_url,
             anon_key=anon,
         ),
+        job_progress=job_progress,
     )
 
     from mcp_server.application.mcp_tool_auth_runtime import (

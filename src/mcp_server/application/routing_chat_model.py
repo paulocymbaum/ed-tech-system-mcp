@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatResult
+from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import PrivateAttr
 
 from mcp_server.application.llm_router import LLMRouter
@@ -80,3 +81,21 @@ class RoutingChatModel(BaseChatModel):
             run_manager=run_manager,
             **kwargs,
         )
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        complexity = self._resolve_complexity(kwargs)
+        async for chunk in self._router.astream(
+            messages,
+            complexity=complexity,
+            preferred_model_id=self._preferred_model_id,
+            stop=stop,
+            run_manager=run_manager,
+            **kwargs,
+        ):
+            yield chunk

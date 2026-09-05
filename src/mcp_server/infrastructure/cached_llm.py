@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from pydantic import PrivateAttr
 
 from mcp_server.domain.cache import (
@@ -62,6 +62,9 @@ class CachedChatModel(BaseChatModel):
     Cache reads and writes occur in ``_agenerate`` (used by ``ainvoke`` and
     LangGraph async nodes). ``_generate`` delegates directly to the inner model
     with no cache lookup or store — sync callers always hit the provider.
+
+    ``_astream`` also skips cache (JB-012 / OQ-009): token streams must not
+    collapse to one cached ``_agenerate`` blob. JSON ``ainvoke`` keeps cache.
 
     Add sync caching only when a production caller uses the sync path; until
     then, defer to avoid duplicate key logic and untested code paths.
@@ -140,3 +143,23 @@ class CachedChatModel(BaseChatModel):
             deserialize=_deserialize_chat_result,
             loader=loader,
         )
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        """Token stream: delegate to the inner model with no cache lookup/store."""
+        if type(self._inner)._astream is not BaseChatModel._astream:
+            async for chunk in self._inner._astream(
+                messages,
+                stop=stop,
+                run_manager=run_manager,
+                **kwargs,
+            ):
+                yield chunk
+            return
+        async for message in self._inner.astream(messages, stop=stop, **kwargs):
+            yield ChatGenerationChunk(message=message)

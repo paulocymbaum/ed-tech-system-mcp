@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatResult
+from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import SecretStr
 
 from mcp_server.domain.external_rate_limit import IExternalRequestRateLimiter
@@ -200,6 +200,63 @@ class LLMRouter:
                 return result
             except Exception as exc:  # noqa: BLE001 — fallback boundary
                 last_error = exc
+                if is_token_limit_error(exc):
+                    self._registry.deactivate_until(
+                        model_id,
+                        token_limit_deactivation_until(),
+                    )
+                continue
+
+        if last_error is not None:
+            raise last_error
+        msg = "LLM routing failed without a provider error"
+        raise RuntimeError(msg)
+
+    async def astream(
+        self,
+        messages: list[BaseMessage],
+        *,
+        complexity: LLMComplexity | None = None,
+        preferred_model_id: str | None = None,
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        """Token-stream a completion. Fallback only before the first chunk."""
+        if self._external_rate_limiter is not None:
+            await self._external_rate_limiter.acquire(provider="llm")
+        resolved_complexity = complexity or self._default_complexity
+        await self._debounce_gate.acquire(resolved_complexity)
+        last_error: BaseException | None = None
+
+        for model_id in self._routed_model_ids(
+            resolved_complexity,
+            preferred_model_id=preferred_model_id,
+        ):
+            produced = False
+            try:
+                model = self._get_or_build_model(model_id)
+                inner_astream = getattr(model, "_astream", None)
+                if inner_astream is not None:
+                    async for chunk in inner_astream(
+                        messages,
+                        stop=stop,
+                        run_manager=run_manager,
+                        **kwargs,
+                    ):
+                        produced = True
+                        self._last_used_model_id = model_id
+                        yield chunk
+                else:
+                    async for message in model.astream(messages, stop=stop, **kwargs):
+                        produced = True
+                        self._last_used_model_id = model_id
+                        yield ChatGenerationChunk(message=message)
+                return
+            except Exception as exc:  # noqa: BLE001 — fallback boundary
+                last_error = exc
+                if produced:
+                    raise
                 if is_token_limit_error(exc):
                     self._registry.deactivate_until(
                         model_id,

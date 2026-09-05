@@ -12,6 +12,8 @@ from mcp_server.application.agents.project_review.graph import (
     initial_project_review_state,
     result_from_state,
 )
+from mcp_server.application.author_job_progress import report_ai_generation_job
+from mcp_server.domain.ai_generation_job import AiGenerationJobProgressPort
 from mcp_server.domain.exceptions import ExternalServiceError, ResourceNotFoundError
 from mcp_server.domain.project_review import (
     ProjectReviewContext,
@@ -21,12 +23,19 @@ from mcp_server.domain.project_review import (
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 
+PROJECT_REVIEW_FAILED_ERROR = "Project review failed"
+
 _repo: ProjectReviewStore | None = None
+_job_progress: AiGenerationJobProgressPort | None = None
 
 
-def register_project_review_tool_repository(repo: ProjectReviewStore) -> None:
-    global _repo
+def register_project_review_tool_repository(
+    repo: ProjectReviewStore,
+    job_progress: AiGenerationJobProgressPort | None = None,
+) -> None:
+    global _repo, _job_progress
     _repo = repo
+    _job_progress = job_progress
 
 
 def _require_repo() -> ProjectReviewStore:
@@ -91,6 +100,7 @@ async def project_review(
     user_id: str,
     delivery_limit: int = 3,
     persist: bool = True,
+    job_id: str | None = None,
 ) -> ProjectReviewResult:
     """Grade a learner project delivery (0–100) and optionally persist via EF7."""
     request = ProjectReviewRequest(
@@ -113,8 +123,42 @@ async def project_review(
             raise ExternalServiceError("AI reviewer is temporarily unavailable")
         return result_from_state(result_state)
 
-    return await _cached_tool_invoke(
-        "project_review",
-        args,
-        _run,
+    if job_id is None:
+        return await _cached_tool_invoke(
+            "project_review",
+            args,
+            _run,
+        )
+
+    progress = _job_progress
+    await report_ai_generation_job(
+        progress,
+        job_id=job_id,
+        status="running",
+        phase=None,
     )
+    try:
+        result = await _run()
+        await report_ai_generation_job(
+            progress,
+            job_id=job_id,
+            status="succeeded",
+            phase=None,
+            result_ref={
+                "score": result.score,
+                "comment": result.comment,
+                "delivery_id": result.delivery_id,
+                "review_id": result.review_id,
+                "passed": result.passed,
+            },
+        )
+        return result
+    except Exception:
+        await report_ai_generation_job(
+            progress,
+            job_id=job_id,
+            status="failed",
+            phase=None,
+            error=PROJECT_REVIEW_FAILED_ERROR,
+        )
+        raise

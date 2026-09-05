@@ -69,8 +69,10 @@ async def socratic_tutor(
     locale: str = "en",
     want_full_solution: bool = False,
     grounding: dict[str, Any] | None = None,
+    session_id: str | None = None,
 ) -> SocraticReply:
     """Socratic tutoring turn — hints and questions; never grades. No MCP RAG."""
+    session_key = (session_id or "").strip() or None
     hist_items = [
         SocraticHistoryItem.model_validate(item) for item in (history or [])
     ]
@@ -111,8 +113,11 @@ async def socratic_tutor(
             locale=normalize_locale(request.locale),
             want_full_solution=request.want_full_solution,
             grounding=parsed_grounding,
+            session_id=session_key,
         )
         result_state = await ainvoke_with_workflow_timeout(graph, state)
         return result_from_state(result_state)
 
+    if session_key:
+        return await _run()
     return await _cached_tool_invoke("socratic_tutor", args, _run)

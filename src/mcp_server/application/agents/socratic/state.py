@@ -31,3 +31,4 @@ class SocraticTutorState(TypedDict):
     error: NotRequired[str | None]
     model_id: NotRequired[str | None]
     llm_io: NotRequired[list[object]]
+    session_id: NotRequired[str | None]

@@ -95,6 +95,7 @@ def initial_socratic_tutor_state(
     locale: str = "en",
     want_full_solution: bool = False,
     grounding: SocraticGrounding | None = None,
+    session_id: str | None = None,
 ) -> SocraticTutorState:
     return {
         "tenant_id": tenant_id,
@@ -115,6 +116,7 @@ def initial_socratic_tutor_state(
         "error": None,
         "model_id": None,
         "llm_io": [],
+        "session_id": session_id,
     }
 
 

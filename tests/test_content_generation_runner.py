@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mcp_server.application.content_generation_runner import invoke_content_generation
+from mcp_server.application.workflow_trace import GraphStreamComplete, WorkflowTraceStep
 from mcp_server.domain.authoring import GraphNodeHit
 from mcp_server.interface.validation_workflow import ContentGenerationRunRequest
 
@@ -48,3 +49,68 @@ async def test_invoke_content_generation_skips_search_when_graph_hits_preloaded(
 
     graph_search.search_graph_nodes.assert_not_called()
     assert response.generation_complete is True
+
+
+@pytest.mark.asyncio
+async def test_invoke_content_generation_stream_steps_call_job_port() -> None:
+    request = ContentGenerationRunRequest(topic="Comments")
+    port = AsyncMock()
+    ainvoke = AsyncMock()
+
+    async def fake_stream(*_args: object, **_kwargs: object):
+        yield WorkflowTraceStep(
+            step=1,
+            node_id="generate_lesson",
+            status="ok",
+            attempt=1,
+        )
+        yield WorkflowTraceStep(
+            step=2,
+            node_id="validate_quiz",
+            status="ok",
+            attempt=1,
+        )
+        yield WorkflowTraceStep(
+            step=3,
+            node_id="unknown_node",
+            status="ok",
+            attempt=1,
+        )
+        yield GraphStreamComplete(
+            state={
+                "topic": "Comments",
+                "grade_level": "6th grade",
+                "generation_complete": True,
+            },
+            trace=[],
+        )
+
+    with (
+        patch(
+            "mcp_server.application.content_generation_runner.get_content_generation_graph",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "mcp_server.application.content_generation_runner.stream_graph_with_trace",
+            fake_stream,
+        ),
+        patch(
+            "mcp_server.application.content_generation_runner.ainvoke_with_workflow_timeout",
+            ainvoke,
+        ),
+    ):
+        response = await invoke_content_generation(
+            request,
+            job_id="00000000-0000-4000-8000-000000000099",
+            job_progress=port,
+        )
+
+    ainvoke.assert_not_called()
+    assert response.generation_complete is True
+    assert port.update.await_count == 2
+    first = port.update.await_args_list[0].kwargs
+    second = port.update.await_args_list[1].kwargs
+    assert first["phase"] == "readme"
+    assert first["status"] == "running"
+    assert first["job_id"] == "00000000-0000-4000-8000-000000000099"
+    assert second["phase"] == "quiz"
