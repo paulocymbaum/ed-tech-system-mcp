@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
@@ -14,6 +15,8 @@ from mcp_server.domain.ai_generation_job import (
 from mcp_server.domain.invariants import require_credential
 
 _RPC_TIMEOUT_SECONDS = 10.0
+_UPDATE_ATTEMPTS = 3
+_UPDATE_RETRY_SECONDS = 0.2
 
 
 class SupabaseAiGenerationJobProgress(AiGenerationJobProgressPort):
@@ -85,8 +88,21 @@ class SupabaseAiGenerationJobProgress(AiGenerationJobProgressPort):
         if result_ref is not None:
             body["p_result_ref"] = result_ref
         url = f"{self._supabase_url}/rest/v1/rpc/update_ai_generation_job"
-        client = await self._client()
-        response = await client.post(url, headers=self._headers(), json=body)
-        if response.status_code >= 400:
-            msg = f"update_ai_generation_job failed status={response.status_code}"
-            raise RuntimeError(msg)
+        last_error: Exception | None = None
+        for attempt in range(1, _UPDATE_ATTEMPTS + 1):
+            try:
+                client = await self._client()
+                response = await client.post(url, headers=self._headers(), json=body)
+            except Exception as exc:
+                last_error = exc
+            else:
+                if response.status_code < 400:
+                    return
+                last_error = RuntimeError(
+                    f"update_ai_generation_job failed status={response.status_code}"
+                )
+            if attempt < _UPDATE_ATTEMPTS:
+                await asyncio.sleep(_UPDATE_RETRY_SECONDS)
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("update_ai_generation_job failed")

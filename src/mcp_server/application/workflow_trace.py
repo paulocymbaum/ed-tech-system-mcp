@@ -17,6 +17,13 @@ TraceStepStatus = Literal["ok", "failed", "retry"]
 
 
 @dataclass(frozen=True, slots=True)
+class WorkflowTraceStart:
+    """Node began executing (LangGraph debug ``task``), before the update chunk."""
+
+    node_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class WorkflowTraceStep:
     """One executed graph node update captured from ``stream_mode='updates'``."""
 
@@ -141,6 +148,30 @@ def _iter_update_chunk(chunk: Any) -> list[tuple[str, Any]]:
     return list(chunk.items())
 
 
+def _split_stream_item(raw: Any) -> tuple[str, Any]:
+    if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[0], str):
+        return raw[0], raw[1]
+    return "updates", raw
+
+
+_SKIP_DEBUG_NODES = frozenset({"__start__", "__end__", "START", "END"})
+
+
+def _debug_task_node_id(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("type") != "task":
+        return None
+    inner = payload.get("payload")
+    name = inner.get("name") if isinstance(inner, dict) else None
+    if not isinstance(name, str):
+        return None
+    node_id = name.strip()
+    if not node_id or node_id in _SKIP_DEBUG_NODES:
+        return None
+    return node_id
+
+
 async def invoke_graph_with_trace(
     graph: CompiledStateGraph[Any, Any, Any],
     state: Any,
@@ -186,18 +217,26 @@ async def stream_graph_with_trace(
     state: Any,
     *,
     timeout_seconds: float,
-) -> AsyncIterator[WorkflowTraceStep | GraphStreamComplete]:
-    """Yield each executed node step, then a final state + trace bundle."""
+) -> AsyncIterator[WorkflowTraceStart | WorkflowTraceStep | GraphStreamComplete]:
+    """Yield node-start, then each executed update, then a final state + trace bundle."""
     running_state = dict(state)
     steps: list[WorkflowTraceStep] = []
     attempts: dict[str, int] = defaultdict(int)
     reset_llm_trace_capture()
 
-    async def _stream() -> AsyncIterator[WorkflowTraceStep | GraphStreamComplete]:
+    async def _stream() -> AsyncIterator[
+        WorkflowTraceStart | WorkflowTraceStep | GraphStreamComplete
+    ]:
         nonlocal running_state
         step_index = 0
-        async for chunk in graph.astream(state, stream_mode="updates"):
-            for node_id, raw_update in _iter_update_chunk(chunk):
+        async for raw in graph.astream(state, stream_mode=["updates", "debug"]):
+            mode, payload = _split_stream_item(raw)
+            if mode == "debug":
+                node_id = _debug_task_node_id(payload)
+                if node_id:
+                    yield WorkflowTraceStart(node_id=node_id)
+                continue
+            for node_id, raw_update in _iter_update_chunk(payload):
                 step_index += 1
                 step = _record_node_update(
                     node_id=node_id,

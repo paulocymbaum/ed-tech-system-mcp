@@ -19,6 +19,7 @@ from mcp_server.application.author_job_progress import (
 )
 from mcp_server.application.workflow_trace import (
     GraphStreamComplete,
+    WorkflowTraceStart,
     WorkflowTraceStep,
     stream_graph_with_trace,
 )
@@ -97,7 +98,7 @@ async def invoke_content_generation(
         state,
         timeout_seconds=workflow_timeout_seconds(),
     ):
-        if isinstance(item, WorkflowTraceStep):
+        if isinstance(item, (WorkflowTraceStart, WorkflowTraceStep)):
             phase = node_id_to_author_phase(item.node_id)
             if phase is not None:
                 await report_ai_generation_job(

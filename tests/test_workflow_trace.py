@@ -18,6 +18,7 @@ from mcp_server.application.llm import reset_chat_model, set_chat_model
 from mcp_server.application.token_counting_runtime import reset_token_counter, set_token_counter
 from mcp_server.application.workflow_trace import (
     GraphStreamComplete,
+    WorkflowTraceStart,
     WorkflowTraceStep,
     invoke_graph_with_trace,
     stream_graph_with_trace,
@@ -171,6 +172,27 @@ async def test_stream_graph_with_trace_yields_steps_then_complete() -> None:
     assert step_items
     assert len(complete_items) == 1
     assert items[-1] is complete_items[0]
+
+
+class _StartThenUpdateGraph:
+    async def astream(self, state: Any, stream_mode: object = "updates"):
+        del stream_mode
+        yield ("debug", {"type": "task", "payload": {"name": "generate_lesson"}})
+        yield ("updates", {"generate_lesson": {"ok": True, "topic": state["topic"]}})
+
+
+async def test_stream_graph_with_trace_yields_start_before_update() -> None:
+    items: list[object] = []
+    async for item in stream_graph_with_trace(
+        _StartThenUpdateGraph(),  # type: ignore[arg-type]
+        {"topic": "fractions"},
+        timeout_seconds=5.0,
+    ):
+        items.append(item)
+    assert isinstance(items[0], WorkflowTraceStart)
+    assert items[0].node_id == "generate_lesson"
+    assert isinstance(items[1], WorkflowTraceStep)
+    assert items[1].node_id == "generate_lesson"
 
 
 async def test_stream_graph_with_trace_matches_invoke_final_state() -> None:

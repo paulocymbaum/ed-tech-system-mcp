@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from mcp_server.application.course_scaffold_runner import invoke_course_scaffold
+from mcp_server.application.workflow_trace import GraphStreamComplete, WorkflowTraceStart
 from mcp_server.application.mcp_tool_auth_runtime import (
     PRIVILEGED_TOOLS,
     McpToolAuthRuntime,
@@ -237,13 +238,17 @@ async def test_invoke_course_scaffold_reports_generate_phase(
     proposal = ScaffoldProposal.model_validate(sample_proposal_payload())
     progress = RecordingJobProgress()
 
-    async def _timeout(graph: Any, state: Any, **kwargs: Any) -> dict[str, Any]:
+    async def _stream(graph: Any, state: Any, **kwargs: Any):
         del graph, state, kwargs
-        return {"proposal": proposal, "validation_errors": []}
+        yield WorkflowTraceStart(node_id="generate")
+        yield GraphStreamComplete(
+            state={"proposal": proposal, "validation_errors": []},
+            trace=[],
+        )
 
     monkeypatch.setattr(
-        "mcp_server.application.course_scaffold_runner.ainvoke_with_workflow_timeout",
-        _timeout,
+        "mcp_server.application.course_scaffold_runner.stream_graph_with_trace",
+        _stream,
     )
     result = await invoke_course_scaffold(
         tenant_id="tenant-1",

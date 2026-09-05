@@ -4,12 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp_server.application.agent import ainvoke_with_workflow_timeout
+from mcp_server.application.agent import (
+    ainvoke_with_workflow_timeout,
+    workflow_timeout_seconds,
+)
 from mcp_server.application.agents.course_scaffold.graph import (
     get_course_scaffold_graph,
     initial_course_scaffold_state,
 )
 from mcp_server.application.author_job_progress import report_ai_generation_job
+from mcp_server.application.workflow_trace import (
+    GraphStreamComplete,
+    WorkflowTraceStart,
+    WorkflowTraceStep,
+    stream_graph_with_trace,
+)
 from mcp_server.domain.ai_generation_job import (
     AiGenerationJobProgressPort,
     AiGenerationJobSnapshot,
@@ -41,6 +50,18 @@ async def load_succeeded_scaffold_proposal(
         return require_valid_scaffold_proposal(ScaffoldProposal.model_validate(raw))
     except (DomainValidationError, Exception):
         return None
+
+
+def _proposal_from_state(result: Any) -> ScaffoldProposal:
+    if not isinstance(result, dict):
+        raise DomainValidationError("Course scaffold generation failed")
+    proposal = result.get("proposal")
+    if not isinstance(proposal, ScaffoldProposal):
+        errors = result.get("validation_errors") or ["Course scaffold generation failed"]
+        message = "; ".join(str(item) for item in errors)
+        raise DomainValidationError(message)
+    require_valid_scaffold_proposal(proposal)
+    return proposal
 
 
 async def invoke_course_scaffold(
@@ -76,7 +97,36 @@ async def invoke_course_scaffold(
         course_slug=course_slug,
     )
     try:
-        result = await ainvoke_with_workflow_timeout(graph, state)
+        if job_id:
+            final_state: Any = None
+            async for item in stream_graph_with_trace(
+                graph,
+                state,
+                timeout_seconds=workflow_timeout_seconds(),
+            ):
+                if isinstance(item, (WorkflowTraceStart, WorkflowTraceStep)):
+                    await report_ai_generation_job(
+                        progress,
+                        job_id=job_id,
+                        status="running",
+                        phase="generate",
+                    )
+                elif isinstance(item, GraphStreamComplete):
+                    final_state = item.state
+            if final_state is None:
+                raise DomainValidationError("Course scaffold generation failed")
+            result = final_state
+        else:
+            result = await ainvoke_with_workflow_timeout(graph, state)
+    except DomainValidationError as exc:
+        if job_id:
+            await report_ai_generation_job(
+                progress,
+                job_id=job_id,
+                status="failed",
+                error=str(exc),
+            )
+        raise
     except Exception:
         if job_id:
             await report_ai_generation_job(
@@ -86,20 +136,14 @@ async def invoke_course_scaffold(
                 error="Course scaffold generation failed",
             )
         raise
-    proposal = result.get("proposal")
-    if not isinstance(proposal, ScaffoldProposal):
-        errors = result.get("validation_errors") or ["Course scaffold generation failed"]
-        message = "; ".join(str(item) for item in errors)
+    try:
+        return _proposal_from_state(result)
+    except DomainValidationError as exc:
         if job_id:
             await report_ai_generation_job(
                 progress,
                 job_id=job_id,
                 status="failed",
-                error=message,
+                error=str(exc),
             )
-        raise DomainValidationError(message)
-    require_valid_scaffold_proposal(proposal)
-    # Stay running. The BFF persists the draft then marks succeeded with
-    # result_ref.proposal_id. Succeeded is terminal, so writing it here
-    # would lock the row without the id Teach hydrates from.
-    return proposal
+        raise

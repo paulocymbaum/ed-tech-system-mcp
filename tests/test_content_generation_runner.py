@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mcp_server.application.content_generation_runner import invoke_content_generation
-from mcp_server.application.workflow_trace import GraphStreamComplete, WorkflowTraceStep
+from mcp_server.application.workflow_trace import (
+    GraphStreamComplete,
+    WorkflowTraceStart,
+    WorkflowTraceStep,
+)
 from mcp_server.domain.authoring import GraphNodeHit
 from mcp_server.interface.validation_workflow import ContentGenerationRunRequest
 
@@ -58,6 +62,7 @@ async def test_invoke_content_generation_stream_steps_call_job_port() -> None:
     ainvoke = AsyncMock()
 
     async def fake_stream(*_args: object, **_kwargs: object):
+        yield WorkflowTraceStart(node_id="generate_lesson")
         yield WorkflowTraceStep(
             step=1,
             node_id="generate_lesson",
@@ -107,10 +112,12 @@ async def test_invoke_content_generation_stream_steps_call_job_port() -> None:
 
     ainvoke.assert_not_called()
     assert response.generation_complete is True
-    assert port.update.await_count == 2
+    assert port.update.await_count == 3
     first = port.update.await_args_list[0].kwargs
     second = port.update.await_args_list[1].kwargs
+    third = port.update.await_args_list[2].kwargs
     assert first["phase"] == "readme"
     assert first["status"] == "running"
     assert first["job_id"] == "00000000-0000-4000-8000-000000000099"
-    assert second["phase"] == "quiz"
+    assert second["phase"] == "readme"
+    assert third["phase"] == "quiz"
