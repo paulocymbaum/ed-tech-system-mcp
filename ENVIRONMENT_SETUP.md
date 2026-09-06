@@ -20,11 +20,7 @@ The goals are:
 | **`uv.lock`** | Exact resolved dependency graph | Committed to git; prevents silent drift between dev, CI, and deployment |
 | **`.venv/`** | Project-local virtual environment | Auto-created by `uv`; never committed |
 
-> **Do not mix `pip install` and `uv` inside this project.** Installing packages with `pip` bypasses the lockfile and breaks reproducibility.
-
-### Fallback (stdlib only)
-
-If `uv` cannot be installed, use `python3 -m venv .venv` and `pip-tools` (`requirements.in` → `requirements.txt`). The `uv` workflow below is still the canonical approach for this repository.
+> **`uv` is required.** Do not use `pip install` in this project — it bypasses `uv.lock` and breaks reproducibility. Install uv from [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ---
 
@@ -36,7 +32,7 @@ If `uv` cannot be installed, use `python3 -m venv .venv` and `pip-tools` (`requi
 | **Recommended** | Python **3.12.x** (latest patch) | Use the same minor version locally, in CI, and in deployment |
 | **Upper bound** | `<3.13` in `requires-python` | Avoids surprise breakage until the stack is explicitly tested on newer interpreters |
 
-Pin the interpreter in `pyproject.toml`:
+Pin the interpreter in `pyproject.toml` and `.python-version` (uv reads the latter on `uv sync` / `uv run`):
 
 ```toml
 [project]
@@ -778,7 +774,7 @@ Export secrets in your shell profile or use `${env:VAR}` so the MCP host inherit
 | Guard | Command / action |
 | :--- | :--- |
 | Confirm `.env` is ignored | `git check-ignore -v .env` |
-| Scan repo for committed secrets | `uv run pip install detect-secrets && detect-secrets scan` |
+| Scan repo for committed secrets | `uvx detect-secrets scan` |
 | Block commits with secrets | Husky pre-commit runs `scan-secrets.sh` (gitleaks + secretlint when available) |
 | Block sensitive file commits | Husky pre-commit runs `block-sensitive-files.sh` (`.env`, credentials, keys) |
 | Block pushes with secrets | Husky pre-push runs `scan-push-secrets.sh` (catches `git commit --no-verify`; use `git push --no-verify` only with intent — bypasses all push hooks) |
@@ -955,7 +951,7 @@ Never paste literal API keys into version-controlled MCP configuration files.
 | **Review lockfile diffs** | Treat dependency bumps like code changes — read changelogs for `fastmcp`, `langchain`, and `supabase` |
 | **Avoid `pip install -e .` on production hosts** | Use `uv sync --frozen --no-dev` in deployment |
 | **No `sudo pip`** | Never install project dependencies as root or into system site-packages |
-| **Periodic audits** | Run `uv pip audit` (or `pip-audit` via `uv run`) on a schedule |
+| **Periodic audits** | `uvx pip-audit` (does not mutate `uv.lock`) |
 
 ---
 
@@ -965,7 +961,7 @@ Never paste literal API keys into version-controlled MCP configuration files.
 | :--- | :--- | :--- |
 | `ModuleNotFoundError` for `mcp_server` | Wrong interpreter or missing sync | `uv sync --frozen` from repo root |
 | Lockfile out of date | `pyproject.toml` edited manually | `uv lock` then commit `uv.lock` |
-| Wrong Python version | OS `python3` is not 3.12 | `uv python install 3.12` then `uv sync` |
+| Wrong Python version | OS `python3` is not 3.12 | `uv python install 3.12` then `uv sync` (honors `.python-version`) |
 | Stale `.venv` after branch switch | Environment not rebuilt | `rm -rf .venv && uv sync --frozen` |
 | MCP client cannot find server | Client uses system Python | Point `command` at `.venv/bin/python` or `uv run` |
 | `Startup failed` on launch (config) | Missing or invalid `config.json` | Ensure repo-root `config.json` exists with all three keys and positive timeout values |
