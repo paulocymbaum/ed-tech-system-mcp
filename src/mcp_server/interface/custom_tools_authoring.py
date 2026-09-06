@@ -214,6 +214,7 @@ async def author_lesson_pipeline(
     grade_level: str = "6th grade",
     graph_node_id: str | None = None,
     graph_query: str | None = None,
+    graph_index: str | None = None,
     publish: bool = False,
     job_id: str | None = None,
 ) -> AuthorLessonPipelineResponse:
@@ -228,6 +229,7 @@ async def author_lesson_pipeline(
         grade_level=grade_level,
         graph_node_id=graph_node_id,
         graph_query=graph_query,
+        graph_index=graph_index,
         publish=publish,
         job_id=job_id,
         graph_search=_require_graph_search(),

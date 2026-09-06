@@ -80,6 +80,7 @@ async def invoke_content_generation(
             lesson_slug=request.lesson_slug,
             graph_node_id=resolved_node,
             graph_hits=graph_hits,
+            graph_index=request.graph_index,
         )
     else:
         state = initial_content_generation_state(

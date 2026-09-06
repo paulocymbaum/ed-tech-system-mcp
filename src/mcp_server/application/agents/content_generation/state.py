@@ -24,6 +24,7 @@ class ContentGenerationState(TypedDict):
     module_id: NotRequired[str | None]
     lesson_slug: NotRequired[str | None]
     graph_node_id: NotRequired[str | None]
+    graph_index: NotRequired[str | None]
     graph_hits: NotRequired[list[GraphNodeHit]]
     lesson: NotRequired[LessonDraft | HarnessLessonDraft]
     quiz: NotRequired[QuizDraft | HarnessQuizDraft]

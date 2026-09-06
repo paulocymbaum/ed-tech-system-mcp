@@ -147,6 +147,9 @@ def _hit_value(hit: object, key: str) -> str | None:
 
 def graph_index_from_state(state: ContentGenerationState) -> str | None:
     """Prefer the selected graph hit's index over an LLM-invented value."""
+    pinned = state.get("graph_index")
+    if isinstance(pinned, str) and pinned.strip():
+        return pinned.strip()
     node_id = state.get("graph_node_id")
     node = node_id.strip() if isinstance(node_id, str) else ""
     for hit in state.get("graph_hits") or []:

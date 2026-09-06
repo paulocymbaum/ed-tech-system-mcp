@@ -139,6 +139,25 @@ def test_resolve_graph_node_skips_search_when_uuid_provided() -> None:
     assert hits == []
 
 
+def test_resolve_graph_node_pins_index_when_uuid_skips_search() -> None:
+    class BoomSearch(FakeGraphSearch):
+        def search_graph_nodes(self, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("search_graph_nodes must not run for UUID graph_node_id")
+
+    node_id, hits = resolve_graph_node(
+        BoomSearch(),
+        tenant_id="00000000-0000-4000-8000-000000000001",
+        course_slug="javascript",
+        graph_node_id="11111111-1111-4111-8111-111111111111",
+        graph_query=None,
+        topic="variables",
+        graph_index="01.1.1",
+    )
+    assert node_id == "11111111-1111-4111-8111-111111111111"
+    assert hits[0]["graph_index"] == "01.1.1"
+    assert hits[0]["node_id"] == node_id
+
+
 def test_resolve_graph_node_forwards_non_uuid_id_with_search() -> None:
     node_id, hits = resolve_graph_node(
         FakeGraphSearch(),

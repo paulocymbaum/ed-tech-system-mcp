@@ -53,6 +53,20 @@ def test_stamp_harness_lesson_identity_prefers_state_and_hit_index() -> None:
     assert stamped.meta.title == "Title"
 
 
+def test_stamp_harness_lesson_identity_prefers_pinned_index_without_hits() -> None:
+    state: ContentGenerationState = {
+        "topic": "Variables",
+        "grade_level": "6th grade",
+        "lesson_slug": "01-variables",
+        "graph_node_id": "11111111-1111-4111-8111-111111111111",
+        "graph_index": "01.1.1",
+        "graph_hits": [],
+    }
+    stamped = stamp_harness_lesson_identity(_lesson(), state)
+    assert stamped.meta.graph_node_id == "11111111-1111-4111-8111-111111111111"
+    assert stamped.meta.graph_index == "01.1.1"
+
+
 def test_stamp_harness_quiz_identity_sets_lesson_slug_and_index() -> None:
     quiz = HarnessQuizDraft(
         id="quiz",

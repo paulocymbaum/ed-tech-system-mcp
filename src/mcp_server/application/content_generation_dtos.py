@@ -37,6 +37,7 @@ class ContentGenerationRunRequest(BaseModel):
     lesson_slug: str | None = Field(default=None, min_length=1)
     graph_node_id: str | None = Field(default=None, min_length=1)
     graph_query: str | None = Field(default=None, min_length=1)
+    graph_index: str | None = Field(default=None, min_length=1, max_length=64)
     graph_hits: list[dict[str, Any]] = Field(default_factory=list)
 
     @field_validator(

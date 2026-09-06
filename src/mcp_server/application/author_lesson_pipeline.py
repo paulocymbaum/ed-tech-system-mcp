@@ -27,6 +27,7 @@ from mcp_server.application.content_generation_runner import invoke_content_gene
 from mcp_server.domain.ai_generation_job import AiGenerationJobProgressPort
 from mcp_server.domain.authoring import (
     AuthoringBackendFactoryPort,
+    GraphNodeHit,
     GraphSearchPort,
     SaveLessonResult,
 )
@@ -52,9 +53,21 @@ def resolve_graph_node(
     graph_node_id: str | None,
     graph_query: str | None,
     topic: str,
+    graph_index: str | None = None,
 ) -> tuple[str | None, list[dict[str, Any]]]:
     known_uuid = graph_node_id_for_upsert(graph_node_id)
     if known_uuid:
+        pinned_index = graph_index.strip() if isinstance(graph_index, str) else ""
+        if pinned_index:
+            hit = GraphNodeHit(
+                node_id=known_uuid,
+                label=topic,
+                graph_index=pinned_index,
+                course_slug=course_slug,
+                kind="lesson",
+                score=1.0,
+            )
+            return known_uuid, [hit.model_dump()]
         return known_uuid, []
 
     query = graph_query or topic
@@ -80,6 +93,7 @@ async def run_author_lesson_pipeline(
     grade_level: str = "6th grade",
     graph_node_id: str | None = None,
     graph_query: str | None = None,
+    graph_index: str | None = None,
     publish: bool = False,
     job_id: str | None = None,
     graph_search: GraphSearchPort,
@@ -102,6 +116,7 @@ async def run_author_lesson_pipeline(
                 save_result=existing,
             )
     progress = job_progress if job_id else None
+    graph_index = graph_index.strip() if isinstance(graph_index, str) and graph_index.strip() else None
     try:
         if job_id:
             await report_ai_generation_job(
@@ -117,6 +132,7 @@ async def run_author_lesson_pipeline(
             graph_node_id=graph_node_id,
             graph_query=graph_query,
             topic=topic,
+            graph_index=graph_index,
         )
         gen_request = ContentGenerationRunRequest(
             topic=topic,
@@ -128,6 +144,7 @@ async def run_author_lesson_pipeline(
             graph_node_id=resolved_node_id,
             graph_query=graph_query,
             graph_hits=graph_hits,
+            graph_index=graph_index,
         )
         generation = await invoke_content_generation(
             gen_request,

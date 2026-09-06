@@ -170,6 +170,7 @@ def initial_content_generation_state(
     lesson_slug: str | None = None,
     graph_node_id: str | None = None,
     graph_hits: list | None = None,
+    graph_index: str | None = None,
 ) -> ContentGenerationState:
     """Build the initial graph state for content generation."""
     graph_scoped = bool(tenant_id and course_slug)
@@ -183,6 +184,7 @@ def initial_content_generation_state(
         module_id=module_id,
         lesson_slug=lesson_slug,
         graph_node_id=graph_node_id,
+        graph_index=graph_index,
         graph_hits=graph_hits or [],
         lesson_retry_count=0,
         quiz_retry_count=0,
