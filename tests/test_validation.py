@@ -3,12 +3,12 @@
 import pytest
 from pydantic import ValidationError
 
+from mcp_server.application.content_generation_dtos import ContentGenerationRunRequest
 from mcp_server.domain.schemas import VideoResult
 from mcp_server.interface.validation import (
     VideoSearchRequest,
     VideoSearchResponse,
 )
-from mcp_server.interface.validation_workflow import ContentGenerationRunRequest
 
 
 def test_t08_video_search_request_happy_path() -> None:

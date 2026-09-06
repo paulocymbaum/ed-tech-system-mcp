@@ -1,5 +1,6 @@
 """Regression: graph-scoped harness drafts must map into ContentGenerationRunResponse."""
 
+from mcp_server.application.content_generation_dtos import content_generation_state_to_run_response
 from mcp_server.domain.harness_schemas import (
     HarnessLessonDraft,
     HarnessProjectDraft,
@@ -10,7 +11,6 @@ from mcp_server.domain.harness_schemas import (
     HarnessTestCase,
     LessonMetaDraft,
 )
-from mcp_server.interface.validation_workflow import content_generation_state_to_run_response
 
 
 def test_graph_scoped_harness_drafts_coerce_to_response() -> None:

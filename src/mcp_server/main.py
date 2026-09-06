@@ -3,7 +3,6 @@
 import logging
 import sys
 
-from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
 from mcp_server.env_bootstrap import bootstrap_environment
 from mcp_server.interface.custom_tools import (  # noqa: F401
     build_lesson_enrichment_query,
@@ -32,6 +31,7 @@ from mcp_server.interface.custom_tools_project_review import (  # noqa: F401
 )
 from mcp_server.interface.custom_tools_socratic import socratic_tutor  # noqa: F401
 from mcp_server.interface.mcp_server import create_mcp_server
+from mcp_server.mcp_transport import build_mcp_run_kwargs
 from mcp_server.operational_config import load_operational_config
 from mcp_server.settings import Settings, load_settings
 from mcp_server.wiring import initialize_application_runtime, shutdown_application_runtime_sync

@@ -8,12 +8,12 @@ from typing import Any
 import pytest
 
 from mcp_server.application.course_scaffold_runner import invoke_course_scaffold
-from mcp_server.application.workflow_trace import GraphStreamComplete, WorkflowTraceStart
 from mcp_server.application.mcp_tool_auth_runtime import (
     PRIVILEGED_TOOLS,
     McpToolAuthRuntime,
     set_mcp_tool_auth_runtime,
 )
+from mcp_server.application.workflow_trace import GraphStreamComplete, WorkflowTraceStart
 from mcp_server.domain.ai_generation_job import AiGenerationJobProgressPort, AiGenerationJobSnapshot
 from mcp_server.domain.authoring import (
     AuthoringBackendFactoryPort,
@@ -136,6 +136,7 @@ def _register_authoring() -> None:
 
 def test_generate_course_scaffold_is_privileged() -> None:
     assert "generate_course_scaffold" in PRIVILEGED_TOOLS
+    assert "search_web" in PRIVILEGED_TOOLS
 
 
 async def test_enforce_caller_rejects_manager_jwt_mismatch(

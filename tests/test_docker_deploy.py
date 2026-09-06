@@ -28,7 +28,8 @@ def test_dockerfile_uses_python312_and_mcp_server_cmd() -> None:
 
 def test_dockerfile_sets_writable_cache_paths() -> None:
     content = _read(DOCKERFILE)
-    assert "ENV GROQ_MODEL_CATALOG_CACHE_PATH=/tmp/app-cache/groq_model_catalog.json" in content
+    assert "mkdir -p /tmp/app-cache" in content
+    assert "ENV GROQ_MODEL_CATALOG_CACHE_PATH" not in content
     assert "ENV EMBEDDING_CACHE_DIR" not in content
     assert "ENV EMBEDDING_WARM_ON_BOOT" not in content
     assert "ENV HF_HOME" not in content

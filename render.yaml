@@ -20,8 +20,6 @@ services:
         value: "true"
       - key: MCP_REQUIRE_CALLER_JWT
         value: "true"
-      - key: GROQ_MODEL_CATALOG_CACHE_PATH
-        value: /tmp/app-cache/groq_model_catalog.json
       # Set runtime secrets in the Render dashboard or via scripts/doppler/sync-dev-to-render.sh
       - key: SUPABASE_URL
         sync: false

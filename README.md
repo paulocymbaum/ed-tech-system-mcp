@@ -30,7 +30,7 @@ Handlers use **MCP tool caching** (when enabled), **latency logging**, **privile
 | Capability | Integration |
 | :--- | :--- |
 | Curriculum graph + authoring RPCs | Supabase RPCs via authoring backend client (anon + manager JWT) |
-| Web search | DuckDuckGo / Tavily |
+| Web search | Tavily |
 | Video discovery | YouTube Data API v3 |
 | Agent orchestration | LangChain / LangGraph |
 | Caching | Redis when `CACHE_ENABLED=true` |

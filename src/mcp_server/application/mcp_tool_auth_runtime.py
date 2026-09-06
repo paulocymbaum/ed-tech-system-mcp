@@ -21,6 +21,7 @@ PRIVILEGED_TOOLS = frozenset(
         "generate_course_scaffold",
         "content_generation",
         "research_article",
+        "search_web",
     }
 )
 

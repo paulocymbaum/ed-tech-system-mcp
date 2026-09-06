@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from mcp_server.domain.mcp_transport import build_mcp_run_kwargs
+from mcp_server.mcp_transport import build_mcp_run_kwargs
 from mcp_server.settings import Settings
 
 

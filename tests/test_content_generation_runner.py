@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from mcp_server.application.content_generation_dtos import ContentGenerationRunRequest
 from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.application.workflow_trace import (
     GraphStreamComplete,
@@ -13,7 +14,6 @@ from mcp_server.application.workflow_trace import (
     WorkflowTraceStep,
 )
 from mcp_server.domain.authoring import GraphNodeHit
-from mcp_server.interface.validation_workflow import ContentGenerationRunRequest
 
 
 @pytest.mark.asyncio

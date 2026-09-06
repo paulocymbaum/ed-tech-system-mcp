@@ -18,9 +18,9 @@ from mcp_server.application.agents.research_article.state import (
     ResearchArticleState,
     ToolCallRecord,
 )
-from mcp_server.application.integration_runtime import get_search_client, get_video_client
 from mcp_server.application.llm import get_chat_model
 from mcp_server.application.llm_model_name import resolve_invoked_model_name
+from mcp_server.application.search_services import search_videos, search_web_snippets
 from mcp_server.application.workflow_llm_trace import record_llm_invocation
 from mcp_server.domain.exceptions import ResourceNotFoundError
 from mcp_server.domain.llm_routing import LLMComplexity
@@ -74,11 +74,10 @@ async def _invoke_text_llm(
 
 
 async def _call_search_tavily(query: str, max_results: int) -> tuple[list[str], ToolCallRecord]:
-    client = get_search_client()
-    if client is None:
-        raise ResourceNotFoundError("Search client has not been initialized")
     try:
-        results = await client.search(query, max_results=max_results)
+        results = await search_web_snippets(query, max_results=max_results)
+    except ResourceNotFoundError:
+        raise
     except Exception as exc:
         return [], ToolCallRecord(
             tool="search_tavily",
@@ -97,11 +96,10 @@ async def _call_search_youtube(
     query: str,
     max_results: int,
 ) -> tuple[list[VideoResult], ToolCallRecord]:
-    client = get_video_client()
-    if client is None:
-        raise ResourceNotFoundError("Video search client has not been initialized")
     try:
-        videos = await client.search_videos(query, max_results=max_results)
+        videos = await search_videos(query, max_results=max_results)
+    except ResourceNotFoundError:
+        raise
     except Exception as exc:
         return [], ToolCallRecord(
             tool="search_youtube",

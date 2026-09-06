@@ -38,7 +38,7 @@ External MCP clients call **MCP tools**. MCP tools validate I/O, then delegate t
                                 │ validated DTOs
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  APPLICATION — agent.py · langchain_tools.py · agents/*                 │
+│  APPLICATION — agent.py · agents/*                                      │
 │  • LangGraph state machine (nodes, edges, conditional routing)            │
 │  • LangChain tools wrapping domain ports                                │
 │  • Parameter builders (rules + optional LLM assistance)                 │
@@ -74,7 +74,7 @@ The word **tool** is used at three levels. Each level has a distinct contract an
 | Level | Name | Location | Consumed by | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | **MCP tool** | `interface/custom_tools.py` | External MCP clients | Stable protocol surface; validate → delegate |
-| **2** | **LangChain tool** | `application/langchain_tools.py` | LangGraph nodes / agents | LLM-callable capabilities with structured args |
+| **2** | **LangChain tool** | *(not shipped)* | LangGraph nodes call domain ports via runtimes | Internal agent capabilities |
 | **3** | **Domain port** | `domain/interfaces.py` | Application layer only | Technology-agnostic integration contract |
 
 ### Coupling rules
@@ -115,8 +115,6 @@ Use-case orchestration. Depends on **domain ports**, not adapters.
 | `llm.py` / `llm_router.py` | `create_chat_model()`, Groq `LLMRouter` with per-complexity debounce and capped model fallback |
 | `workflow_graph.py` | Graph introspection DTOs, spine layout, async/retry edge classification |
 | `agents/*/` | One package per LangGraph workflow (`content_generation`, `course_scaffold`, `research_article`, `tavily_search`, `youtube_search`, `project_review`, `socratic`) |
-| `langchain_tools.py` *(planned)* | `@tool` wrappers: `search_web`, `search_youtube` |
-| `parameter_builders.py` *(planned)* | Build tool/agent parameters from graph state, user intent, and prior retrieval results |
 
 #### Language model access
 
@@ -177,8 +175,9 @@ MCP protocol adapter. The only layer that speaks JSON-RPC / FastMCP.
 | MCP tool | Status | Validates with | Delegates to |
 | :--- | :--- | :--- | :--- |
 | `health_check` | ✅ | — | inline |
-| `build_lesson_enrichment_query` | ✅ | `BuildLessonEnrichmentQueryRequest` | Lightweight LLM term expansion |
+| `build_lesson_enrichment_query` | ✅ | titles → terms | Lightweight LLM term expansion |
 | `search_youtube` | ✅ | `VideoSearchRequest` → `VideoSearchResponse` | `IVideoSearchClient.search_videos` |
+| `search_web` | ✅ | `WebSearchRequest` → `WebSearchResponse` | `ISearchClient.search` |
 
 Every MCP tool follows the same template:
 
@@ -190,12 +189,11 @@ receive raw args → Pydantic validate → call application → Pydantic validat
 
 ### 4. Infrastructure (`src/mcp_server/infrastructure/`)
 
-Concrete adapters. The only layer that imports Supabase, DuckDuckGo, YouTube, and Redis clients.
+Concrete adapters. The only layer that imports Supabase, Tavily, YouTube, and Redis clients.
 
 | Adapter | Port | Agentic capability | Status |
 | :--- | :--- | :--- | :--- |
 | `tavily_search_client.py` | `ISearchClient` | Tavily API → normalized `list[str]` snippets | ✅ Live |
-| `search_client.py` | `ISearchClient` | DuckDuckGo fallback when `TAVILY_API_KEY` unset | Stub |
 | `youtube_client.py` | `IVideoSearchClient` | YouTube Data API v3 → `list[VideoResult]` | ✅ Live |
 | `cached_adapters.py` | wraps above | Cache-aside for repeated agent tool calls | ✅ |
 | `cached_llm.py` | wraps `BaseChatModel` | Cache-aside for LLM completions (**async path only**) | ✅ |
@@ -206,14 +204,13 @@ Concrete adapters. The only layer that imports Supabase, DuckDuckGo, YouTube, an
 
 - Input: `query`, `max_results` (validated, capped).
 - Output: `list[str]` snippets — title, content excerpt, and URL joined per result (not raw provider JSON).
-- **Primary adapter:** `TavilySearchClient` when `TAVILY_API_KEY` is set in Settings.
-- **Fallback:** `DuckDuckGoSearchClient` when Tavily key is absent (still a stub — returns `NotImplementedError` after guards).
+- **Required adapter:** `TavilySearchClient` (`TAVILY_API_KEY`). Wiring fails closed if the key is unset.
 
 **Wiring:**
 
 ```text
 wiring.build_search_client(settings, cache)
-  → TavilySearchClient (if TAVILY_API_KEY) else DuckDuckGoSearchClient
+  → TavilySearchClient (required TAVILY_API_KEY)
   → optional CachedSearchClient wrapper
   → integration_runtime.get_search_client()  (lazy, wired at bootstrap)
   → agents/tavily_search, agents/research_article tool nodes
@@ -281,16 +278,15 @@ PraxisWeb → POST /functions/v1/mcp-find-documents
   → PraxisWeb panel
 ```
 
-The MCP server only provides `build_lesson_enrichment_query`, which expands lesson metadata into 4–5 search terms that the frontend can pass to the backend document search and YouTube search.
+The MCP server only provides `build_lesson_enrichment_query` and `search_web` / `search_youtube`. Document RAG lives in the backend.
 
-### B. Search the web (planned MCP tool)
+### B. Search the web
 
 ```text
 MCP: search_web(query, max_results?)
   → WebSearchRequest validation
-  → LangChain tool search_web OR direct workflow step
   → ISearchClient.search(query, max_results)
-  → TavilySearchClient or DuckDuckGoSearchClient
+  → TavilySearchClient
   → WebSearchResponse validation
   → MCP client
 ```
@@ -345,13 +341,13 @@ MCP or scripted agent: content_generation(topic, grade_level?)
 | Schema | Layer file | Used by |
 | :--- | :--- | :--- |
 | `VideoSearchRequest` / `VideoSearchResponse` | `interface/validation.py` | MCP `search_youtube` |
-| `BuildLessonEnrichmentQueryRequest` / `BuildLessonEnrichmentQueryResponse` | `interface/validation.py` | MCP `build_lesson_enrichment_query` |
+| `LessonEnrichmentQuery` | `application/lesson_enrichment.py` | MCP `build_lesson_enrichment_query` |
 | `TavilySearchRunRequest` / `TavilySearchRunResponse` | `interface/validation_workflow.py` | Scripted Tavily workflow runs |
 | `YouTubeSearchRunRequest` / `YouTubeSearchRunResponse` | `interface/validation_workflow.py` | Scripted YouTube workflow runs |
 | `ResearchArticleRunRequest` / `ResearchArticleRunResponse` | `interface/validation_workflow.py` | Research article agent |
-| `ContentGenerationRunRequest` / `ContentGenerationRunResponse` | `interface/validation_workflow.py` | Content generation agent |
-| `WorkflowTraceStepView` | `interface/validation_workflow.py` | Trace replay in all workflow responses |
-| `WebSearchRequest` / `WebSearchResponse` *(planned)* | `interface/validation.py` | MCP `search_web` |
+| `ContentGenerationRunRequest` / `ContentGenerationRunResponse` | `application/content_generation_dtos.py` | Content generation agent |
+| `WorkflowTraceStepView` | `application/content_generation_dtos.py` | Trace replay in workflow responses |
+| `WebSearchRequest` / `WebSearchResponse` | `interface/validation.py` | MCP `search_web` |
 | `VideoResult` | `domain/schemas.py` | Video search domain boundary |
 
 ---
@@ -372,7 +368,7 @@ MCP or scripted agent: content_generation(topic, grade_level?)
 | `project-review` | `agents/project_review/` | collect context → grade + validate | `GROQ_API_KEY` + Supabase |
 | `socratic-tutor` | `agents/socratic/` | hint-ladder tutoring grounded in backend catalog | `GROQ_API_KEY` |
 
-MCP production tools are `health_check`, `search_youtube`, and `build_lesson_enrichment_query`. Document RAG is handled by the backend embedding service; the MCP does not run `find_documents` or host `rag_retrieval` workflows.
+MCP production tools include `health_check`, `search_youtube`, `search_web`, `build_lesson_enrichment_query`, authoring/review/tutor workflows, and validators. Document RAG is handled by the backend embedding service; the MCP does not run `find_documents` or host `rag_retrieval` workflows.
 
 See [OBSERVABILITY.md](./OBSERVABILITY.md) for trace fields, replay controls, run summary, and edge highlighting semantics.
 
@@ -448,13 +444,12 @@ ed-tech-system-mcp/
         │
         ├── domain/                      # Pure contracts — no LangChain / MCP / SDKs
         │   ├── interfaces.py            # ✅ ISearchClient, IVideoSearchClient, authoring ports
-        │   ├── schemas.py               # ✅ VideoResult, graph entities/relations
+        │   ├── schemas.py               # ✅ VideoResult
         │   ├── content_schemas.py     # ✅ Lesson/quiz/PBL draft contracts
         │   ├── cache.py                 # ✅ ICacheStore port
-        │   ├── cache_keys.py            # ✅ Deterministic cache key builders
         │   └── exceptions.py            # ✅ Domain errors → interface mapping
         │
-        ├── application/                 # Agents, graphs, LangChain tools, orchestration
+        ├── application/                 # Agents, graphs, orchestration
         │   ├── agent.py                 # ✅ Workflow registry
         │   ├── integration_runtime.py   # ✅ Lazy ISearchClient / IVideoSearchClient accessors
         │   ├── workflow_trace.py        # ✅ Per-node execution trace collection
@@ -463,10 +458,8 @@ ed-tech-system-mcp/
         │   ├── workflow_config.py       # ✅ WorkflowExecutionConfig runtime view
         │   ├── llm_router.py            # ✅ Groq capped fallback + per-complexity debounce
         │   ├── routing_chat_model.py    # ✅ LangChain adapter over LLMRouter
-        │   ├── llm_models.py            # ✅ Groq model registry from catalog
+        │   ├── llm_models.py            # ✅ Groq model registry from active list
         │   ├── llm.py                   # ✅ create_chat_model(settings) → BaseChatModel
-        │   ├── parameter_builders.py    # 📋 Rule + state + optional LLM param builders
-        │   ├── langchain_tools.py       # 📋 @tool wrappers (web, youtube)
         │   │
         │   └── agents/                  # ✅ One package per LangGraph workflow
         │       ├── content_generation/  #     Lesson → quiz + PBL (validation retries)
@@ -479,13 +472,12 @@ ed-tech-system-mcp/
         │
         ├── interface/                   # MCP protocol adapters
         │   ├── mcp_server.py            # ✅ FastMCP instance
-        │   ├── custom_tools.py          # ✅ health_check, search_youtube, build_lesson_enrichment_query
+        │   ├── custom_tools.py          # ✅ health_check, search_youtube, search_web, enrichment
         │   ├── validation.py            # ✅ All MCP request/response models
         │   └── validation_workflow.py   # ✅ Workflow run schemas for scripted tests
         │
         └── infrastructure/              # Provider adapters — only layer with external SDKs
             ├── tavily_search_client.py  # ✅ ISearchClient — Tavily HTTP API
-            ├── search_client.py         # ✅ ISearchClient — DuckDuckGo fallback (stub)
             ├── youtube_client.py        # ✅ IVideoSearchClient — YouTube Data API v3
             ├── cached_adapters.py       # ✅ Cache-aside wrappers for ports
             ├── cache_config.py          # ✅ Per-operation TTL rules
@@ -500,15 +492,13 @@ ed-tech-system-mcp/
 | Path | Layer | Agentic responsibility |
 | :--- | :--- | :--- |
 | `application/agents/*/graph.py` | Application | Define and compile a LangGraph `StateGraph` |
-| `application/agents/*/nodes.py` | Application | Node functions; call LangChain tools or ports via injection |
+| `application/agents/*/nodes.py` | Application | Node functions; call ports via injection |
 | `application/agents/*/state.py` | Application | `TypedDict` shared state for one workflow |
-| `application/langchain_tools.py` | Application | LLM-callable tools wrapping domain ports |
-| `application/parameter_builders.py` | Application | Build validated tool/agent params from state + rules + optional LLM |
 | `application/llm.py` | Application | Single chat-model factory; credentials from Settings |
 | `application/agent.py` | Application | Workflow registry (`list_registered_workflows`) |
 | `interface/custom_tools.py` | Interface | MCP tool surface — validate in, delegate out |
 | `interface/validation.py` | Interface | All MCP request/response Pydantic models |
-| `wiring.py` | Entrypoint | Wire ports → LangChain tools → graphs → MCP tool handlers |
+| `wiring.py` | Entrypoint | Wire ports → graphs → MCP tool handlers |
 
 ### Growth path: packaged agents
 
@@ -519,7 +509,7 @@ New workflows follow the packaged layout:
 3. **Tests** under `tests/test_<name>_graph.py` and layout contracts in `tests/test_workflow_graph.py`.
 4. **UI spine + edges** in `workflow_graph._WORKFLOW_SPINES` / `_WORKFLOW_EDGES` when LangGraph drawable edges are incomplete (e.g. `Send` fan-out).
 
-**Next packaged agents (planned):** `web_enrich/`. MCP `search_web` should delegate through a LangChain tool once `langchain_tools.py` ships.
+**Next packaged agents (planned):** `web_enrich/`. MCP `search_web` already delegates to `ISearchClient` via application search helpers; do not add a third LangChain wrapper.
 
 ---
 
@@ -564,12 +554,11 @@ All keys are `SecretStr`, loaded at entrypoint, injected via `wiring.py`. Never 
 | `application/workflow_llm_trace.py` | ✅ | Per-node LLM I/O for observability |
 | `application/workflow_graph.py` | ✅ | Graph layout, async/retry edge kinds |
 | `application/llm_router.py` | ✅ | Groq capped fallback + per-complexity debounce |
-| `application/langchain_tools.py` | 📋 | LangChain `@tool` wrappers |
-| `interface/custom_tools.py` | ✅ | MCP: `health_check`, `search_youtube`, `build_lesson_enrichment_query` |
+| `interface/custom_tools.py` | ✅ | MCP: health, youtube, web, enrichment, plus authoring modules |
 | `interface/validation.py` | ✅ | MCP DTOs |
 | `interface/validation_workflow.py` | ✅ | Scripted workflow run DTOs |
 | `domain/interfaces.py` | ✅ | `ISearchClient`, `IVideoSearchClient`, authoring ports |
-| `domain/schemas.py` | ✅ | `VideoResult`, graph entities/relations |
+| `domain/schemas.py` | ✅ | `VideoResult` |
 | `infrastructure/tavily_search_client.py` | ✅ | Tavily HTTP adapter |
 | `infrastructure/youtube_client.py` | ✅ | YouTube Data API v3 adapter |
 | `wiring.py` | ✅ | Composition root + DI |

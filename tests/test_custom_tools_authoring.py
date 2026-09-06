@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from mcp_server.application.author_lesson_pipeline import resolve_graph_node
 from mcp_server.application.mock_test_authoring import build_mock_test_structure
 from mcp_server.domain.authoring import (
     AuthoringBackendFactoryPort,
@@ -13,7 +14,6 @@ from mcp_server.domain.authoring import (
 )
 from mcp_server.domain.content_validators import validate_mock_test_bundle
 from mcp_server.interface.custom_tools_authoring import (
-    _resolve_graph_node,
     generate_mock_test_structure,
     register_authoring_tools,
     search_graph_nodes,
@@ -107,7 +107,8 @@ async def test_generate_mock_test_structure_returns_ef2_fragment() -> None:
 
 
 def test_resolve_graph_node_does_not_default_omitted_id_to_first_hit() -> None:
-    node_id, hits = _resolve_graph_node(
+    node_id, hits = resolve_graph_node(
+        FakeGraphSearch(),
         tenant_id="00000000-0000-4000-8000-000000000001",
         course_slug="javascript",
         graph_node_id=None,
@@ -119,20 +120,15 @@ def test_resolve_graph_node_does_not_default_omitted_id_to_first_hit() -> None:
     assert hits[0]["node_id"] == "node-1"
 
 
-def test_resolve_graph_node_skips_search_when_uuid_provided(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_resolve_graph_node_skips_search_when_uuid_provided() -> None:
     """DUP-001: known UUID must not call search_graph_nodes."""
 
     class BoomSearch(FakeGraphSearch):
         def search_graph_nodes(self, **kwargs):  # type: ignore[no-untyped-def]
             raise AssertionError("search_graph_nodes must not run for UUID graph_node_id")
 
-    monkeypatch.setattr(
-        "mcp_server.interface.custom_tools_authoring._require_graph_search",
-        lambda: BoomSearch(),
-    )
-    node_id, hits = _resolve_graph_node(
+    node_id, hits = resolve_graph_node(
+        BoomSearch(),
         tenant_id="00000000-0000-4000-8000-000000000001",
         course_slug="javascript",
         graph_node_id="11111111-1111-4111-8111-111111111111",
@@ -144,7 +140,8 @@ def test_resolve_graph_node_skips_search_when_uuid_provided(
 
 
 def test_resolve_graph_node_forwards_non_uuid_id_with_search() -> None:
-    node_id, hits = _resolve_graph_node(
+    node_id, hits = resolve_graph_node(
+        FakeGraphSearch(),
         tenant_id="00000000-0000-4000-8000-000000000001",
         course_slug="javascript",
         graph_node_id="lesson:javascript:01-fundamentals:01.1-vars",

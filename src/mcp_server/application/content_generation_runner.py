@@ -17,6 +17,11 @@ from mcp_server.application.author_job_progress import (
     node_id_to_author_phase,
     report_ai_generation_job,
 )
+from mcp_server.application.content_generation_dtos import (
+    ContentGenerationRunRequest,
+    ContentGenerationRunResponse,
+    content_generation_state_to_run_response,
+)
 from mcp_server.application.workflow_trace import (
     GraphStreamComplete,
     WorkflowTraceStart,
@@ -25,11 +30,6 @@ from mcp_server.application.workflow_trace import (
 )
 from mcp_server.domain.ai_generation_job import AiGenerationJobProgressPort
 from mcp_server.domain.authoring import GraphNodeHit, GraphSearchPort
-from mcp_server.interface.validation_workflow import (
-    ContentGenerationRunRequest,
-    ContentGenerationRunResponse,
-    content_generation_state_to_run_response,
-)
 
 
 def _graph_hits_from_request(request: ContentGenerationRunRequest) -> list[GraphNodeHit]:

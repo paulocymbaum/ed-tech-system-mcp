@@ -89,6 +89,13 @@ source_modules = ["mcp_server.application"]
 forbidden_modules = ["mcp_server.infrastructure"]
 
 [[tool.importlinter.contracts]]
+id = "application-no-interface"
+name = "Application must not import interface"
+type = "forbidden"
+source_modules = ["mcp_server.application"]
+forbidden_modules = ["mcp_server.interface"]
+
+[[tool.importlinter.contracts]]
 id = "interface-no-infra"
 name = "Interface must not import infrastructure"
 type = "forbidden"

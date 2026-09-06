@@ -7,9 +7,7 @@ from typing import NotRequired, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from mcp_server.application.integration_runtime import get_video_client
-from mcp_server.domain.exceptions import ResourceNotFoundError
-from mcp_server.domain.interfaces import IVideoSearchClient
+from mcp_server.application.search_services import search_videos
 from mcp_server.domain.schemas import VideoResult
 
 YouTubeSearchGraph = CompiledStateGraph[
@@ -28,16 +26,8 @@ class YouTubeSearchState(TypedDict):
     video_count: int
 
 
-def _require_video_client() -> IVideoSearchClient:
-    client = get_video_client()
-    if client is None:
-        raise ResourceNotFoundError("Video search client has not been initialized")
-    return client
-
-
 async def _run_youtube_search(state: YouTubeSearchState) -> dict[str, object]:
-    client = _require_video_client()
-    videos = await client.search_videos(
+    videos = await search_videos(
         state["query"],
         max_results=state["max_results"],
         language=state["language"],

@@ -6,8 +6,6 @@ from dataclasses import dataclass
 
 from langgraph.types import RetryPolicy
 
-from mcp_server.operational_config import load_operational_config
-
 _runtime_config: WorkflowExecutionConfig | None = None
 
 READ_NODE_RETRY_POLICY = RetryPolicy(max_attempts=1)
@@ -28,19 +26,14 @@ class WorkflowExecutionConfig:
     validation_retries: int = 1
 
 
-def _default_workflow_execution_config() -> WorkflowExecutionConfig:
-    """Load repo-root config.json defaults for pre-startup consumers (e.g. local UI)."""
-    operational = load_operational_config()
-    return WorkflowExecutionConfig(
-        node_retries=operational.node_retries,
-        workflow_timeout_seconds=operational.workflow_timeout,
-        agent_node_timeout_seconds=operational.agent_node_timeout,
-        validation_retries=operational.validation_retries,
-    )
-
-
-# Single source of truth: committed config.json (see test_llm12).
-DEFAULT_WORKFLOW_EXECUTION_CONFIG = _default_workflow_execution_config()
+# Numeric defaults match committed repo-root config.json. Wiring injects
+# live OperationalConfig at startup via set_workflow_execution_config.
+DEFAULT_WORKFLOW_EXECUTION_CONFIG = WorkflowExecutionConfig(
+    node_retries=1,
+    workflow_timeout_seconds=300.0,
+    agent_node_timeout_seconds=60.0,
+    validation_retries=1,
+)
 
 
 def set_workflow_execution_config(config: WorkflowExecutionConfig) -> None:

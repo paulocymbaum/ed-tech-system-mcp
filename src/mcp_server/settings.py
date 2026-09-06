@@ -75,17 +75,6 @@ class Settings(BaseSettings):
         alias="MCP_INBOUND_LIMIT_PER_MINUTE",
         ge=1,
     )
-    workflow_api_host: str = Field(default="0.0.0.0", alias="WORKFLOW_API_HOST", min_length=1)
-    workflow_api_port: int = Field(default=8877, alias="WORKFLOW_API_PORT", gt=0, le=65535)
-    workflow_ui_cors_origins: str = Field(default="", alias="WORKFLOW_UI_CORS_ORIGINS")
-    workflow_ui_allow_preview_deployments: bool = Field(
-        default=True,
-        alias="WORKFLOW_UI_ALLOW_PREVIEW_DEPLOYMENTS",
-        validation_alias=AliasChoices(
-            "WORKFLOW_UI_ALLOW_PREVIEW_DEPLOYMENTS",
-            "WORKFLOW_UI_ALLOW_VERCEL_PREVIEWS",
-        ),
-    )
 
     @field_validator("mcp_host_origin_protection", mode="before")
     @classmethod
@@ -121,15 +110,6 @@ class Settings(BaseSettings):
             data["MCP_REQUIRE_CALLER_JWT"] = http_like
         return data
 
-    groq_model_catalog_cache_path: str = Field(
-        default=".cache/groq_model_catalog.json",
-        alias="GROQ_MODEL_CATALOG_CACHE_PATH",
-    )
-    groq_model_catalog_ttl_days: int = Field(
-        default=7,
-        alias="GROQ_MODEL_CATALOG_TTL_DAYS",
-        ge=1,
-    )
     groq_active_model_list_cache_seconds: float = Field(
         default=60.0,
         alias="GROQ_ACTIVE_MODEL_LIST_CACHE_SECONDS",

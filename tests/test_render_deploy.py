@@ -78,7 +78,6 @@ def test_render_yaml_has_no_rag_env_vars() -> None:
         "MCP_ALLOWED_HOSTS",
         "MCP_REQUIRE_INBOUND_TOKEN",
         "MCP_REQUIRE_CALLER_JWT",
-        "GROQ_MODEL_CATALOG_CACHE_PATH",
         "SUPABASE_URL",
         "SUPABASE_SERVICE_ROLE_KEY",
         "MCP_INBOUND_TOKEN",

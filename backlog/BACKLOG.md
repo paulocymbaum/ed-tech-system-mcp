@@ -328,7 +328,7 @@ Tasks are ordered by RICE priority. Each task lists **source audit IDs** for tra
 
 - [ ] Implement `SupabaseRepository.find_documents` with pagination and row cap
 - [ ] Implement `YouTubeDataApiClient.search_videos` with quota-aware field masks
-- [ ] Implement `DuckDuckGoSearchClient.search` with async HTTP client
+- [x] ~~Implement `DuckDuckGoSearchClient.search`~~ — **cancelled 2026-09-06**; Tavily is required, stub removed
 - [ ] Require `httpx` `timeout=` on all external HTTP calls
 - [ ] Gate MCP tools until adapters pass homologation tests
 - [ ] Re-run performance audit after implementation

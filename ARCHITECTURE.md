@@ -15,7 +15,7 @@ Architectural standards for the ed-tech MCP server. Maintainability, testability
 Concentric layers: **inner layers never import outer layers**. Dependency direction is always inward toward Domain.
 
 ```text
-entrypoint / local UI
+entrypoint
         ↓
    interface  (MCP tools, validation, error mapping)
         ↓
@@ -28,7 +28,7 @@ entrypoint / local UI
 | :--- | :--- | :--- | :--- |
 | **domain** | `domain/` | stdlib, pydantic (schemas only) | MCP SDK, LangChain/LangGraph, Supabase, HTTP clients, Redis |
 | **application** | `application/` | domain, LangChain/LangGraph primitives | MCP SDK, concrete infrastructure adapters |
-| **interface** | `interface/` | domain, application, MCP SDK, FastAPI (local UI) | infrastructure adapters directly (use ports via wiring/runtimes) |
+| **interface** | `interface/` | domain, application, MCP SDK | infrastructure adapters directly (use ports via wiring/runtimes) |
 | **infrastructure** | `infrastructure/` | domain ports, external SDKs | interface, MCP tool handlers |
 | **entrypoint** | `main.py`, `wiring.py`, `settings.py`, … | all layers (composition root only) | — |
 
@@ -92,7 +92,7 @@ MCP adapters. Translates protocol I/O ↔ application/domain.
 
 | Module | Tools (names) |
 | :--- | :--- |
-| `custom_tools.py` | `health_check`, `search_youtube`, `build_lesson_enrichment_query` |
+| `custom_tools.py` | `health_check`, `search_youtube`, `search_web`, `build_lesson_enrichment_query` |
 | `custom_tools_agent_workflows.py` | `research_article`, `content_generation` |
 | `custom_tools_authoring.py` | `validate_*`, `save_to_backend`, `author_lesson_pipeline`, `generate_course_scaffold`, `search_graph_nodes`, `generate_mock_test_structure`, `validate_mock_test` |
 | `custom_tools_socratic.py` | `socratic_tutor` |
@@ -109,8 +109,8 @@ Adapters that implement domain ports.
 **Responsibility**
 
 - Supabase / graph / project-review repositories
-- Search and video clients (DuckDuckGo, Tavily, YouTube)
-- Groq LLM adapter and model catalog/cache
+- Search and video clients (Tavily, YouTube)
+- Groq LLM adapter and active-model list (`list_active_groq_models`)
 - Redis / in-process cache, rate limiting, observability wrappers
 - Authoring backend HTTP client (manager JWT + anon key → Supabase RPCs)
 
@@ -118,7 +118,7 @@ Adapters that implement domain ports.
 
 | Path | Role |
 | :--- | :--- |
-| `search_client/` | DuckDuckGo / Tavily web search adapters |
+| `tavily_search_client.py` | Tavily web search adapter |
 | `youtube_client/` | YouTube Data API v3 adapter |
 | `token_counting/` | Tiktoken counter |
 
@@ -131,7 +131,8 @@ Not a DDD “ring” but the only place allowed to construct the full graph.
 | File | Role |
 | :--- | :--- |
 | `main.py` | MCP process entry (`mcp-server`) |
-| `wiring.py` | `ApplicationContext`, DI, cache/auth/retrieval wiring |
+| `mcp_transport.py` | FastMCP `run()` kwargs (stdio / HTTP) |
+| `wiring.py` | `ApplicationContext`, DI, cache/auth wiring |
 | `settings.py` | Pydantic Settings (secrets + aliases, e.g. anon key) |
 | `operational_config.py` | Non-secret `config.json` loader |
 | `env_bootstrap.py` | Early env / logging bootstrap |
@@ -178,6 +179,7 @@ src/mcp_server/
 ├── infrastructure/         # Adapters (search, video, LLM, cache)
 ├── settings.py
 ├── operational_config.py
+├── mcp_transport.py        # FastMCP run kwargs
 ├── wiring.py               # Composition root
 └── main.py
 tests/                      # pytest + architecture lint
@@ -193,8 +195,8 @@ changelog/                  # Agent memory by date + layer (local)
 | `mcp` / FastMCP | Tool transport | Interface / entrypoint |
 | `langchain` / `langgraph` | Agent graphs and orchestration | Application |
 | `pydantic` v2 | Schemas and settings | Domain / Interface / Entrypoint |
-| `supabase` | Postgres / RPC / vectors | Infrastructure |
-| `duckduckgo-search` / Tavily | Web search | Infrastructure |
+| `supabase` | Postgres / RPC | Infrastructure |
+| Tavily | Web search | Infrastructure |
 | `google-api-python-client` | YouTube Data API | Infrastructure |
 | Redis client | Tool/LLM cache (when enabled) | Infrastructure |
 

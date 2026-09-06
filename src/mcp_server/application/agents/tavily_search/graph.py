@@ -7,9 +7,7 @@ from typing import NotRequired, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from mcp_server.application.integration_runtime import get_search_client
-from mcp_server.domain.exceptions import ResourceNotFoundError
-from mcp_server.domain.interfaces import ISearchClient
+from mcp_server.application.search_services import search_web_snippets
 
 TavilySearchGraph = CompiledStateGraph[
     "TavilySearchState", "TavilySearchState", "TavilySearchState"
@@ -25,16 +23,8 @@ class TavilySearchState(TypedDict):
     result_count: int
 
 
-def _require_search_client() -> ISearchClient:
-    client = get_search_client()
-    if client is None:
-        raise ResourceNotFoundError("Search client has not been initialized")
-    return client
-
-
 async def _run_tavily_search(state: TavilySearchState) -> dict[str, object]:
-    client = _require_search_client()
-    results = await client.search(state["query"], max_results=state["max_results"])
+    results = await search_web_snippets(state["query"], max_results=state["max_results"])
     return {
         "results": results,
         "result_count": len(results),

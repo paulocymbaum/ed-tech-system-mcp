@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from mcp_server.application.content_generation_dtos import ContentGenerationRunResponse
 from mcp_server.domain.ai_generation_job import (
     AiGenerationJobProgressPort,
     AiGenerationJobSnapshot,
@@ -22,7 +23,6 @@ from mcp_server.interface.custom_tools_authoring import (
     author_lesson_pipeline,
     register_authoring_tools,
 )
-from mcp_server.interface.validation_workflow import ContentGenerationRunResponse
 
 _PIPELINE_ARGS = {
     "manager_jwt": "jwt",
@@ -108,11 +108,11 @@ def _generation() -> ContentGenerationRunResponse:
 def _pass_validation() -> tuple[Any, Any]:
     return (
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_lesson_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_lesson_dict",
             return_value=[],
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_quiz_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_quiz_dict",
             return_value=[],
         ),
     )
@@ -140,7 +140,7 @@ async def test_succeeded_job_skips_generate_and_save() -> None:
 
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -188,7 +188,7 @@ async def test_omitted_job_id_does_not_call_get() -> None:
     lesson_val, quiz_val = _pass_validation()
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -221,7 +221,7 @@ async def test_running_job_follows_generate_save_path() -> None:
     lesson_val, quiz_val = _pass_validation()
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -265,7 +265,7 @@ async def test_save_result_ref_includes_quiz_and_project_ids() -> None:
     lesson_val, quiz_val = _pass_validation()
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -299,7 +299,7 @@ async def test_validation_errors_report_failed_without_save() -> None:
 
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -307,11 +307,11 @@ async def test_validation_errors_report_failed_without_save() -> None:
             save,
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_lesson_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_lesson_dict",
             return_value=["error: missing objectives", "warn: thin quiz"],
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_quiz_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_quiz_dict",
             return_value=[],
         ),
     ):
@@ -344,7 +344,7 @@ async def test_validation_errors_without_job_id_do_not_write_progress() -> None:
 
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -352,7 +352,7 @@ async def test_validation_errors_without_job_id_do_not_write_progress() -> None:
             save,
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_lesson_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_lesson_dict",
             return_value=["error: empty readme"],
         ),
     ):
@@ -388,7 +388,7 @@ async def test_quiz_errors_do_not_block_readme_save() -> None:
 
     with (
         patch(
-            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            "mcp_server.application.author_lesson_pipeline.invoke_content_generation",
             invoke,
         ),
         patch(
@@ -396,11 +396,11 @@ async def test_quiz_errors_do_not_block_readme_save() -> None:
             save,
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_lesson_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_lesson_dict",
             return_value=[],
         ),
         patch(
-            "mcp_server.interface.custom_tools_authoring.validate_quiz_dict",
+            "mcp_server.application.author_lesson_pipeline.validate_quiz_dict",
             return_value=["error: options must contain exactly 4 entries"],
         ),
     ):

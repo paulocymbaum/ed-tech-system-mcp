@@ -2,6 +2,8 @@
 
 This document describes the **functional layers** of the ed-tech MCP server from a product perspective: what each layer does for users, how layers interact, and what is live versus planned.
 
+**Historical note (2026-09):** Document RAG (`find_documents`, `run_workflow`, Chroma/pgvector on MCP) moved to the backend embedding service + `mcp-find-documents`. Live tools: [`docs/MCP_TOOL_CATALOG.md`](docs/MCP_TOOL_CATALOG.md).
+
 For implementation rules and file layout, see [ARCHITECTURE.md](./ARCHITECTURE.md). For agent graphs, LLM wiring, and tool taxonomy, see [AGENTIC_ARCHITECTURE.md](./AGENTIC_ARCHITECTURE.md). For local debugging and trace replay, see [OBSERVABILITY.md](./OBSERVABILITY.md).
 
 ---
@@ -87,19 +89,20 @@ Layers are ordered from **outer** (what clients see) to **inner** (pure contract
 | Domain → MCP errors | `interface/error_mapping.py` | ✅ Live |
 | Tool latency logging | Per-tool `duration_ms` in `custom_tools.py` | ✅ Live |
 
-**MCP tool catalog**
+**MCP tool catalog** (live — see `docs/MCP_TOOL_CATALOG.md` for auth)
 
 | Tool | Product capability | Status |
 | :--- | :--- | :--- |
 | `health_check` | Liveness | ✅ |
-| `find_documents` | Semantic/hybrid document search + related videos | ✅ |
 | `search_youtube` | Educational video discovery | ✅ |
-| `run_workflow` | Full document + video LangGraph with trace | ✅ |
-| `research_article` | Web + YouTube research → journalistic article | ✅ |
+| `search_web` | Tavily web snippets | ✅ |
+| `build_lesson_enrichment_query` | 4–5 term enrichment query | ✅ |
+| `research_article` | Web + YouTube research → article | ✅ |
 | `content_generation` | Lesson → quiz + PBL project | ✅ |
-| `search_web` | Standalone web search tool | 📋 Planned |
-| `rag_search` | Chunk-level RAG with scores | 📋 Planned |
-| `query_supabase_sql` | Natural language → validated read-only SQL | 📋 Planned |
+| Authoring / review / tutor tools | See MCP_TOOL_CATALOG | ✅ |
+| `find_documents` / `run_workflow` | Document RAG | ❌ Moved to backend |
+
+**Anti-pattern avoided:** “Smart tools” that query Supabase or call Groq inside MCP decorators (enrichment LLM is moving to application services).
 
 **Tool template (non-negotiable):**
 
@@ -122,7 +125,7 @@ raw JSON-RPC args → Pydantic validate → application → Pydantic validate �
 | LLM access | `application/llm.py`, `llm_router.py` (Groq tiers + fallback) | ✅ Live |
 | Workflow timeouts / retries | `application/workflow_config.py` + `config.json` | ✅ Live |
 | Execution traces | `application/workflow_trace.py`, `workflow_llm_trace.py` | ✅ Live |
-| LangChain tools (internal) | `application/langchain_tools.py` | 📋 Planned |
+| LangChain tools (internal) | `application/langchain_tools.py` | Deferred — not current SoR |
 
 **Registered workflows (local UI / workflow API)**
 
@@ -176,7 +179,6 @@ Structured retrieval is the **default**. SQL agent is **opt-in** and **not yet s
 | `supabase_client.py` | Document retrieval via embedding + vector retriever | ✅ Live |
 | `youtube_client.py` | YouTube Data API v3 | ✅ Live |
 | `tavily_search_client.py` | Tavily web search | ✅ Live |
-| `search_client.py` | DuckDuckGo fallback | Stub |
 | `groq_adapter.py` | Groq chat completions | ✅ Live |
 | `embeddings/fastembed_adapter.py` | Local ONNX embeddings | ✅ Live |
 | `retrieval/supabase_vector_*.py` | pgvector RPC retriever / index writer | ✅ Live |

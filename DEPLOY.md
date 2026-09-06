@@ -63,11 +63,10 @@ See [RENDER.md](./RENDER.md) for MCP deployment and env sync.
 | `SUPABASE_URL` | required | required |
 | `SUPABASE_SERVICE_ROLE_KEY` | required | required |
 | `GROQ_API_KEY` | optional at boot | required for LLM workflows |
-| `TAVILY_API_KEY` | optional | recommended |
+| `TAVILY_API_KEY` | optional at boot | required for `search_web` / research |
 | `YOUTUBE_API_KEY` | optional | recommended |
 | `CACHE_ENABLED` | `false` | `true` (with `REDIS_URL`) |
 | `REDIS_URL` | (unset) | managed Redis endpoint |
-| `GROQ_MODEL_CATALOG_CACHE_PATH` | `.cache/groq_model_catalog.json` | `/tmp/app-cache/groq_model_catalog.json` on Render |
 
 Store values in Doppler config **`dev`**; never commit `.env`.
 
@@ -77,7 +76,6 @@ Store values in Doppler config **`dev`**; never commit `.env`.
 | :--- | :--- |
 | LLM completions, YouTube, web search (Redis; required when `APP_ENV` is staging/production) | Document chunks / embeddings — backend owns these |
 | MCP tool I/O (Redis, when enabled) | Document retrieval results — backend owns these |
-| Groq model catalog cache (writable `/tmp/app-cache`) | — |
 
 ---
 

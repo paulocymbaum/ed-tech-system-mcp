@@ -41,7 +41,7 @@ for layer in application interface; do
   layer_dir="$lint_root/$layer"
   [[ -d "$layer_dir" ]] || continue
   collect_matches "infra-adapter-in-$layer" \
-    'SupabaseRepository|YouTubeDataApiClient|DuckDuckGoSearchClient|from supabase|googleapiclient|create_client\(' \
+    'SupabaseRepository|YouTubeDataApiClient|from supabase|googleapiclient|create_client\(' \
     "$layer_dir"
 done
 

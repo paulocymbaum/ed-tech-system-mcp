@@ -54,7 +54,6 @@ from mcp_server.infrastructure.rate_limited_adapters import (
     RateLimitedVideoSearchClient,
 )
 from mcp_server.infrastructure.redis_cache_store import NoOpCacheStore, RedisCacheStore
-from mcp_server.infrastructure.search_client import DuckDuckGoSearchClient
 from mcp_server.infrastructure.tavily_search_client import TavilySearchClient
 from mcp_server.infrastructure.youtube_client import YouTubeDataApiClient
 from mcp_server.operational_config import OperationalConfig
@@ -151,13 +150,16 @@ def build_search_client(
     cache: ICacheStore | None = None,
     rate_limiter: IExternalRequestRateLimiter | None = None,
 ) -> ISearchClient:
-    """Build the web search client, preferring Tavily when configured."""
+    """Build the web search client. Tavily is required (no DuckDuckGo fallback)."""
     api_key = (
         settings.tavily_api_key.get_secret_value().strip()
         if settings.tavily_api_key is not None
         else ""
     )
-    client: ISearchClient = TavilySearchClient(api_key) if api_key else DuckDuckGoSearchClient()
+    if not api_key:
+        msg = "TAVILY_API_KEY is required to build the web search client"
+        raise ValueError(msg)
+    client: ISearchClient = TavilySearchClient(api_key)
     limiter = rate_limiter or build_external_rate_limiter(settings)
     client = RateLimitedSearchClient(client, limiter)
     if not settings.cache_enabled or cache is None:

@@ -28,10 +28,10 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 |------|------|---------|
 | `health_check` | none | Liveness |
 | `build_lesson_enrichment_query` | caller JWT | 4-5 term enrichment query from course/module/lesson titles |
-| `search_youtube` | none | YouTube enrichment only |
-| `search_web` | none | Web search snippets (Tavily) for enrichment |
-| `research_article` | none / context | Web + YouTube + LLM article |
-| `content_generation` | optional tenant | Lesson → quiz → PBL drafts; graph-scoped when `tenant_id` + `course_slug` set |
+| `search_youtube` | caller JWT | YouTube enrichment only |
+| `search_web` | caller JWT | Web search snippets (Tavily) for enrichment |
+| `research_article` | caller JWT | Web + YouTube + LLM article |
+| `content_generation` | caller JWT | Lesson → quiz → PBL drafts; graph-scoped when `tenant_id` + `course_slug` set |
 | `validate_lesson` | none | Gate lesson README + meta |
 | `validate_quiz` | none | Gate quiz option slugs / `correctOptionId` |
 | `validate_project` | none | Gate PBL README + tests |
@@ -71,7 +71,7 @@ LMS browsers must use backend Pattern C BFFs — never call MCP with secrets fro
 
 1. `initialize` then `tools/list` / `tools/call` over JSON-RPC on `/mcp`.
 2. Accept header: `application/json, text/event-stream`.
-3. Pattern C from LMS: `mcp-health`, `mcp-search-youtube`, `mcp-search-web` on Supabase edge — server holds MCP URL. Lesson enrichment web search is served by the backend `mcp-search-web` BFF (not an MCP tool called directly by the browser).
+3. Pattern C from LMS: `mcp-health`, `mcp-search-youtube`, `mcp-search-web`, `mcp-build-enrichment-query` on Supabase edge — server holds MCP URL. Direct `/mcp` tool calls for search require inbound token + caller JWT.
 4. Ingestion: `services/embedding-service/index-documents` (backend) is no longer the default enrichment path; web search (`mcp-search-web`) is used for study aids. Ops: backend `INTEGRATION/MULTI_COURSE_OPS.md`.
 5. Writes that touch curriculum assert manager membership via the **user** token in `manager_jwt`.
 

@@ -17,7 +17,7 @@ class FakeSearchClient(ISearchClient):
 @pytest.mark.asyncio
 async def test_invoke_search_web(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "mcp_server.interface.custom_tools.get_search_client",
+        "mcp_server.application.search_services.get_search_client",
         lambda: FakeSearchClient(),
     )
 

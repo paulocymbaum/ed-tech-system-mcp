@@ -52,14 +52,6 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "merge_results",
         "__end__",
     ],
-    "document-video-discovery": [
-        "__start__",
-        "fetch_documents",
-        "derive_search_terms",
-        "search_videos",
-        "merge_results",
-        "__end__",
-    ],
     "tavily-search": [
         "__start__",
         "search_web",
@@ -100,63 +92,9 @@ _WORKFLOW_SPINES: dict[str, list[str]] = {
         "validate",
         "__end__",
     ],
-    "rag-retrieval": [
-        "__start__",
-        "embed_query",
-        "retrieve_chunks",
-        "rerank_chunks",
-        "merge_context",
-        "__end__",
-    ],
-    "rag-validation": [
-        "__start__",
-        "load_document",
-        "index_document",
-        "embed_query",
-        "retrieve_chunks",
-        "rerank_chunks",
-        "merge_context",
-        "validate_retrieval",
-        "__end__",
-    ],
 }
 
-_DOCUMENT_PIPELINE_NODE_IDS = (
-    "load_document",
-    "index_document",
-)
-
-_RAG_PIPELINE_NODE_IDS = (
-    "embed_query",
-    "retrieve_chunks",
-    "rerank_chunks",
-    "merge_context",
-)
-
-_WORKFLOW_NODE_GROUPS: dict[str, list[dict[str, object]]] = {
-    "rag-retrieval": [
-        {
-            "id": "rag_pipeline",
-            "label": "RAG Pipeline",
-            "node_ids": list(_RAG_PIPELINE_NODE_IDS),
-            "default_collapsed": True,
-        },
-    ],
-    "rag-validation": [
-        {
-            "id": "document_pipeline",
-            "label": "Document Pipeline",
-            "node_ids": list(_DOCUMENT_PIPELINE_NODE_IDS),
-            "default_collapsed": False,
-        },
-        {
-            "id": "rag_pipeline",
-            "label": "RAG Pipeline",
-            "node_ids": list(_RAG_PIPELINE_NODE_IDS),
-            "default_collapsed": True,
-        },
-    ],
-}
+_WORKFLOW_NODE_GROUPS: dict[str, list[dict[str, object]]] = {}
 
 _WORKFLOW_EDGES: dict[str, list[tuple[str, str]]] = {
     "research-article": [
@@ -167,25 +105,6 @@ _WORKFLOW_EDGES: dict[str, list[tuple[str, str]]] = {
         ("tool_search_youtube", "merge_context"),
         ("merge_context", "write_article"),
         ("write_article", "__end__"),
-    ],
-    "rag-retrieval": [
-        ("__start__", "embed_query"),
-        ("embed_query", "retrieve_chunks"),
-        ("retrieve_chunks", "rerank_chunks"),
-        ("retrieve_chunks", "merge_context"),
-        ("rerank_chunks", "merge_context"),
-        ("merge_context", "__end__"),
-    ],
-    "rag-validation": [
-        ("__start__", "load_document"),
-        ("load_document", "index_document"),
-        ("index_document", "embed_query"),
-        ("embed_query", "retrieve_chunks"),
-        ("retrieve_chunks", "rerank_chunks"),
-        ("retrieve_chunks", "merge_context"),
-        ("rerank_chunks", "merge_context"),
-        ("merge_context", "validate_retrieval"),
-        ("validate_retrieval", "__end__"),
     ],
 }
 
@@ -209,7 +128,7 @@ class GraphEdgeView(BaseModel):
 
 
 class NodeGroupView(BaseModel):
-    """Collapsible group of related workflow nodes (e.g. RAG pipeline substeps)."""
+    """Collapsible group of related workflow nodes."""
 
     id: str
     label: str

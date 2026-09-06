@@ -70,6 +70,6 @@ Example patterns live in `tests/test_workflow_trace.py` and the graph-specific t
 | Model name resolution | `src/mcp_server/application/llm_model_name.py` |
 | Router fallback + `last_used_model_id` | `src/mcp_server/application/llm_router.py` |
 | Graph layout + edge kinds | `src/mcp_server/application/workflow_graph.py` |
-| API DTOs | `src/mcp_server/interface/validation_workflow.py` (`WorkflowTraceStepView`) |
+| API DTOs | `src/mcp_server/application/content_generation_dtos.py` (`WorkflowTraceStepView`) |
 
 Trace collection uses LangGraph streaming — no separate observability backend is required for local debugging.

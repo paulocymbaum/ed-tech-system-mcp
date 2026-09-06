@@ -58,8 +58,7 @@ def test_sync_dev_script_has_no_rag_optional_keys() -> None:
     assert "RERANK_ENABLED" not in content
     assert "HF_HOME" not in content
     assert "VECTOR_STORE_BACKEND" not in content
-    assert "GROQ_MODEL_CATALOG_CACHE_PATH" in content
-    assert '[GROQ_MODEL_CATALOG_CACHE_PATH]="/tmp/app-cache/groq_model_catalog.json"' in content
+    assert "GROQ_MODEL_CATALOG_CACHE_PATH" not in content
     assert "MCP_INBOUND_TOKEN" in content
     assert "MCP_REQUIRE_CALLER_JWT" in content
 

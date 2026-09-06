@@ -7,12 +7,14 @@ from mcp_server.application.agents.research_article.graph import (
     get_research_article_graph,
     initial_research_article_state,
 )
+from mcp_server.application.content_generation_dtos import (
+    ContentGenerationRunRequest,
+    ContentGenerationRunResponse,
+)
 from mcp_server.application.content_generation_runner import invoke_content_generation
 from mcp_server.interface.custom_tools import _cached_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 from mcp_server.interface.validation_workflow import (
-    ContentGenerationRunRequest,
-    ContentGenerationRunResponse,
     ResearchArticleRunRequest,
     ResearchArticleRunResponse,
     research_article_state_to_run_response,

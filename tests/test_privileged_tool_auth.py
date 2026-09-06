@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import pytest
 
 from mcp_server.application.mcp_tool_auth_runtime import (
+    PRIVILEGED_TOOLS,
     McpToolAuthRuntime,
     set_mcp_tool_auth_runtime,
 )
@@ -135,3 +136,8 @@ def test_privileged_auth_offloads_sync_identity_to_thread() -> None:
     assert "asyncio.to_thread" in source
     assert "user_id_from_jwt" in source
     assert "is_tenant_member" in source
+
+
+def test_search_web_is_privileged() -> None:
+    assert "search_web" in PRIVILEGED_TOOLS
+    assert "search_youtube" in PRIVILEGED_TOOLS
