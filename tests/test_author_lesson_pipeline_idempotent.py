@@ -363,3 +363,54 @@ async def test_validation_errors_without_job_id_do_not_write_progress() -> None:
     assert progress.update_calls == []
     assert response.save_result is None
     assert response.validation_findings == ["error: empty readme"]
+
+
+@pytest.mark.asyncio
+async def test_quiz_errors_do_not_block_readme_save() -> None:
+    progress = FakeJobProgress(AiGenerationJobSnapshot(status="running"))
+    register_authoring_tools(
+        graph_search=FakeGraphSearch(),
+        backend_factory=FakeBackendFactory(),
+        job_progress=progress,
+    )
+    generation = _generation()
+    generation.harness_quiz = {"id": "q", "title": "Quiz", "questions": []}
+    invoke = AsyncMock(return_value=generation)
+    save = AsyncMock(
+        return_value=SaveLessonResult(
+            lesson_id="saved-lesson",
+            quiz_id=None,
+            project_id=None,
+            published=False,
+        )
+    )
+    job_id = "55555555-5555-4555-8555-555555555555"
+
+    with (
+        patch(
+            "mcp_server.interface.custom_tools_authoring.invoke_content_generation",
+            invoke,
+        ),
+        patch(
+            "mcp_server.application.authoring_service.AuthoringService.save_lesson_bundle",
+            save,
+        ),
+        patch(
+            "mcp_server.interface.custom_tools_authoring.validate_lesson_dict",
+            return_value=[],
+        ),
+        patch(
+            "mcp_server.interface.custom_tools_authoring.validate_quiz_dict",
+            return_value=["error: options must contain exactly 4 entries"],
+        ),
+    ):
+        response = await author_lesson_pipeline(**_PIPELINE_ARGS, job_id=job_id)
+
+    assert save.await_count == 1
+    assert save.await_args.kwargs["quiz"] is None
+    assert save.await_args.kwargs["project"] is None
+    assert response.save_result is not None
+    assert response.save_result.lesson_id == "saved-lesson"
+    assert "error: options must contain exactly 4 entries" in response.validation_findings
+    succeeded = [c for c in progress.update_calls if c["status"] == "succeeded"]
+    assert succeeded[-1]["result_ref"] == {"lesson_id": "saved-lesson"}

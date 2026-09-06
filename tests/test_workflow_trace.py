@@ -195,6 +195,36 @@ async def test_stream_graph_with_trace_yields_start_before_update() -> None:
     assert items[1].node_id == "generate_lesson"
 
 
+class _ValuesThenUpdateGraph:
+    async def astream(self, state: Any, stream_mode: object = "updates"):
+        del stream_mode
+        yield ("debug", {"type": "task", "payload": {"name": "generate_lesson"}})
+        yield ("updates", {"generate_lesson": {"partial": True}})
+        yield (
+            "values",
+            {
+                **state,
+                "harness_lesson": {"readme_markdown": "# Body\n\n## Section\n"},
+                "partial": True,
+            },
+        )
+
+
+async def test_stream_graph_with_trace_values_replace_running_state() -> None:
+    items: list[object] = []
+    async for item in stream_graph_with_trace(
+        _ValuesThenUpdateGraph(),  # type: ignore[arg-type]
+        {"topic": "fractions"},
+        timeout_seconds=5.0,
+    ):
+        items.append(item)
+    complete = next(item for item in items if isinstance(item, GraphStreamComplete))
+    assert complete.state["topic"] == "fractions"
+    assert complete.state["harness_lesson"]["readme_markdown"].startswith("# Body")
+    assert complete.state["partial"] is True
+
+
+
 async def test_stream_graph_with_trace_matches_invoke_final_state() -> None:
     graph = build_content_generation_graph()
     state = initial_content_generation_state("fractions", grade_level="6th grade")

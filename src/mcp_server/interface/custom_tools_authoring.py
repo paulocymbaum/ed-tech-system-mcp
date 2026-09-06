@@ -317,17 +317,17 @@ async def author_lesson_pipeline(
                 "Graph-scoped generation did not produce harness_lesson"
             )
 
-        findings: list[str] = []
-        findings.extend(validate_lesson_dict(harness_lesson, quiz=harness_quiz))
-        if harness_quiz:
-            findings.extend(validate_quiz_dict(harness_quiz))
-        if harness_project:
-            findings.extend(
-                validate_project_dict(harness_project, strict_readme_sections=False)
-            )
-        if any(f.startswith("error:") for f in findings):
+        lesson_findings = validate_lesson_dict(harness_lesson)
+        quiz_findings = validate_quiz_dict(harness_quiz) if harness_quiz else []
+        project_findings = (
+            validate_project_dict(harness_project, strict_readme_sections=False)
+            if harness_project
+            else []
+        )
+        findings: list[str] = [*lesson_findings, *quiz_findings, *project_findings]
+        if any(item.startswith("error:") for item in lesson_findings):
             if job_id:
-                first_error = next(f for f in findings if f.startswith("error:"))
+                first_error = next(item for item in lesson_findings if item.startswith("error:"))
                 await report_ai_generation_job(
                     progress,
                     job_id=job_id,
@@ -340,6 +340,17 @@ async def author_lesson_pipeline(
                 generation=generation,
                 validation_findings=findings,
             )
+        quiz_to_save = (
+            harness_quiz
+            if harness_quiz and not any(item.startswith("error:") for item in quiz_findings)
+            else None
+        )
+        project_to_save = (
+            harness_project
+            if harness_project
+            and not any(item.startswith("error:") for item in project_findings)
+            else None
+        )
 
         if job_id:
             await report_ai_generation_job(
@@ -355,8 +366,8 @@ async def author_lesson_pipeline(
             module_id=module_id,
             lesson_slug=lesson_slug,
             lesson=harness_lesson,
-            quiz=harness_quiz,
-            project=harness_project,
+            quiz=quiz_to_save,
+            project=project_to_save,
             publish=publish,
             strict_project_readme_sections=False,
             graph_node_id=resolved_node_id,

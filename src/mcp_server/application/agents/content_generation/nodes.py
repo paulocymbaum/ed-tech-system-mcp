@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -38,6 +39,8 @@ from mcp_server.domain.harness_schemas import (
     HarnessQuizDraft,
 )
 from mcp_server.domain.llm_routing import LLMComplexity
+
+_README_SECTION_RE = re.compile(r"^##\s+\S", re.MULTILINE)
 
 
 def _workflow_runtime_config() -> WorkflowExecutionConfig:
@@ -133,6 +136,61 @@ async def _invoke_structured(
     return parsed, []
 
 
+def _hit_value(hit: object, key: str) -> str | None:
+    raw = getattr(hit, key, None)
+    if raw is None and isinstance(hit, dict):
+        raw = hit.get(key)
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def graph_index_from_state(state: ContentGenerationState) -> str | None:
+    """Prefer the selected graph hit's index over an LLM-invented value."""
+    node_id = state.get("graph_node_id")
+    node = node_id.strip() if isinstance(node_id, str) else ""
+    for hit in state.get("graph_hits") or []:
+        hit_id = _hit_value(hit, "node_id")
+        if node and hit_id == node:
+            return _hit_value(hit, "graph_index")
+    for hit in state.get("graph_hits") or []:
+        index = _hit_value(hit, "graph_index")
+        if index:
+            return index
+    return None
+
+
+def stamp_harness_lesson_identity(
+    lesson: HarnessLessonDraft, state: ContentGenerationState
+) -> HarnessLessonDraft:
+    """Overwrite LLM graph ids with the values Teach already resolved."""
+    node_id = state.get("graph_node_id")
+    lesson_slug = state.get("lesson_slug")
+    graph_index = graph_index_from_state(state) or lesson.meta.graph_index
+    meta_update: dict[str, str] = {"graph_index": graph_index}
+    if isinstance(node_id, str) and node_id.strip():
+        meta_update["graph_node_id"] = node_id.strip()
+    if isinstance(lesson_slug, str) and lesson_slug.strip():
+        meta_update["id"] = lesson_slug.strip()
+    return lesson.model_copy(update={"meta": lesson.meta.model_copy(update=meta_update)})
+
+
+def stamp_harness_quiz_identity(
+    quiz: HarnessQuizDraft, state: ContentGenerationState
+) -> HarnessQuizDraft:
+    """Align quiz lessonId / graphIndex with the lesson shell."""
+    lesson_slug = state.get("lesson_slug")
+    graph_index = graph_index_from_state(state)
+    update: dict[str, str] = {}
+    if isinstance(lesson_slug, str) and lesson_slug.strip():
+        update["lesson_id"] = lesson_slug.strip()
+    if graph_index:
+        update["graph_index"] = graph_index
+    if not update:
+        return quiz
+    return quiz.model_copy(update=update)
+
+
 async def generate_lesson(state: ContentGenerationState) -> dict[str, object]:
     """Generate a structured lesson via Groq with router fallback."""
     graph_scoped = bool(state.get("graph_scoped"))
@@ -154,6 +212,15 @@ async def generate_lesson(state: ContentGenerationState) -> dict[str, object]:
     )
     if lesson is None:
         return {"lesson_validation_errors": errors}
+    if graph_scoped and isinstance(lesson, HarnessLessonDraft):
+        if not _README_SECTION_RE.search(lesson.readme_markdown):
+            return {
+                "lesson_validation_errors": [
+                    "readme_markdown must include at least one ## section of teaching "
+                    "content, not a quiz question list"
+                ]
+            }
+        lesson = stamp_harness_lesson_identity(lesson, state)
     out: dict[str, object] = {"lesson": lesson, "lesson_validation_errors": []}
     if graph_scoped and isinstance(lesson, HarnessLessonDraft):
         out["harness_lesson"] = lesson
@@ -195,6 +262,8 @@ async def generate_quiz(state: ContentGenerationState) -> dict[str, object]:
     )
     if quiz is None:
         return {"quiz_validation_errors": errors}
+    if graph_scoped and isinstance(quiz, HarnessQuizDraft):
+        quiz = stamp_harness_quiz_identity(quiz, state)
     out: dict[str, object] = {"quiz": quiz, "quiz_validation_errors": []}
     if graph_scoped and isinstance(quiz, HarnessQuizDraft):
         out["harness_quiz"] = quiz

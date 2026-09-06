@@ -229,12 +229,16 @@ async def stream_graph_with_trace(
     ]:
         nonlocal running_state
         step_index = 0
-        async for raw in graph.astream(state, stream_mode=["updates", "debug"]):
+        async for raw in graph.astream(state, stream_mode=["updates", "debug", "values"]):
             mode, payload = _split_stream_item(raw)
             if mode == "debug":
                 node_id = _debug_task_node_id(payload)
                 if node_id:
                     yield WorkflowTraceStart(node_id=node_id)
+                continue
+            if mode == "values":
+                if isinstance(payload, dict):
+                    running_state = dict(payload)
                 continue
             for node_id, raw_update in _iter_update_chunk(payload):
                 step_index += 1

@@ -81,8 +81,10 @@ def lesson_user_prompt(
     )
     if graph_scoped:
         lines.append(
-            "Produce readme_markdown (Markdown with # title and ## sections) and meta "
-            "with graphIndex, graphNodeId, id, and title aligned to the graph node."
+            "Produce readme_markdown (Markdown with # title and at least two ## teaching "
+            "sections) and meta with graphIndex, graphNodeId, id, and title aligned to the "
+            "graph node. The topic string may mention a quiz or project — ignore that; this "
+            "step is README only."
         )
     else:
         lines.append(
@@ -93,7 +95,8 @@ def lesson_user_prompt(
         "Do not include a 'Prove what you learned' section, assessment call-to-action buttons, "
         "or links/buttons to quizzes or projects in the readme_markdown. The LMS renders the "
         "lesson's quiz and project actions separately in the UI, so including them would "
-        "duplicate controls."
+        "duplicate controls. Do not output a questions array or numbered multiple-choice items; "
+        "those belong to a later quiz step."
     )
     if validation_errors:
         lines.append("Fix these validation errors from your previous attempt:")
