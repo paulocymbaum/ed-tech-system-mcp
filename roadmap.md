@@ -13,6 +13,7 @@
 | WS-8 design enforcement | `ed-tech-system` | `scripts/ci-steps/**`, `scripts/ci.sh`, `scripts/quality-baselines.json`, `tests/scripts/**`, `tests/e2e/visual/**` |
 | **WS-11 legacy deletion** | `ed-tech-system` (FE) + `ed-tech-system-backend` (cutover precondition) | `frontend/src/application/**`, `frontend/src/presentation/features/course-legacy/**`, `frontend/scripts/**`, `scripts/graph/**` |
 | Content touched by new flows | `ed-tech-system-mcp` (this repo) | authoring pipeline only — never `course/**` files |
+| **WS-12 gap-audit additions (2026-10-04)** | `ed-tech-system-mcp` (content schemas: MCP-1..3) + `ed-tech-system` (renderers for GA-10..39) + `ed-tech-system-backend` (BE-7/8) | this file §WS-12 · lesson/quiz authoring schema in this repo · `frontend/src/presentation/**` · `supabase/migrations/**` |
 
 **Done = gates green.** Every frontend stroke ends with `npm run gate:fast` (exit 0 in `ed-tech-system`); backend changes follow `gates.mdc` + backend repo CI. Budgets in `scripts/quality-baselines.json` tighten only; new routes must be added to `documented-routes.mjs` in the same PR (smoke + Playwright consume it).
 
@@ -25,7 +26,7 @@
 | D-1 | Theme direction: v2 is **light-first** (`#f8fafc` page, white cards); current tokens are dark-first glass | Ship v2 light as **default theme** and keep current dark as `[data-theme="dark"]`; both live in `tokens/colors.css` |
 | D-2 | Branding: adopt "Praxis Code" naming + logo from zip assets | Keep repo/product naming unchanged; adopt layout/aesthetics only. Logo asset needs a local, license-clean replacement (zip uses a Google-hosted AI-Studio URL) |
 | D-3 | Dependency policy: no React 19 / Tailwind v4 / `motion` / `@google/genai` upgrades in this effort | Confirmed — visual parity is achieved with Tailwind 3 + existing Radix/Zustand stack; animations via CSS transitions (`card-transition` pattern) |
-| D-4 | Role model: prototype has student ⇄ educator switcher in-shell | Map to `tenant_memberships` roles; if the FE lacks a role switcher today, add BE-0 first — do not fake roles client-side |
+| D-4 | Role model: prototype has student ⇄ educator switcher in-shell — **done 2026-10-04 (BL-125)**: real Supabase session + BE-0 `access_level` persona chip in sidebar; login wall + sign-out; dev bypass via `VITE_AUTH_BYPASS=1` | Map to `tenant_memberships` roles; if the FE lacks a role switcher today, add BE-0 first — do not fake roles client-side |
 
 ---
 
@@ -77,14 +78,14 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 | FE-401 | Sidebar: dark `#090b10`, collapsible (`w-64 ⇄ w-20`), role-scoped nav, count badges, settings/help/sign-out footer | `organisms/Sidebar.tsx` | `features/shell/` + `app/AppLayout.tsx` | Route state stays in URL (`frontend-layers.mdc` #3) |
 | FE-402 | `TopHeader`: breadcrumb/context + "Create Lesson" CTA slot | `organisms/TopHeader.tsx` | `features/shell/` | |
 | FE-403 | Toast system: bottom-right dark pill, ping dot, auto-dismiss | `templates/AppLayout.tsx` (`toastMessage`) | `presentation/shared/toast/` (new) | **done 2026-10-04 (BL-113)** — Zustand store, not context-in-component |
-| FE-404 | Streak/XP hero banner: gradient, weekly goal ring — **done 2026-10-04 (BL-118)** | `organisms/WeeklyStreakBanner.tsx` | `presentation/shared/gamification/` | BE-1 (done) |
+| FE-404 | Streak/XP hero banner: gradient, weekly goal ring — **done 2026-10-04 (BL-118)**; per-day Mon–Fri tracker cells **done 2026-10-04 (BL-126)** — 7-cell strip consuming BE-8 `weekly_minutes_by_weekday` | `organisms/WeeklyStreakBanner.tsx` | `presentation/shared/gamification/` | BE-1 (done) |
 | FE-405 | Weekly activity: list ⇄ kanban toggle, week selector | `organisms/WeeklyActivityList.tsx`, `WeeklyActivityKanban.tsx` | `features/weekly-plan/` (new) | BE-2 |
 | FE-406 | Live code editor: Python/JS tabs, dark editor `#0d1117`, Run/Reset, 3-test suite strip, AI feedback panel | `organisms/LiveCodeEditor.tsx` | `features/lesson-workspace/` | BE-3 (real run + tests — prototype's `setTimeout` is fake) |
 | FE-407 | Interactive visualizers (e.g. fraction pizza): manipulable lesson models | `organisms/InteractiveFractionPizza.tsx` | `features/lesson-workspace/visualizers/` | Driven by lesson project config from `curriculum.projects` |
 | FE-408 | AI grading queue: filter chips, submission cards (code snippet / CV photo note), approve one/all | `organisms/AiGradingQueue.tsx` | `features/teacher-grading/` (new) | BE-4 |
 | FE-409 | Weekly lesson planner: drag lessons into week grid | `organisms/WeeklyLessonPlanner.tsx` | `features/weekly-plan/` | BE-2 |
 | FE-410 | AI pedagogical assistant: learning alerts, weekly highlights, "recommend support lesson" | `organisms/AiPedagogicalAssistant.tsx` | `features/teacher-insights/` (new) | BE-4/MCP — insights generated server-side, UI renders only |
-| FE-411 | Modals: Create Lesson, Quiz Generator, Workspace (quiz/project/coding tabs) | `organisms/CreateLessonModal.tsx`, `QuizGeneratorModal.tsx`, `WorkspaceModal.tsx` | Radix `Dialog/` compositions | Create/quiz-gen call **MCP authoring pipeline** or `ai_generation_jobs` — never client-side LLM keys |
+| FE-411 | Modals: Create Lesson, Quiz Generator, Workspace (quiz/project/coding tabs) | `organisms/CreateLessonModal.tsx`, `QuizGeneratorModal.tsx`, `WorkspaceModal.tsx` | Radix `Dialog/` compositions | Create/quiz-gen call **MCP authoring pipeline** or `ai_generation_jobs` — never client-side LLM keys. Focus-modal 90% chrome spec: GA-30 |
 | FE-412 | `AppLayout` recomposition: page bg `#f8fafc`, content max-w `7xl`, `px-5..10 py-6..7` rhythm | `templates/AppLayout.tsx` | `app/AppLayout.tsx` | **Do not port** `BrowserChromeBar` (prototype decoration, not product) |
 
 ## WS-5 — Views & routes
@@ -92,12 +93,12 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 | ID | Item | v2 source | Route | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | FE-501 | Student dashboard (streak + 3 stat cards + weekly activity) | `views/StudentDashboardView.tsx` | existing dashboard | |
-| FE-502 | Lesson detail workbench (dual-panel 7:5, theory + tabs) | `views/LessonDetailView.tsx` | existing lesson route | Composition of FE-302..307, FE-406/407 |
+| FE-502 | Lesson detail workbench (dual-panel 7:5, theory + tabs) | `views/LessonDetailView.tsx` | existing lesson route | Composition of FE-302..307, FE-406/407 + theory blocks GA-10..14 (MCP-1) + sticky lesson nav |
 | FE-503 | Teacher dashboard (4 metrics + grading queue + planner + assistant + roster) | `views/TeacherDashboardView.tsx` | new teacher dashboard route | |
 | FE-504 | Role select screen | `views/RoleSelectView.tsx` | new `/role-select` or modal | Gated on BE-0 |
 | FE-505 | Weekly plan view (grade horária) | `views/WeeklyPlanView.tsx` | new route | BE-2 |
 | FE-506 | Resources view (videos + external links) | `views/ResourcesView.tsx` | new route | Reuses `lesson_web_links`, `lesson_videos` |
-| FE-507 | Students roster view | `views/StudentsView.tsx` | new route | BE-1 |
+| FE-507 | Students roster view — **done 2026-10-04 (BL-123)**: `/students` route + roster cards consuming BE-1 | `views/StudentsView.tsx` | new route | BE-1 (done) |
 | FE-508 | Register **every** new route in `documented-routes.mjs` (single source → smoke + Playwright follow) | — | `frontend/scripts/documented-routes.mjs` | Same PR as the route (quality-prevention.mdc §6.14) |
 
 ## WS-6 — Backend plan (`ed-tech-system-backend`)
@@ -108,11 +109,13 @@ Pattern: expand-first migrations + RLS per existing conventions (`learner.*`, `c
 | :--- | :--- | :--- | :--- | :--- |
 | BE-0 | Role exposure for shell — **done 2026-10-04 (BL-118)**: `get_my_tenant_role` RPC + migration + API doc | `GET get_my_membership_role` (or extend existing tenant RPC) | FE-307, FE-504 | P0 (blocks role switcher) |
 | BE-1 | Gamification: streak, XP, level, weekly goal — **done 2026-10-04 (BL-118)**: table + RLS + both RPCs + FE StreakBanner consumer | `learner.gamification_profile` (user_id, streak_days, xp, level, weekly_goal_minutes, weekly_done_minutes) + `GET /rest/v1/…` view or RPC `get_my_gamification_profile`; teacher variant `list_students_gamification(tenant_id)` | FE-306, FE-404, FE-507 | P1 |
-| BE-2 | Weekly plan: lesson slots per student/week | `learner.weekly_plan_slots` (user_id, lesson_id, weekday smallint, start_time, week_of date) + RPCs `get_my_weekly_plan(week_of)`, `upsert_weekly_plan_slot`, teacher `set_weekly_plan` | FE-405, FE-409, FE-505 | P1 |
+| BE-2 | Weekly plan: lesson slots per student/week — **done 2026-10-04 (BL-122)**: table + RLS + 4 RPCs + §8d | `learner.weekly_plan_slots` (user_id, lesson_id, weekday smallint, start_time, week_of date) + RPCs `get_my_weekly_plan(week_of)`, `upsert_weekly_plan_slot`, teacher `set_weekly_plan` | FE-405, FE-409, FE-505 | P1 |
 | BE-3 | Live coding runs: persist code submissions + test results | `learner.code_submissions` (user_id, project_id, language, code, created_at) + `learner.code_run_results` (submission_id, test_case_id, status, stdout, duration_ms); execution service reuses `curriculum.test_boilerplates`/`project_test_cases`; edge function or worker `run-code` | FE-406, FE-305 | P1 (execution may be phased: manual-run first) |
 | BE-4 | AI grading + insights (human-in-the-loop) | extend `learner.project_delivery_reviews` with `ai_suggested_score`, `ai_feedback`, `source ('ai'|'teacher')`, `approved_by`, `approved_at`; queue RPC `list_pending_ai_reviews(tenant_id)`; approve RPC `approve_ai_review(review_id, final_score)`; insights via `public.ai_generation_jobs` (job_type `pedagogical_insight`) rendered read-only | FE-408, FE-410, FE-503 | P1 |
 | BE-5 | Lesson audio narration | `curriculum.lesson_audio` (lesson_id, locale, storage_path, duration_seconds) — Supabase Storage bucket `lesson-audio` (private, signed URLs); generation stays in MCP pipeline | FE-302 | P2 |
 | BE-6 | External resources | already covered by `curriculum.lesson_web_links` + `lesson_videos`; add verified flag to `lesson_videos` if missing (`verified boolean default false`) | FE-303, FE-506 | P2 |
+| BE-7 | Pedagogical document library (gap audit GA-34) | `curriculum.documents` (id, tenant_id, title, category, file_path, size_bytes, locale) + Storage bucket `pedagogical-docs` (private, signed URLs); endpoint: PostgREST read + signed-URL RPC | FE-506 | P2 |
+| BE-8 | Per-weekday gamification counts (gap audit GA-01 — fold into BE-1 as expand migration) — **done 2026-10-04 (BL-126)**: `weekly_minutes_by_weekday` jsonb column + RPC/wrapper refresh (with `display_name` for the roster); migration `20261004180000` | `learner.gamification_profile` per-weekday activity (e.g. `weekly_done_minutes_by_day jsonb` or RPC `get_weekly_streak_days()` returning 7 cells) | FE-404 | P1 |
 
 Backend order: contracts → migration (expand) → RPC + RLS → `API_ENDPOINTS.md` + `backend_cursor_log` contract doc → FE consumer in same cross-repo PR set (AGENTS.md rule 1).
 
@@ -140,7 +143,7 @@ Backend order: contracts → migration (expand) → RPC + RLS → `API_ENDPOINTS
 | :--- | :--- | :--- | :--- |
 | FE-701 | Motion token file: `tokens/motion.css` with `--motion-duration-{fast,base,slow,large}` (150/200/300/500), `--motion-ease-standard: cubic-bezier(0.4,0,0.2,1)`, `--motion-lift`, `--motion-press` | `design-system/tokens/motion.css` (new) | Extends `effects.css` (FE-106), never raw durations in features |
 | FE-702 | Motion utilities in `foundation/`: `.motion-lift`, `.motion-press`, `.card-transition` (compat name for the v2 utility), keyframes `pulse`, `ping`, `spin`, `slide-in-bottom`, `zoom-in` | `foundation/` + `tailwind.config` keyframes | Tailwind 3 `tailwindcss-animate`-equivalent subset, hand-rolled (no new dep) |
-| FE-703 | Component motion wiring: press on `Button`, lift on `Card`, `zoom-in-95` dialog panels, slide-in toast, pulse dots on badges — as part of WS-2/3/4 items | WS-2/3/4 targets | Motion is part of each component's acceptance, not a later pass |
+| FE-703 | Component motion wiring — **done 2026-10-04 (BL-120)**: Accordion/Popover/Textarea/Drawer/ModuleContentsDrawer migrated to token utilities; zero new keyframes | WS-2/3/4 targets | Motion is part of each component's acceptance, not a later pass |
 | FE-704 | `prefers-reduced-motion`: global media query collapses durations to `0.01ms` and disables loop animations (pulse/ping) | `foundation/` global CSS | Zip has **no** reduced-motion handling — product requirement on top of v2 |
 | FE-705 | Motion budget: total animated surfaces per view stay lean (gate 15 complexity + `motion-*` class budget if abused) | `scripts/quality-baselines.json` | Only if counts justify — tighten only |
 
@@ -155,7 +158,7 @@ New **mechanical sensors**, built exactly like gate `00-content-freeze` / `14-qu
 | FE-803 | Token-alias completeness: vitest test that every `--surface-*`/`--accent-*`/`--gradient-*`/`--motion-*` var in `tokens/*.css` is exposed through the Tailwind alias map (and vice-versa: no alias pointing at a removed var) | `tests/frontend/design-tokens.test.mjs` (new) | n/a (test, not budget) | `fast` (09) |
 | FE-804 | Import-boundary for design system: ESLint `import/no-restricted-paths` — features import design-system via the **barrel** (`presentation/design-system` index), never deep internals (`design-system/components/Button/…`) | `10-lint.sh` extension (rule: validator change ⇒ same-PR gate + test) | **done 2026-10-04 (BL-114)** — `no-restricted-imports` in `eslint.config.js`; one deep import migrated to barrel | eslint error = gate red | `fast` (10) |
 | FE-805 | Component API conformance: new atoms/molecules must live in `design-system/components/<Name>/` with variants sourced from token maps; one-off styled components in features are flagged by a naming/count sensor (`maxFeatureLevelStyleObjects` if needed) | `20-design-system.sh` (count) | seed → tighten | `fast` |
-| FE-806 | Visual regression: Playwright **screenshot diffs** for shell, student dashboard, lesson workbench, teacher dashboard at 1440px + 390px, dark + light themes | `13-e2e.sh` extension (screenshot specs under `tests/e2e/visual/`) | diff threshold in `quality-baselines.json` (`maxVisualDiffPx`) | `deliver` only (Playwright never on develop stroke) |
+| FE-806 | Visual regression: Playwright **screenshot diffs** — **done 2026-10-04 (BL-119)**: harness + 7 baselines recorded, `VISUAL=1` deliver-gated; `maxVisualDiffPx` budget lands when the diff sensor is wired | `13-e2e.sh` extension (screenshot specs under `tests/e2e/visual/`) | diff threshold in `quality-baselines.json` (`maxVisualDiffPx`) | `deliver` only (Playwright never on develop stroke) |
 | FE-807 | Reduced-motion compliance: vitest asserts the global stylesheet contains the `prefers-reduced-motion` collapse + a component test with `matchMedia` mock verifying loop animations off | `tests/frontend/` | n/a | `fast` (09) |
 | FE-808 | Baseline ratchet discipline: `quality-baselines.json` gains only tighten entries; any new budget lands in the same commit as the code that could exceed it (quality-prevention §6.15) — PR template checklist line | docs + PR template | — | — |
 
@@ -195,7 +198,7 @@ The prototype covers 7 views; the live frontend has **more surfaces than the zip
 | FE-902 | Content map restyle (canvas bg, node cards, zoom controls) | WS-1, FE-204, FE-103 | M3 — **done 2026-10-04 (BL-115, verified conformant)** |
 | FE-903 | Course experience restyle (readme card, score rows, activity-row lists) | WS-1, FE-205, FE-202 | M3 — **done 2026-10-04 (BL-115)** |
 | FE-904 | Module experience restyle (drawer + active pills + card column) | WS-1, FE-401 pattern | M3 — **done 2026-10-04 (BL-115)** |
-| FE-905 | Quiz flow restyle (option cards, progress, results tiering) | FE-304, FE-205, FE-202 | M3 — **done 2026-10-04 (BL-115)** |
+| FE-905 | Quiz flow restyle (option cards, progress, results tiering) — visual/code option richness is GA-20..23 (MCP-2), not covered by this done marker | FE-304, FE-205, FE-202 | M3 — **done 2026-10-04 (BL-115)** |
 | FE-906 | Project delivery restyle (dark file surfaces, checklist, toolbar) | FE-101/107, FE-305 | M3 — **done 2026-10-04 (BL-115)** |
 | FE-907 | Shell chrome reconciliation per D-5 (Pomodoro, language, theme into v2 chrome) | FE-401, FE-402, D-5 | M2 — **done 2026-10-04 (BL-112)** |
 
@@ -233,8 +236,9 @@ The prototype covers 7 views; the live frontend has **more surfaces than the zip
 | 17 | Toasts | global (`AppLayout`) | prototyped | FE-403 |
 | 18 | Dialogs: create-lesson / quiz-generator / workspace | global (`AppLayout` slots) | prototyped | FE-411 |
 | 19 | Async route boundary / error panels | route wrappers | extrapolated | FE-901 pattern (`Card` `tinted` empty/error state) — covered inside FE-901..907 restyles |
+| 20 | Student dossier (D-8) | new route `/students/:id` | unprototyped-new | GA-33 (D-8) |
 
-**Coverage rule:** FE-806 visual regression baselines are recorded **per screen in this table** — a screen without a baseline at M5 blocks `gate:deliver` (the check iterates this matrix, which lives in `tests/e2e/visual/screens.mjs` as the machine-readable mirror).
+**Coverage rule:** FE-806 visual regression baselines are recorded **per screen in this table** — groundwork done 2026-10-04 (BL-119: `tests/e2e/visual/screens.mjs` census + 7 recorded baselines, `VISUAL=1` gated) — a screen without a baseline at M5 blocks `gate:deliver` (the check iterates this matrix, which lives in `tests/e2e/visual/screens.mjs` as the machine-readable mirror).
 
 ---
 
@@ -287,9 +291,11 @@ M2 Shell         FE-401..403, FE-412 + BE-0 + FE-307 + FE-907 (chrome reconcilia
                  └─ FE-804 import-boundary lint live here
 M3 Student flow  FE-404/405, FE-501, FE-502 (+FE-302..306, 406/407)   # needs BE-1..3, BE-5
                  ├─ FE-801/802 budgets ratcheted to 0 — raw hex/arbitrary classes forbidden from here on
+                 ├─ GA-01/BE-8 streak-day cells + GA-10..14 theory blocks ride the FE-502 stroke
                  └─ FE-901..906 extrapolation restyles (catalog, content map, course, module,
                     quiz, project delivery) — token cascade + analog components, no new gates
 M4 Teacher flow  FE-408..411, FE-503 (needs BE-4) + FE-504..508
+                 └─ GA-30..37 focus-modal chrome, notifications, rubric, dossier, docs (see WS-12 §12.8)
 M5 Polish        FE-704/707 reduced-motion verified, FE-806 visual baselines recorded
                  for every screen in the WS-10 matrix (incl. extrapolated pages),
                  budgets tighten, E2E via gate:deliver, drop mockData equivalents
@@ -310,3 +316,92 @@ M6 Decommission  WS-11 legacy deletion (LD-1..LD-4) — after backend cutover +
 - No restyle work on `course-legacy/` — it is deleted in WS-11 (LD-2/LD-3), never restyled (D-6).
 - No extrapolated page invents new tokens or one-off patterns — analog mapping only (WS-9 contract); new patterns require a `design-system/` item in this roadmap.
 - `maxLegacyFiles` budget may only move 5 → 0 (in the LD-3 commit) — never upward (quality-prevention §6.15).
+- No live-calling / tutor-call card (GA-35, D-7) — help routes to the Socratic tutor flow, no telephony in scope.
+- No free-text question meta tags — enum only (D-10); chips render from the MCP-2 enum.
+
+---
+
+## WS-12 — Gap audit additions (prototype re-review, 2026-10-04)
+
+**Method:** full 62-file re-read of `praxis-code-v2.zip` against this roadmap and shipped state (BL-112..118 verified). These items are UI patterns the first mapping missed or under-specified. Status values: `new` (no roadmap coverage), `under-specified` (item exists but scope misses prototype evidence), `shipped-partial` (done marker present, prototype feature still missing).
+
+### 12.1 — Shipped-partial corrections
+
+| ID | Finding | Fix |
+| :--- | :--- | :--- |
+| GA-01 | FE-404 marked done (BL-118) but the shipped `StreakBanner.tsx` has no per-day tracker: prototype `WeeklyStreakBanner` renders 5 Mon–Fri cells (✓ emerald for past, pulsing blue `n/4` fraction for current, dimmed `0/4` for future). Shipped banner shows only streakDays + weekly %-bar | **done 2026-10-04 (BL-126)**: `learner.gamification_profile.weekly_minutes_by_weekday` (7-cell jsonb, Mon-first) + `StreakBanner` 7-cell tracker strip (✓ complete / pulsing fraction today / dimmed future) |
+| GA-02 | FE-403 toast marked done (BL-113) — verified Zustand-based, matches prototype pattern; no action | — |
+
+### 12.2 — Lesson theory panel: content patterns (feeds FE-502)
+
+`LessonDetailView.tsx` left panel contains six recurring content blocks with no roadmap coverage. These are **authoring concerns, not just components** — the MCP lesson schema must carry them or FE can't render them.
+
+| ID | Item (v2 source `LessonDetailView.tsx`) | Owning repo | Blocks |
+| :--- | :--- | :--- | :--- |
+| GA-10 | **Pastel tip callout** (emerald "Dica de Ouro" box: shield emoji tile, title, inline-code body) — pattern repeats for warnings too | FE component `presentation/shared/` + MCP schema block type | FE-502 |
+| GA-11 | **Vocabulary card grid** (2×4 tile grid, term + subtitle + mini visual swatch) | FE + MCP block type | FE-502 |
+| GA-12 | **Educator-notes accordion** (`<details>` styled; parent/tutor guidance + curricular alignment refs) | FE + MCP block type | FE-502 |
+| GA-13 | **Inline code chip styling** (mono `code` tags with blue/purple accent bg) | FE prose styles (`foundation/`) | FE-502 |
+| GA-13b | **Live math readout strip** bound to a visualizer (mono strip: `angle = (360/4) * n = n° (0.nnf)`) | FE + MCP: visualizer binding contract | FE-407 |
+| GA-14 | **Sticky prev/next lesson nav footer** (progress % bar + next-lesson CTA in a `sticky bottom-4` glass bar) | FE `features/lesson-workspace/` | FE-502 |
+
+### 12.3 — Quiz richness (schema gap)
+
+Prototype quiz questions carry per-question meta and visual options; `scripts/schemas/quiz-schema.mjs` (single source, AGENTS.md #4) only validates text options. Cross-repo chain: MCP schema extension → backend content tables → FE renderer.
+
+| ID | Item | Chain |
+| :--- | :--- | :--- |
+| GA-20 | **Visual fraction options**: `fractionVisual {total, filled}` pie SVG on `QuizOptionCard` | MCP-2 schema opt-in field → BE `curriculum` quiz tables → FE-905 |
+| GA-21 | **Code-prompt question panels**: dark code block as question stem (slate-900 `pre` with syntax-tinted spans) | MCP-2 → FE-905 `QuizQuestionView` stem renderer |
+| GA-22 | **Question meta chips**: "Questão N de M" label + tech tag chip (Canvas 2D / Python 3 / Error Handling) | MCP-2 optional `tag` field → FE-905 |
+| GA-23 | **Code-option rows**: radio rows where option is an expression ("0.75 (3/4)") | MCP-2 (schema allows; FE styles) |
+
+### 12.4 — Surfaces the roadmap skipped
+
+| ID | Item (v2 source) | Where | Feeds |
+| :--- | :--- | :--- | :--- |
+| GA-30 | **Focus modal 90% chrome**: dark slate-900 header w/ mode tabs (quiz/project/coding), mobile tab strip, sync footer (live-sync dot + Concluir Atividade) | `WorkspaceModal.tsx` | FE-411 — spec the header/footer/nav behavior, not just "Radix Dialog composition" |
+| GA-31 | **Quick-launch chips on activity rows**: "Quiz (90%)" / "Projeto (90%)" chips + Print action on each `WeeklyActivityList` row | `WeeklyActivityList.tsx` | FE-405 — quick-open the workspace modal with mode+lesson preset |
+| GA-30b | **Notifications bell** (teacher top header: rose pulse dot, count) | `TopHeader.tsx` | FE-402 — needs BE-4 `list_pending_ai_reviews` count; no storage of notification entities in v1 |
+| GA-32 | **Rubric viewer + "Ver Rubrica" action** on grading cards | `AiGradingQueue.tsx` | FE-408 — rubric data must come from `curriculum.project_test_cases`/rubric fields via BE-4 contract |
+| GA-33 | **Student dossier target** ("Ficha Completa" / "Ver Relatório Individual Detalhado") — repeated CTA with no target screen in the prototype or roadmap | `StudentsView.tsx`, `TeacherDashboardView.tsx` | Either a new FE route (add to WS-10 matrix #20) or demote to toast; decide before M4 |
+| GA-34 | **PDF/doc library section** (curricular guides list w/ size + download) | `ResourcesView.tsx` | FE-506 — needs BE storage for pedagogical documents (new BE-7) |
+| GA-35 | **Tutor-call card** ("Need Help?" gradient card + Call Tutor) | `LessonDetailView.tsx` right column | **Recommend no-adoption** (non-goal: no live calling feature in product scope) — decision D-7 |
+| GA-36 | **Term selector** (teacher: "Semana 12 • 2º Bimestre" dropdown) | `TopHeader.tsx` | FE-402 — term context filter for teacher dashboards; needs BE-4 insights scoping |
+| GA-37 | **Lesson row illustrations** (per-subject inline SVG sets) | `WeeklyActivityList.tsx` | FE-405 — tokenized SVG set under design-system (subject-illustration slots), authored once; not per-lesson MCP content |
+| GA-38 | **Parent/tutor guidance copy is PT-BR**; the product is bilingual by design (locale files exempt) | all views | i18n pass: all new GA strings through `locales/*`, never hardcoded |
+| GA-39 | **`resetSlices` / visualizer state reset** on lesson exit | `AppContext.tsx` | FE-407 — visualizer state contract must define reset on unmount |
+
+### 12.5 — New backend items
+
+| ID | Item | Feeds |
+| :--- | :--- | :--- |
+| BE-7 | Pedagogical document library: `curriculum.documents` (id, tenant, title, category, file_path, size_bytes, locale) + Supabase Storage bucket `pedagogical-docs` (private, signed URLs) | GA-34, FE-506 |
+| BE-8 | Per-weekday gamification counts (fold into BE-1 as expand migration; see GA-01) | GA-01, FE-404 |
+
+### 12.6 — New MCP workstream (this repo)
+
+The prototype's lesson/quiz richness is authoring-pipeline territory. Single sources live here (AGENTS.md #4):
+
+| ID | Item | Where (this repo) |
+| :--- | :--- | :--- |
+| MCP-1 | Lesson content-block schema extension: block types `tip-callout`, `vocabulary-grid`, `educator-notes`, `visualizer-readout` (GA-10..13b) — extend the lesson schema consumed by `content_generation`/`author_lesson_pipeline` | `src/` (agents/tools layer per `ARCHITECTURE.md`) |
+| MCP-2 | Quiz schema v-next: optional `fractionVisual` on options, `codeStem` on questions, `tag` meta (GA-20..23) — **contract-first**: changes to `ed-tech-system/scripts/schemas/quiz-schema.mjs` land in the same cross-repo PR set |
+| MCP-3 | Vocabulary block visuals: `mini_visual` descriptor (color swatch, fraction pie, array bar) vocabulary so FE renders deterministically | schema + validation tools |
+
+### 12.7 — Decisions to add
+
+| ID | Decision | Recommendation |
+| :--- | :--- | :--- |
+| D-7 | Tutor-call card (GA-35): adopt or drop? | **Drop.** No calling infra exists in product scope; the "help" need routes to the existing Socratic tutor flow. Add to non-goals |
+| D-8 | Student dossier (GA-33): new route or toast? | New lightweight route `/students/:id` (matrix row #20, `documented-routes.mjs` in same PR) — the CTA appears 3× in the prototype; a dead-end toast is worse |
+| D-9 | Lesson illustrations (GA-37): MCP content or FE design assets? | FE design assets. Subject-keyed SVG set in `design-system/` — content pipeline stays text-only for these; lesson authors pick from an enum |
+| D-10 | Question meta tags (GA-22): free text or enum? | Enum (`canvas`, `python`, `error-handling`, …) — free text leaks authoring noise into UI chips; enum lives in MCP-2 schema |
+
+### 12.8 — Milestone additions
+
+- GA-01/BE-8 + GA-11/12/13 (theory blocks MVP) → **M3** (student flow), riding the FE-502 stroke.
+- GA-20..23 (quiz schema v-next) → cross-repo PR set with MCP-2 → **M3/M4 boundary**.
+- GA-30..37 (focus modal chrome, notifications, rubric, dossier, docs library) → **M4** (teacher flow).
+- GA-38 i18n → continuous, enforced per GA-38.
+- GA-39 → M5 (polish).
