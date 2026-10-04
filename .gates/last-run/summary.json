@@ -1,0 +1,4 @@
+{"profile":"fast","status":"complete","durationMs":21160,"failed":0,"missing":0,"steps":[
+{"step":"01-pytest","name":"01-pytest","exit":0,"ms":21150,"log":"/home/paulo-yapper/Documents/ed-tech-system-mcp/.gates/last-run/01-pytest.log"}
+]
+}

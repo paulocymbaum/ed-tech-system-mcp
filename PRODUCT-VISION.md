@@ -405,14 +405,14 @@ Browser → your API → MCP (server-side) → Supabase
 
 ## Frontend product vision — Praxis Code v2 UI/UX
 
-**Source:** [`praxis-code-v2.zip`](./praxis-code-v2.zip) — "Praxis Code — Homeschool Learning Management", an AI Studio-generated React prototype (62 files, React 19 + Tailwind v4 + `lucide-react` + `motion`). It is the **v2 design reference** for the learner/teacher experience. Delivery backlog: [`backlog.md`](./backlog.md).
+**Source:** [`praxis-code-v2.zip`](./praxis-code-v2.zip) — "Praxis Code — Homeschool Learning Management", an AI Studio-generated React prototype (62 files, React 19 + Tailwind v4 + `lucide-react` + `motion`). It is the **v2 design reference** for the learner/teacher experience. Delivery roadmap: [`roadmap.md`](./roadmap.md).
 
 ### What the prototype proves (product findings)
 
 | Finding | Evidence in prototype | Implication |
 | :--- | :--- | :--- |
 | **Dual-role homeschool LMS** | `RoleSelectView` (student ⇄ educator), `RoleSwitcher` in sidebar | One shell, role-scoped nav and dashboards; roles must come from `tenant_memberships`, not local state |
-| **Student experience is streak/XP-driven** | `WeeklyStreakBanner` (gradient hero), XP/level in `IStudent`, "Medalhas & XP" | Gamification fields (streak, XP, level) have **no backend table yet** — planned (see backlog BE-1) |
+| **Student experience is streak/XP-driven** | `WeeklyStreakBanner` (gradient hero), XP/level in `IStudent`, "Medalhas & XP" | Gamification fields (streak, XP, level) have **no backend table yet** — planned (see roadmap BE-1) |
 | **Lesson = dual-panel workbench** | `LessonDetailView`: left theory + audio narration + interactive visualizer; right tabs (coding / project / quiz) | Maps 1:1 to existing `curriculum.lessons` + quizzes + PBL projects; needs a lesson-workspace composition view |
 | **Live coding is first-class** | `LiveCodeEditor` (Python/JS tabs, run, 3-test suite, AI feedback panel) | Backend already has `curriculum.test_boilerplates`, `project_test_cases`, `project_deliveries`; missing: run-result + AI-feedback surface (BE-3) |
 | **AI grading queue with human approval** | `AiGradingQueue`: suggested score + AI summary, "Aprovar Todas IA", filter chips, computer-vision note for maker photos | Human-in-the-loop grading: AI proposes, teacher approves. Extends `learner.project_delivery_reviews` (BE-4) |
@@ -432,8 +432,10 @@ Browser → your API → MCP (server-side) → Supabase
 | Elevation | `shadow-xs → xl`, hover `-translate-y-0.5` + `card-transition` (0.2s cubic-bezier) | Glass shadows | Add elevation scale + motion token |
 | Typography | **Plus Jakarta Sans** (UI), **Fira Code** (code) | system stack | Self-host both, extend `typography.css` |
 | Feedback colors | emerald=completed/score, amber=in-progress, slate=not-started, rose=danger | `--success-0`/`--danger-0` only | Add `warning` (amber) + status-badge semantic aliases |
+| Motion | **Pure CSS** — 200ms `cubic-bezier(.4,0,.2,1)` default, hover lift `-2px`, press `scale(.98)`, `zoom-in-95` modals, `slide-in-from-bottom-5` toasts, `pulse/ping` live dots; declared `motion` dep never imported | ad-hoc transitions | Motion becomes tokens (`motion.css`) + utilities; no JS animation lib; `prefers-reduced-motion` collapse added on top (roadmap WS-7) |
+| Enforcement | — | grep/count gates only (00, 14) | New mechanical sensors: no raw hex/arbitrary classes outside `design-system/`, barrel-only imports, visual regression on `gate:deliver` (roadmap WS-8) |
 
-**Component inventory to extract:** 6 atoms (`Button`, `Badge`, `Avatar`, `Card`, `ProgressBar`, `TabPill`), 8 molecules (`MetricStatCard`, `RoleSwitcher`, `AudioNarratorPlayer`, `VideoCard`, `QuizOptionCard`, `ChecklistItem`, `TestResultItem`, `StudentProgressItem`), 16 organisms (sidebar, header, streak banner, activity list/kanban, live code editor, fraction pizza, grading queue, planner, AI assistant, video/create/quiz/workspace modals), 1 template (`AppLayout`), 7 views. Full mapping with item IDs in [`backlog.md`](./backlog.md).
+**Component inventory to extract:** 6 atoms (`Button`, `Badge`, `Avatar`, `Card`, `ProgressBar`, `TabPill`), 8 molecules (`MetricStatCard`, `RoleSwitcher`, `AudioNarratorPlayer`, `VideoCard`, `QuizOptionCard`, `ChecklistItem`, `TestResultItem`, `StudentProgressItem`), 16 organisms (sidebar, header, streak banner, activity list/kanban, live code editor, fraction pizza, grading queue, planner, AI assistant, video/create/quiz/workspace modals), 1 template (`AppLayout`), 7 views. Full mapping with item IDs in [`roadmap.md`](./roadmap.md). Pages **without** a v2 counterpart (catalog, content map, course/module experience, quiz session, project delivery) are restyled by **extrapolation** — nearest-analog mapping onto v2 components and tokens under the same WS-8 enforcement, with no page-invented patterns (roadmap WS-9). The roadmap's **WS-10 matrix is the complete screen census** (every live + planned screen mapped to an adoption item and a visual-regression baseline), and **WS-11 schedules the legacy course-experience deletion** (`course-legacy/`, `estrategiaLegacy`, `structure='legacy'` branch) after the v2 adoption completes — aligned with POKAYOKE-PLAN Wave 5.2, ending with `maxLegacyFiles` 5 → 0.
 
 ### Boundary corrections the prototype requires (non-negotiable)
 
@@ -462,4 +464,4 @@ Browser → your API → MCP (server-side) → Supabase
 | Date | Change |
 | :--- | :--- |
 | 2026-08-10 | Initial product vision — functional layers aligned with composition root, cache policy, and RAG/SQL/vector boundaries |
-| 2026-10-03 | Added **Praxis Code v2 UI/UX** section from `praxis-code-v2.zip`: product findings, aesthetic direction, component inventory, boundary corrections; delivery backlog extracted to `backlog.md` |
+| 2026-10-03 | Added **Praxis Code v2 UI/UX** section from `praxis-code-v2.zip`: product findings, aesthetic direction, component inventory, boundary corrections; delivery roadmap extracted to `roadmap.md` (formerly `backlog.md`) — incl. animation language (WS-7), design enforcement (WS-8), extrapolation to unprototyped pages (WS-9), complete screen census (WS-10), and legacy deletion plan (WS-11) |
