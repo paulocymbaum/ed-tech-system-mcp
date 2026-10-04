@@ -16,7 +16,10 @@ from mcp_server.application.lesson_enrichment import (
 from mcp_server.application.lesson_enrichment import (
     build_lesson_enrichment_query as run_build_lesson_enrichment_query,
 )
-from mcp_server.application.mcp_tool_cache_runtime import get_mcp_tool_cache
+from mcp_server.application.mcp_tool_cache_runtime import (
+    get_mcp_tool_cache,
+    is_cache_eligible_tool,
+)
 from mcp_server.application.search_services import search_videos, search_web_snippets
 from mcp_server.domain.exceptions import DomainError
 from mcp_server.interface.error_mapping import raise_as_mcp_error
@@ -55,8 +58,10 @@ async def _cached_tool_invoke[T](
 ) -> T:
     start = time.perf_counter()
     try:
+        # PK-47: validate_* results are never cached — same args, different
+        # payload, different verdict. Bypass the cache entirely.
         tool_cache = get_mcp_tool_cache()
-        if tool_cache is None:
+        if tool_cache is None or not is_cache_eligible_tool(tool_name):
             result = await invoker()
         else:
             result = await tool_cache.get_or_invoke(tool_name, args, invoker)
@@ -83,6 +88,37 @@ async def _cached_tool_invoke[T](
             tool_name,
             duration_ms,
         )
+        return result
+
+
+async def _timed_tool_invoke[T](
+    tool_name: str,
+    args: dict[str, object],
+    invoker: Callable[[], Awaitable[T]],
+) -> T:
+    """Invoke without cache, preserving the standard tool latency log (PK-47)."""
+    return await _uncached_timed_invoke(tool_name, args, invoker)
+
+
+async def _uncached_timed_invoke[T](
+    tool_name: str,
+    args: dict[str, object],
+    invoker: Callable[[], Awaitable[T]],
+) -> T:
+    start = time.perf_counter()
+    try:
+        result = await invoker()
+    except DomainError as exc:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info("mcp tool tool=%s duration_ms=%.2f outcome=error", tool_name, duration_ms)
+        raise_as_mcp_error(exc)
+    except Exception:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info("mcp tool tool=%s duration_ms=%.2f outcome=error", tool_name, duration_ms)
+        raise
+    else:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info("mcp tool tool=%s duration_ms=%.2f outcome=success", tool_name, duration_ms)
         return result
 
 

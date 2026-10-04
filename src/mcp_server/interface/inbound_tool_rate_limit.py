@@ -17,7 +17,7 @@ from mcp_server.interface.error_mapping import raise_as_mcp_error
 def _quota_key_from_headers() -> str:
     try:
         headers = get_http_headers()
-    except Exception:
+    except Exception:  # noqa: BLE001 — rate-limit accounting must never break the tool call it guards
         return "anonymous"
     auth = headers.get("authorization", "")
     token = auth.removeprefix("Bearer ").strip()

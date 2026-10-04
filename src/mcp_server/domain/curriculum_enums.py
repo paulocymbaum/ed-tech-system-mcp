@@ -3,8 +3,10 @@
 Sources of truth (lockstep-tested):
 - ``ed-tech-system-backend/supabase/migrations/20260724120100_curriculum_foundation.sql``
 - ``ed-tech-system-backend/supabase/migrations/20260816120000_lesson_stacks_test_boilerplates.sql``
-- ``PraxisWeb/frontend/src/domain/types/catalog.ts`` (``ProjectEntry.kind``, ``Project.stack``)
-- ``PraxisWeb/frontend/src/infrastructure/author-cms/authorCmsApi.ts`` (upsert payloads use ``file``)
+- ``PraxisWeb/frontend/src/domain/types/catalog.ts``
+  (``ProjectEntry.kind``, ``Project.stack``)
+- ``PraxisWeb/frontend/src/infrastructure/author-cms/authorCmsApi.ts``
+  (upsert payloads use ``file``)
 """
 
 from __future__ import annotations

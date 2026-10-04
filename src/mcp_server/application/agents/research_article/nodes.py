@@ -78,7 +78,7 @@ async def _call_search_tavily(query: str, max_results: int) -> tuple[list[str], 
         results = await search_web_snippets(query, max_results=max_results)
     except ResourceNotFoundError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — research fan-out node: one provider failing must not kill sibling results
         return [], ToolCallRecord(
             tool="search_tavily",
             status="failed",
@@ -100,7 +100,7 @@ async def _call_search_youtube(
         videos = await search_videos(query, max_results=max_results)
     except ResourceNotFoundError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — research fan-out node: one provider failing must not kill sibling results
         return [], ToolCallRecord(
             tool="search_youtube",
             status="failed",

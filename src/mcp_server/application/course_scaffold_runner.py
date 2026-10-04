@@ -37,7 +37,7 @@ async def load_succeeded_scaffold_proposal(
     snapshot: AiGenerationJobSnapshot | None
     try:
         snapshot = await port.get(job_id)
-    except Exception:
+    except Exception:  # noqa: BLE001 — background scaffold job: log-and-continue, failure surfaced via job status row
         return None
     if snapshot is None or snapshot.status != "succeeded":
         return None
@@ -48,7 +48,7 @@ async def load_succeeded_scaffold_proposal(
     raw: Any = nested if isinstance(nested, dict) else result_ref
     try:
         return require_valid_scaffold_proposal(ScaffoldProposal.model_validate(raw))
-    except (DomainValidationError, Exception):
+    except (DomainValidationError, Exception):  # noqa: BLE001 — background scaffold job: log-and-continue, failure surfaced via job status row
         return None
 
 

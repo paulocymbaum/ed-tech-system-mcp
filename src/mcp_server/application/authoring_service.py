@@ -307,9 +307,10 @@ class AuthoringService:
                 raise DomainValidationError("; ".join(messages))
 
         title = str(meta.get("title") or lesson_slug)
-        resolved_graph_node_id = graph_node_id_for_upsert(graph_node_id) or graph_node_id_for_upsert(
+        fallback_node_id = graph_node_id_for_upsert(
             meta.get("graphNodeId") or meta.get("graph_node_id")
         )
+        resolved_graph_node_id = graph_node_id_for_upsert(graph_node_id) or fallback_node_id
         lesson_id = await self._backend.upsert_lesson(
             module_id=module_id,
             slug=lesson_slug,

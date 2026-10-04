@@ -403,6 +403,47 @@ Browser → your API → MCP (server-side) → Supabase
 
 ---
 
+## Frontend product vision — Praxis Code v2 UI/UX
+
+**Source:** [`praxis-code-v2.zip`](./praxis-code-v2.zip) — "Praxis Code — Homeschool Learning Management", an AI Studio-generated React prototype (62 files, React 19 + Tailwind v4 + `lucide-react` + `motion`). It is the **v2 design reference** for the learner/teacher experience. Delivery backlog: [`backlog.md`](./backlog.md).
+
+### What the prototype proves (product findings)
+
+| Finding | Evidence in prototype | Implication |
+| :--- | :--- | :--- |
+| **Dual-role homeschool LMS** | `RoleSelectView` (student ⇄ educator), `RoleSwitcher` in sidebar | One shell, role-scoped nav and dashboards; roles must come from `tenant_memberships`, not local state |
+| **Student experience is streak/XP-driven** | `WeeklyStreakBanner` (gradient hero), XP/level in `IStudent`, "Medalhas & XP" | Gamification fields (streak, XP, level) have **no backend table yet** — planned (see backlog BE-1) |
+| **Lesson = dual-panel workbench** | `LessonDetailView`: left theory + audio narration + interactive visualizer; right tabs (coding / project / quiz) | Maps 1:1 to existing `curriculum.lessons` + quizzes + PBL projects; needs a lesson-workspace composition view |
+| **Live coding is first-class** | `LiveCodeEditor` (Python/JS tabs, run, 3-test suite, AI feedback panel) | Backend already has `curriculum.test_boilerplates`, `project_test_cases`, `project_deliveries`; missing: run-result + AI-feedback surface (BE-3) |
+| **AI grading queue with human approval** | `AiGradingQueue`: suggested score + AI summary, "Aprovar Todas IA", filter chips, computer-vision note for maker photos | Human-in-the-loop grading: AI proposes, teacher approves. Extends `learner.project_delivery_reviews` (BE-4) |
+| **AI pedagogical assistant** | `AiPedagogicalAssistant`: learning alerts ("Theo hesita em ZeroDivisionError"), weekly highlights, "recomendar lição de apoio" | Insight generation belongs to MCP/backend agents (`ai_generation_jobs`); UI only renders recommendations |
+| **Teacher lesson planner + generators** | `WeeklyLessonPlanner`, `CreateLessonModal`, `QuizGeneratorModal` ("geração alinhada à BNCC") | Content creation flows **through the MCP authoring pipeline** (AGENTS.md non-negotiable #3) — the FE modals become thin clients over `content_generation`/`ai_generation_jobs` |
+| **Weekly plan & resources views** | `WeeklyPlanView` (grade horária), `ResourcesView` (videos + external links) | Needs `curriculum.weekly_plan_slots` (BE-2); resources reuse `lesson_web_links` + `lesson_videos` (BE-6) |
+
+### Aesthetic direction (design tokens to adopt)
+
+| Token group | v2 direction | Current FE state | Action |
+| :--- | :--- | :--- | :--- |
+| Canvas & surfaces | **Light-first**: `#f8fafc` page, white cards, `slate-200` borders | Dark-first glass (`--bg-0: #0b0d14`) | Adopt dual-theme; light default (decision D-1) |
+| Primary accent | `blue-600` (`#2563eb`), active-nav `shadow-blue-600/30` | Indigo glass (`--accent-0: #818cf8`) | Restate accent tokens to blue family |
+| Dark anchors | Sidebar `#090b10`, editor `#0d1117`, dark button `#0f172a` | Whole app dark | Dark anchors survive as sidebar/code-editor surfaces |
+| CTA gradient | `from-purple-600 via-indigo-600 to-blue-600` (buttons) and `from-blue-700 via-indigo-700 to-blue-800` (hero banners) | — | Add `--gradient-cta` / `--gradient-hero` tokens |
+| Radius | `rounded-xl` controls, `rounded-2xl` inner, `rounded-3xl` cards/modals | `radius.css` (small scale) | Extend radius scale |
+| Elevation | `shadow-xs → xl`, hover `-translate-y-0.5` + `card-transition` (0.2s cubic-bezier) | Glass shadows | Add elevation scale + motion token |
+| Typography | **Plus Jakarta Sans** (UI), **Fira Code** (code) | system stack | Self-host both, extend `typography.css` |
+| Feedback colors | emerald=completed/score, amber=in-progress, slate=not-started, rose=danger | `--success-0`/`--danger-0` only | Add `warning` (amber) + status-badge semantic aliases |
+
+**Component inventory to extract:** 6 atoms (`Button`, `Badge`, `Avatar`, `Card`, `ProgressBar`, `TabPill`), 8 molecules (`MetricStatCard`, `RoleSwitcher`, `AudioNarratorPlayer`, `VideoCard`, `QuizOptionCard`, `ChecklistItem`, `TestResultItem`, `StudentProgressItem`), 16 organisms (sidebar, header, streak banner, activity list/kanban, live code editor, fraction pizza, grading queue, planner, AI assistant, video/create/quiz/workspace modals), 1 template (`AppLayout`), 7 views. Full mapping with item IDs in [`backlog.md`](./backlog.md).
+
+### Boundary corrections the prototype requires (non-negotiable)
+
+1. **No client-side AI keys.** The prototype calls Gemini with `GEMINI_API_KEY` in the browser. In this system, AI features route through **backend edge functions / MCP tools** (`ai_generation_jobs`, `content_generation`) — the FE never holds provider keys (North star, §Layer 1).
+2. **No on-disk content.** Prototype `mockData.ts` lessons/quizzes are throwaway fixtures. Production lesson/quiz data flows from `curriculum.*` RPCs; authoring goes through the MCP pipeline only.
+3. **Stack deltas are not part of this effort.** Prototype is React 19 + Tailwind v4 + `motion` + `@google/genai`; the FE is React 18 + Tailwind 3 + Radix + Zustand. We port **design language and IA**, not dependency majors (decision D-3).
+4. **Stack rules apply.** Components go through `design-system/` tokens (no raw hex in features), state via `application/stores`, route state in the URL, new routes registered in `documented-routes.mjs`; every stroke ends at `gate:fast`.
+
+---
+
 ## Related documentation
 
 | Document | Use when |
@@ -421,3 +462,4 @@ Browser → your API → MCP (server-side) → Supabase
 | Date | Change |
 | :--- | :--- |
 | 2026-08-10 | Initial product vision — functional layers aligned with composition root, cache policy, and RAG/SQL/vector boundaries |
+| 2026-10-03 | Added **Praxis Code v2 UI/UX** section from `praxis-code-v2.zip`: product findings, aesthetic direction, component inventory, boundary corrections; delivery backlog extracted to `backlog.md` |

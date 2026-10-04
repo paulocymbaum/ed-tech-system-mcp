@@ -38,7 +38,7 @@ from mcp_server.domain.course_scaffold import (
     slugify_course_title,
 )
 from mcp_server.domain.exceptions import DomainValidationError, ResourceNotFoundError
-from mcp_server.interface.custom_tools import _cached_tool_invoke
+from mcp_server.interface.custom_tools import _cached_tool_invoke, _timed_tool_invoke
 from mcp_server.interface.mcp_server import mcp
 
 _graph_search: GraphSearchPort | None = None
@@ -318,4 +318,5 @@ async def validate_mock_test(mock_test: dict[str, Any]) -> ValidateMockTestRespo
             messages=[f"[{f.level}] {f.message}" for f in report.findings],
         )
 
-    return await _cached_tool_invoke("validate_mock_test", args, _run)
+    # PK-47: validation verdicts are never cached.
+    return await _timed_tool_invoke("validate_mock_test", args, _run)

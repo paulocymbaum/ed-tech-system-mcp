@@ -75,7 +75,7 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — top-level entrypoint: last-resort guard converts crash to logged exit
         print(f"Startup failed: {type(exc).__name__}", file=sys.stderr)
         sys.exit(1)
     finally:

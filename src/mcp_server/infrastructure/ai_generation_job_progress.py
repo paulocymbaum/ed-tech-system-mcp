@@ -93,7 +93,7 @@ class SupabaseAiGenerationJobProgress(AiGenerationJobProgressPort):
             try:
                 client = await self._client()
                 response = await client.post(url, headers=self._headers(), json=body)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — advisory telemetry write; pipeline status is the SoR
                 last_error = exc
             else:
                 if response.status_code < 400:

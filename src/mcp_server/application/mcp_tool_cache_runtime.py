@@ -20,6 +20,17 @@ class McpToolCachePort(Protocol):
         """Return a cached tool result or invoke the handler on miss."""
 
 
+# PK-47 / PLAN 1.8: validation tools are NEVER cached — two calls with
+# different payloads must return different verdicts. A cached "OK" for
+# changed content is a silent correctness hole (FMEA MC-09).
+NEVER_CACHE_TOOL_PREFIXES: tuple[str, ...] = ("validate_",)
+
+
+def is_cache_eligible_tool(tool_name: str) -> bool:
+    """Return False for tools whose results must never be served from cache."""
+    return not tool_name.startswith(NEVER_CACHE_TOOL_PREFIXES)
+
+
 _runtime_mcp_tool_cache: McpToolCachePort | None = None
 
 

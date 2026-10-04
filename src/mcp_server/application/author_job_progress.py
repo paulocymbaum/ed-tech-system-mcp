@@ -51,7 +51,7 @@ async def report_ai_generation_job(
             error=error,
             result_ref=result_ref,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 — progress writes are advisory; never fail the pipeline for telemetry
         logger.warning("ai generation job progress update failed")
 
 
@@ -70,7 +70,7 @@ async def _load_job_snapshot(
         return None
     try:
         return await port.get(job_id)
-    except Exception:
+    except Exception:  # noqa: BLE001 — progress writes are advisory; never fail the pipeline for telemetry
         logger.warning("ai generation job progress get failed")
         return None
 

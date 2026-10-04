@@ -116,7 +116,9 @@ async def run_author_lesson_pipeline(
                 save_result=existing,
             )
     progress = job_progress if job_id else None
-    graph_index = graph_index.strip() if isinstance(graph_index, str) and graph_index.strip() else None
+    graph_index = (
+        graph_index.strip() if isinstance(graph_index, str) and graph_index.strip() else None
+    )
     try:
         if job_id:
             await report_ai_generation_job(

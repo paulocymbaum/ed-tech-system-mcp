@@ -131,7 +131,7 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "BLE"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -147,6 +147,9 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["tests"]
 asyncio_mode = "auto"
+# PK-70 coverage ratchet (PLAN 1.11): floor at measured baseline (73%,
+# 2026-10-03), raise per release. Never lower.
+addopts = "--cov=src/mcp_server --cov-report=term-missing --cov-fail-under=73"
 markers = [
     "secrets_homologation: live API checks for Doppler/.env secrets (RUN_SECRETS_HOMOLOGATION=1)",
     "cursor_harness: recursive-loop .cursor/ scripts; skipped on GitHub Actions",

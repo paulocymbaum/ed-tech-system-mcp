@@ -271,7 +271,7 @@ async def _stream_with_timeout[T](
         try:
             async for item in iterator:
                 await queue.put(item)
-        except BaseException as exc:
+        except BaseException as exc:  # noqa: BLE001 — trace capture is observability-only; tool result already computed
             await queue.put(exc)
         finally:
             await queue.put(None)

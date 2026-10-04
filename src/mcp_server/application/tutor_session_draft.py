@@ -52,5 +52,5 @@ async def patch_tutor_session_draft_fail_open(
         return
     try:
         await port.patch(session_id=session_id, draft_reply=draft_reply)
-    except Exception:
+    except Exception:  # noqa: BLE001 — draft persistence is best-effort; tutor turn continues
         logger.warning("tutor session draft patch failed")

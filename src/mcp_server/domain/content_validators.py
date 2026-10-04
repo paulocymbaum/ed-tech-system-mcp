@@ -567,5 +567,8 @@ def validate_test_boilerplate(value: Any) -> ValidationReport:
         )
     stack = value.get("stack")
     if stack is not None and stack not in LESSON_STACKS:
-        report.findings.append(ValidationFinding("error", f"unknown stack `{stack}` (allowed: {', '.join(sorted(LESSON_STACKS))})"))
+        allowed = ", ".join(sorted(LESSON_STACKS))
+        report.findings.append(
+            ValidationFinding("error", f"unknown stack `{stack}` (allowed: {allowed})")
+        )
     return report
