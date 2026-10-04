@@ -52,7 +52,11 @@ jobs:
           group: python-hooks
 
       - name: Hook contract tests
-        run: uv run pytest tests/test_hooks.py -q
+        # -p no:cacheprovider irrelevant; -o addopts= strips the global 73%
+        # cov gate — this scoped run covers only test_hooks.py and would
+        # otherwise report 0% against the whole package (PK-70 gate belongs
+        # to the full "verify" job run below).
+        run: uv run pytest tests/test_hooks.py -q -o addopts=""
 
   verify:
     name: Tests & architecture
