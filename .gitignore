@@ -117,3 +117,5 @@ chroma_data/
 temp/
 .integration.md
 docs/articles/the-flight-simulator.md
+coverage.json
+praxis-code-v2.zip
