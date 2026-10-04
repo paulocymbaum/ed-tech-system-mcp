@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from mcp_server.domain.input_safety import wrap_user_content_for_prompt
+from mcp_server.domain.input_safety import (
+    contains_injection_marker,
+    sanitize_user_text,
+    wrap_user_content_for_prompt,
+)
 from mcp_server.domain.socratic import SocraticGrounding, SocraticMessage
 
 _LOCALE_NAMES = {
@@ -82,11 +86,23 @@ def socratic_user_prompt(
             parts.append(f"Related documents:\n{docs}")
 
     if history:
-        hist = "\n".join(
-            f"{m.role}: {wrap_user_content_for_prompt(m.content[:500], label='history_turn')}"
+        # PK-88 / MC-06c: history is RE-SANITIZED on replay. Turns carrying
+        # injection markers are dropped entirely (entry-gate semantics); the
+        # rest are length-bounded and fenced as untrusted data.
+        safe_turns = [
+            m
             for m in history[-6:]
+            if not contains_injection_marker(m.content)
+        ]
+        hist = "\n".join(
+            f"{m.role}: "
+            + wrap_user_content_for_prompt(
+                sanitize_user_text(m.content[:500]), label="history_turn"
+            )
+            for m in safe_turns
         )
-        parts.append(f"Recent chat:\n{hist}")
+        if hist:
+            parts.append(f"Recent chat:\n{hist}")
 
     parts.append(
         "Learner message:\n"
