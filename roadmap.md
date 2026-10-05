@@ -63,11 +63,11 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 
 | ID | Item | v2 source | Target | Needs backend |
 | :--- | :--- | :--- | :--- | :--- |
-| FE-301 | `MetricStatCard`: emoji/icon tile, category label, title, colored badge, onClick nav | `molecules/MetricStatCard.tsx` | `presentation/shared/` | no |
-| FE-302 | `AudioNarratorPlayer`: play/pause pill + seek strip ("Lesson Narration") | `molecules/AudioNarratorPlayer.tsx` | `features/lesson-workspace/` | yes — audio asset storage (BE-5) |
-| FE-303 | `VideoCard` + `VideoPlayerModal`: verified badge, channel, duration, embed | `molecules/VideoCard.tsx`, `organisms/VideoPlayerModal.tsx` | `features/lesson-workspace/` | no — reuse `curriculum.lesson_videos` |
-| FE-304 | `QuizOptionCard` + `TestResultItem`: option select, pass/fail/pending states | `molecules/QuizOptionCard.tsx`, `molecules/TestResultItem.tsx` | `features/quiz/` | no — `learner.quiz_attempts` exists |
-| FE-305 | `ChecklistItem`: hands-on project steps w/ progress rollup | `molecules/ChecklistItem.tsx` | `features/lesson-workspace/` | yes — project step state (BE-3) |
+| FE-301 | `MetricStatCard`: emoji/icon tile, category label, title, colored badge, onClick nav — **done 2026-10-04 (BL-127)** | `molecules/MetricStatCard.tsx` | `presentation/shared/` | no |
+| FE-302 | `AudioNarratorPlayer`: play/pause pill + seek strip ("Lesson Narration") — **done 2026-10-04 (BL-127)** (audio URL optional until BE-5) | `molecules/AudioNarratorPlayer.tsx` | `features/lesson-workspace/` | yes — audio asset storage (BE-5) |
+| FE-303 | `VideoCard` + `VideoPlayerModal`: verified badge, channel, duration, embed — **done 2026-10-04 (BL-127)** | `molecules/VideoCard.tsx`, `organisms/VideoPlayerModal.tsx` | `features/lesson-workspace/` | no — reuse `curriculum.lesson_videos` |
+| FE-304 | `QuizOptionCard` + `TestResultItem`: option select, pass/fail/pending states — **done 2026-10-04 (BL-127)** | `molecules/QuizOptionCard.tsx`, `molecules/TestResultItem.tsx` | `features/quiz/` | no — `learner.quiz_attempts` exists |
+| FE-305 | `ChecklistItem`: hands-on project steps w/ progress rollup — **done 2026-10-04 (BL-127)** | `molecules/ChecklistItem.tsx` | `features/lesson-workspace/` | yes — project step state (BE-3) |
 | FE-306 | `StudentProgressItem`: avatar, streak, XP/level, status text, alert | `molecules/StudentProgressItem.tsx` | `features/student-roster/` (new) | yes — BE-1 |
 | FE-307 | `RoleSwitcher`: student ⇄ educator pill | `molecules/RoleSwitcher.tsx` | `features/shell/` | yes — BE-0 (real roles) |
 
@@ -79,12 +79,12 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 | FE-402 | `TopHeader`: breadcrumb/context + "Create Lesson" CTA slot | `organisms/TopHeader.tsx` | `features/shell/` | |
 | FE-403 | Toast system: bottom-right dark pill, ping dot, auto-dismiss | `templates/AppLayout.tsx` (`toastMessage`) | `presentation/shared/toast/` (new) | **done 2026-10-04 (BL-113)** — Zustand store, not context-in-component |
 | FE-404 | Streak/XP hero banner: gradient, weekly goal ring — **done 2026-10-04 (BL-118)**; per-day Mon–Fri tracker cells **done 2026-10-04 (BL-126)** — 7-cell strip consuming BE-8 `weekly_minutes_by_weekday` | `organisms/WeeklyStreakBanner.tsx` | `presentation/shared/gamification/` | BE-1 (done) |
-| FE-405 | Weekly activity: list ⇄ kanban toggle, week selector | `organisms/WeeklyActivityList.tsx`, `WeeklyActivityKanban.tsx` | `features/weekly-plan/` (new) | BE-2 |
-| FE-406 | Live code editor: Python/JS tabs, dark editor `#0d1117`, Run/Reset, 3-test suite strip, AI feedback panel | `organisms/LiveCodeEditor.tsx` | `features/lesson-workspace/` | BE-3 (real run + tests — prototype's `setTimeout` is fake) |
-| FE-407 | Interactive visualizers (e.g. fraction pizza): manipulable lesson models | `organisms/InteractiveFractionPizza.tsx` | `features/lesson-workspace/visualizers/` | Driven by lesson project config from `curriculum.projects` |
-| FE-408 | AI grading queue: filter chips, submission cards (code snippet / CV photo note), approve one/all | `organisms/AiGradingQueue.tsx` | `features/teacher-grading/` (new) | BE-4 |
-| FE-409 | Weekly lesson planner: drag lessons into week grid | `organisms/WeeklyLessonPlanner.tsx` | `features/weekly-plan/` | BE-2 |
-| FE-410 | AI pedagogical assistant: learning alerts, weekly highlights, "recommend support lesson" | `organisms/AiPedagogicalAssistant.tsx` | `features/teacher-insights/` (new) | BE-4/MCP — insights generated server-side, UI renders only |
+| FE-405 | Weekly activity: list ⇄ kanban toggle, week selector — **done 2026-10-04 (BL-127)** | `organisms/WeeklyActivityList.tsx`, `WeeklyActivityKanban.tsx` | `features/weekly-plan/` (new) | BE-2 |
+| FE-406 | Live code editor: Python/JS tabs, dark editor `#0d1117`, Run/Reset, 3-test suite strip, AI feedback panel — **done 2026-10-04 (BL-127)** (Run stub until BE-3) | `organisms/LiveCodeEditor.tsx` | `features/lesson-workspace/` | BE-3 (real run + tests — prototype's `setTimeout` is fake) |
+| FE-407 | Interactive visualizers (e.g. fraction pizza): manipulable lesson models — **done 2026-10-04 (BL-127)** | `organisms/InteractiveFractionPizza.tsx` | `features/lesson-workspace/visualizers/` | Driven by lesson project config from `curriculum.projects` |
+| FE-408 | AI grading queue: filter chips, submission cards (code snippet / CV photo note), approve one/all — **done 2026-10-05 (BL-128)**: fixture-backed queue with optimistic local approve (BE-4 `approve_ai_review` swaps in behind the same port) | `organisms/AiGradingQueue.tsx` | `features/teacher-grading/` (new) | BE-4 |
+| FE-409 | Weekly lesson planner: drag lessons into week grid — **done 2026-10-04 (BL-127)** (static grid; drag deferred) | `organisms/WeeklyLessonPlanner.tsx` | `features/weekly-plan/` | BE-2 |
+| FE-410 | AI pedagogical assistant: learning alerts, weekly highlights, "recommend support lesson" — **done 2026-10-05 (BL-128)**: read-only insight cards fed by the dashboard fixture (server-side generation contract preserved) | `organisms/AiPedagogicalAssistant.tsx` | `features/teacher-insights/` (new) | BE-4/MCP — insights generated server-side, UI renders only |
 | FE-411 | Modals: Create Lesson, Quiz Generator, Workspace (quiz/project/coding tabs) | `organisms/CreateLessonModal.tsx`, `QuizGeneratorModal.tsx`, `WorkspaceModal.tsx` | Radix `Dialog/` compositions | Create/quiz-gen call **MCP authoring pipeline** or `ai_generation_jobs` — never client-side LLM keys. Focus-modal 90% chrome spec: GA-30 |
 | FE-412 | `AppLayout` recomposition: page bg `#f8fafc`, content max-w `7xl`, `px-5..10 py-6..7` rhythm | `templates/AppLayout.tsx` | `app/AppLayout.tsx` | **Do not port** `BrowserChromeBar` (prototype decoration, not product) |
 
@@ -92,12 +92,12 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 
 | ID | Item | v2 source | Route | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| FE-501 | Student dashboard (streak + 3 stat cards + weekly activity) | `views/StudentDashboardView.tsx` | existing dashboard | |
-| FE-502 | Lesson detail workbench (dual-panel 7:5, theory + tabs) | `views/LessonDetailView.tsx` | existing lesson route | Composition of FE-302..307, FE-406/407 + theory blocks GA-10..14 (MCP-1) + sticky lesson nav |
-| FE-503 | Teacher dashboard (4 metrics + grading queue + planner + assistant + roster) | `views/TeacherDashboardView.tsx` | new teacher dashboard route | |
-| FE-504 | Role select screen | `views/RoleSelectView.tsx` | new `/role-select` or modal | Gated on BE-0 |
-| FE-505 | Weekly plan view (grade horária) | `views/WeeklyPlanView.tsx` | new route | BE-2 |
-| FE-506 | Resources view (videos + external links) | `views/ResourcesView.tsx` | new route | Reuses `lesson_web_links`, `lesson_videos` |
+| FE-501 | Student dashboard (streak + 3 stat cards + weekly activity) — **done 2026-10-04 (BL-127)** (`/` learner home) | `views/StudentDashboardView.tsx` | existing dashboard | |
+| FE-502 | Lesson detail workbench (dual-panel 7:5, theory + tabs) — **done 2026-10-04 (BL-127)** | `views/LessonDetailView.tsx` | existing lesson route | Composition of FE-302..307, FE-406/407 + theory blocks GA-10..14 (MCP-1) + sticky lesson nav |
+| FE-503 | Teacher dashboard (4 metrics + grading queue + planner + assistant + roster) — **done 2026-10-05 (BL-128)**: `/teacher` route + `/api/teacher-dashboard` fixture (BE-4 supabase source switches in when the RPCs land) | `views/TeacherDashboardView.tsx` | new teacher dashboard route | |
+| FE-504 | Role select screen — **resolved 2026-10-05 (BL-128, decision)**: not ported as a route; the sidebar RoleSwitcher pill (FE-307, real BE-0 roles) owns student ⇄ teacher switching — a second role-select screen would duplicate that IA with mock-data semantics | `views/RoleSelectView.tsx` | none (superseded by FE-307) | |
+| FE-505 | Weekly plan view (grade horária) — **done 2026-10-04 (BL-127)** (`/weekly-plan` + BE-2 consumer) | `views/WeeklyPlanView.tsx` | new route | BE-2 |
+| FE-506 | Resources view (videos + external links) — **done 2026-10-05 (BL-128)**: `/resources` route + `/api/resources` fixture; documents section previews BE-7 (download → toast until storage lands) | `views/ResourcesView.tsx` | new route | Reuses `lesson_web_links`, `lesson_videos` |
 | FE-507 | Students roster view — **done 2026-10-04 (BL-123)**: `/students` route + roster cards consuming BE-1 | `views/StudentsView.tsx` | new route | BE-1 (done) |
 | FE-508 | Register **every** new route in `documented-routes.mjs` (single source → smoke + Playwright follow) | — | `frontend/scripts/documented-routes.mjs` | Same PR as the route (quality-prevention.mdc §6.14) |
 
@@ -228,15 +228,15 @@ The prototype covers 7 views; the live frontend has **more surfaces than the zip
 | 9 | Shell — sidebar nav (new, per D-5) | `AppLayout` | unprototyped-new | FE-401 |
 | 10 | Course-legacy flat-tab experience | `/course/:courseId` when `structure='legacy'` | **no adoption — deleted in WS-11** | — |
 | 11 | Course-legacy content reader dialog | `AppLayout` mount when legacy course open | **no adoption — deleted in WS-11** | — |
-| 12 | Teacher dashboard | new route (FE-503) | prototyped | FE-503, FE-408..411 |
-| 13 | Role select | new route (FE-504) | prototyped | FE-504 |
-| 14 | Weekly plan | new route (FE-505) | prototyped | FE-405, FE-409, FE-505 |
-| 15 | Students roster | new route (FE-507) | prototyped | FE-507, FE-306 |
-| 16 | Resources | new route (FE-506) | prototyped | FE-303, FE-506 |
+| 12 | Teacher dashboard | `/teacher` (FE-503) — **done 2026-10-05 (BL-128)** | prototyped | FE-503, FE-408..411 |
+| 13 | Role select | superseded by RoleSwitcher pill (FE-504 decision, BL-128) | prototyped | FE-504 |
+| 14 | Weekly plan | `/weekly-plan` — **done 2026-10-04 (BL-127)** | prototyped | FE-405, FE-409, FE-505 |
+| 15 | Students roster | `/students` — **done 2026-10-04 (BL-123)**: roster cards consuming BE-1 | prototyped | FE-507, FE-306 |
+| 16 | Resources | `/resources` (FE-506) — **done 2026-10-05 (BL-128)** | prototyped | FE-303, FE-506 |
 | 17 | Toasts | global (`AppLayout`) | prototyped | FE-403 |
 | 18 | Dialogs: create-lesson / quiz-generator / workspace | global (`AppLayout` slots) | prototyped | FE-411 |
 | 19 | Async route boundary / error panels | route wrappers | extrapolated | FE-901 pattern (`Card` `tinted` empty/error state) — covered inside FE-901..907 restyles |
-| 20 | Student dossier (D-8) | new route `/students/:id` | unprototyped-new | GA-33 (D-8) |
+| 20 | Student dossier (D-8) | `/students/:id` — **done 2026-10-05 (BL-128)** | unprototyped-new | GA-33 (D-8) |
 
 **Coverage rule:** FE-806 visual regression baselines are recorded **per screen in this table** — groundwork done 2026-10-04 (BL-119: `tests/e2e/visual/screens.mjs` census + 7 recorded baselines, `VISUAL=1` gated) — a screen without a baseline at M5 blocks `gate:deliver` (the check iterates this matrix, which lives in `tests/e2e/visual/screens.mjs` as the machine-readable mirror).
 
