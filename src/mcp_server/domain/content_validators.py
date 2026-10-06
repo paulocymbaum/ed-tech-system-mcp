@@ -358,6 +358,11 @@ def validate_lesson_bundle(
         report.findings.append(ValidationFinding("error", "README.md missing or empty"))
     meta_report = validate_lesson_meta(meta)
     report.findings.extend(meta_report.findings)
+    # GA-10..13: edtech-* content-block fences validated inline (fail loud on
+    # typos instead of rendering raw code on the student side).
+    from mcp_server.domain.content_blocks import validate_content_blocks
+
+    report.findings.extend(validate_content_blocks(readme_markdown).findings)
     if quiz is not None:
         quiz_report = validate_quiz_payload(quiz)
         report.findings.extend(quiz_report.findings)

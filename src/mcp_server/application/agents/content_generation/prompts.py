@@ -86,6 +86,14 @@ def lesson_user_prompt(
             "graph node. The topic string may mention a quiz or project — ignore that; this "
             "step is README only."
         )
+        lines.append(
+            "Optionally enrich readme_markdown with Praxis v2 content blocks as fenced code "
+            "blocks: ```edtech-tip tone=tip|warning (one short body), ```edtech-vocabulary "
+            "(rows of 'term | subtitle'), ```edtech-educator-notes (guidance for parents/"
+            "tutors), and ```edtech-visualizer component=fraction-pizza (a math expression "
+            "line rendered as a live readout). Use blocks only where they aid the topic; "
+            "malformed blocks fail validation."
+        )
     else:
         lines.append(
             "Include clear objectives, at least two sections with substantive content, "
