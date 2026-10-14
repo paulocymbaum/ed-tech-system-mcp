@@ -87,7 +87,7 @@ Map v2 atoms onto existing design-system components; restyle via tokens, keep pu
 | FE-410 | AI pedagogical assistant: learning alerts, weekly highlights, "recommend support lesson" — **done 2026-10-05 (BL-128)**: read-only insight cards fed by the dashboard fixture (server-side generation contract preserved) | `organisms/AiPedagogicalAssistant.tsx` | `features/teacher-insights/` (new) | BE-4/MCP — insights generated server-side, UI renders only |
 | FE-411 | Modals: Create Lesson, Quiz Generator, Workspace (quiz/project/coding tabs) | `organisms/CreateLessonModal.tsx`, `QuizGeneratorModal.tsx`, `WorkspaceModal.tsx` | Radix `Dialog/` compositions | Create/quiz-gen call **MCP authoring pipeline** or `ai_generation_jobs` — never client-side LLM keys. Focus-modal 90% chrome spec: GA-30 |
 | FE-412 | `AppLayout` recomposition: page bg `#f8fafc`, content max-w `7xl`, `px-5..10 py-6..7` rhythm | `templates/AppLayout.tsx` | `app/AppLayout.tsx` | **Do not port** `BrowserChromeBar` (prototype decoration, not product) |
-| FE-509 | Lesson Studio (`/teacher/lessons`): teacher lesson-creation flow over the **MCP authoring pipeline** (Topic → Brief → Generate stepper; supersedes the v2 Create-Lesson modal as the product authoring surface) — **added 2026-10-05**: shipped in code (`features/lesson-studio/`) but previously absent from this roadmap; visual baseline still owed (FE-806) | `organisms/CreateLessonModal.tsx` (v2) — productized beyond it | `features/lesson-studio/` (new) | Calls the MCP authoring pipeline / `ai_generation_jobs` — never client-side LLM keys |
+| FE-509 | Lesson Studio (`/teacher/lessons`): teacher lesson-creation flow over the **MCP authoring pipeline** (Topic → Brief → Generate stepper; supersedes the v2 Create-Lesson modal as the product authoring surface) — **added 2026-10-05**: shipped in code (`features/lesson-studio/`) but previously absent from this roadmap; visual baseline recorded 2026-10-14 (BL-131); direct-navigation catalog-load hang fixed 2026-10-14 | `organisms/CreateLessonModal.tsx` (v2) — productized beyond it | `features/lesson-studio/` (new) | Calls the MCP authoring pipeline / `ai_generation_jobs` — never client-side LLM keys |
 
 ## WS-5 — Views & routes
 
@@ -117,6 +117,8 @@ What already exists per item, so each migration only adds the delta (verified vi
 | BE-5 | nothing — no audio table or bucket today | `curriculum.lesson_audio` + Storage bucket `lesson-audio` (both new) |
 | BE-6 | `curriculum.lesson_web_links` (url/title/snippet/source) + `curriculum.lesson_videos` (url/title/views, position 1..3) cover the read model | `verified boolean default false` on `lesson_videos` (single expand migration) |
 | BE-7 | nothing reusable — note: do **not** overload `curriculum.content_documents`; that table is the README/markdown store (`entity_type` course/module/lesson/project + `readme_markdown`), not a file library | `curriculum.documents` + Storage bucket `pedagogical-docs` (both new) |
+
+**Execution scaffolding (2026-10-14):** WS-6 items are scaffolded as backlog strokes in `ed-tech-system/backlog/BACKLOG.md` — BE-3 → **BL-137** · BE-4 → **BL-136** · BE-5 → **BL-140** · BE-6 → **BL-138** · BE-7 → **BL-139**.
 | GA-22 / D-10 | tag pattern exists: `public.content_tags` (tenant-scoped slug, `display_name`, `is_active`) + `curriculum.lesson_tags` join | Question tags reuse this exact pattern (new `quiz_question_tags` join) instead of a hardcoded CHECK enum column |
 | MCP-1 | lesson theory already persists in `curriculum.content_documents.readme_markdown` (`entity_type='lesson'`) | No new backend table: new block types (GA-10..13b) ship as markdown-embedded structured blocks authored through the MCP pipeline |
 
@@ -253,11 +255,11 @@ The prototype covers 7 views; the live frontend has **more surfaces than the zip
 | 18 | Dialogs: create-lesson / quiz-generator / workspace | global (`AppLayout` slots) — create-lesson superseded by Lesson Studio (FE-509) | prototyped | FE-411, FE-509 |
 | 19 | Async route boundary / error panels | route wrappers | extrapolated | FE-901 pattern (`Card` `tinted` empty/error state) — covered inside FE-901..907 restyles |
 | 20 | Student dossier (D-8) | `/students/:id` — **done 2026-10-05 (BL-128)** | unprototyped-new | GA-33 (D-8) |
-| 21 | Lesson Studio (teacher authoring) | `/teacher/lessons` — **added 2026-10-05**: shipped in code (FE-509), baseline owed | unprototyped-new | FE-509 |
-| 22 | Login | `/login` — **added 2026-10-05**: shipped 2026-10-04 (BL-125 login wall); baseline owed per FE-806 | unprototyped-new | D-4 (BL-125) |
+| 21 | Lesson Studio (teacher authoring) | `/teacher/lessons` — **added 2026-10-05**: shipped in code (FE-509); baseline recorded 2026-10-14 (BL-131); catalog-load hang fixed same day | unprototyped-new | FE-509 |
+| 22 | Login | `/login` — **added 2026-10-05**: shipped 2026-10-04 (BL-125 login wall); baseline recorded 2026-10-14 (BL-131) | unprototyped-new | D-4 (BL-125) |
 | 23 | Project reader (project delivery drawer) | lesson workspace project tab (`features/content-reader/ProjectReader.tsx`) — **added 2026-10-05**: classified under project delivery family; baseline owed | extrapolated | FE-906 |
 
-**Coverage rule:** FE-806 visual regression baselines are recorded **per screen in this table** — groundwork done 2026-10-04 (BL-119: `tests/e2e/visual/screens.mjs` census + 7 recorded baselines, `VISUAL=1` gated) — a screen without a baseline at M5 blocks `gate:deliver` (the check iterates this matrix, which lives in `tests/e2e/visual/screens.mjs` as the machine-readable mirror).
+**Coverage rule:** FE-806 visual regression baselines are recorded **per screen in this table** — groundwork done 2026-10-04 (BL-119: `tests/e2e/visual/screens.mjs` census + 7 recorded baselines, `VISUAL=1` gated) — a screen without a baseline at M5 blocks `gate:deliver` (the check iterates this matrix, which lives in `tests/e2e/visual/screens.mjs` as the machine-readable mirror). Remaining baseline work **completed 2026-10-14 (BL-131): 17/17 matrix entries recorded, auth-aware** (seeded personas; role-correct per screen).
 
 ---
 
@@ -285,6 +287,8 @@ Plus unmarked compat that dies with it: `application/stores/legacy/` (`courseExp
 4. **Backend cutover shipped**: `generate-static-catalog.mjs` no longer emits `structure: "legacy"` (Wave 5.2 catalog-generator compat) — otherwise the FE guard deletion breaks catalog generation.
 
 ### Deletion strokes (each = one PR, gate:fast → gate:core)
+
+Scaffolded as **BL-143** in the shared backlog (`ed-tech-system/backlog/BACKLOG.md`), including the preconditions check.
 
 | ID | Item | Files touched | Sensor after |
 | :--- | :--- | :--- | :--- |
@@ -379,16 +383,16 @@ Prototype quiz questions carry per-question meta and visual options; `scripts/sc
 
 | ID | Item (v2 source) | Where | Feeds |
 | :--- | :--- | :--- | :--- |
-| GA-30 | **Focus modal 90% chrome**: dark slate-900 header w/ mode tabs (quiz/project/coding), mobile tab strip, sync footer (live-sync dot + Concluir Atividade) | `WorkspaceModal.tsx` | FE-411 — spec the header/footer/nav behavior, not just "Radix Dialog composition" |
-| GA-31 | **Quick-launch chips on activity rows**: "Quiz (90%)" / "Projeto (90%)" chips + Print action on each `WeeklyActivityList` row | `WeeklyActivityList.tsx` | FE-405 — quick-open the workspace modal with mode+lesson preset |
-| GA-30b | **Notifications bell** (teacher top header: rose pulse dot, count) | `TopHeader.tsx` | FE-402 — needs BE-4 `list_pending_ai_reviews` count; no storage of notification entities in v1 |
+| GA-30 | **Focus modal 90% chrome**: dark slate-900 header w/ mode tabs (quiz/project/coding), mobile tab strip, sync footer (live-sync dot + Concluir Atividade) | `WorkspaceModal.tsx` | FE-411 — spec the header/footer/nav behavior, not just "Radix Dialog composition" → BL-134 |
+| GA-31 | **Quick-launch chips on activity rows**: "Quiz (90%)" / "Projeto (90%)" chips + Print action on each `WeeklyActivityList` row | `WeeklyActivityList.tsx` | FE-405 — quick-open the workspace modal with mode+lesson preset → BL-134 |
+| GA-30b | **Notifications bell** (teacher top header: rose pulse dot, count) | `TopHeader.tsx` | FE-402 — needs BE-4 `list_pending_ai_reviews` count; no storage of notification entities in v1 → BL-133 |
 | GA-32 | **Rubric viewer + "Ver Rubrica" action** on grading cards | `AiGradingQueue.tsx` | FE-408 — rubric data must come from `curriculum.project_test_cases`/rubric fields via BE-4 contract |
 | GA-33 | **Student dossier target** ("Ficha Completa" / "Ver Relatório Individual Detalhado") — repeated CTA with no target screen in the prototype or roadmap | `StudentsView.tsx`, `TeacherDashboardView.tsx` | Either a new FE route (add to WS-10 matrix #20) or demote to toast; decide before M4 |
 | GA-34 | **PDF/doc library section** (curricular guides list w/ size + download) | `ResourcesView.tsx` | FE-506 — needs BE storage for pedagogical documents (new BE-7) |
 | GA-35 | **Tutor-call card** ("Need Help?" gradient card + Call Tutor) | `LessonDetailView.tsx` right column | **Recommend no-adoption** (non-goal: no live calling feature in product scope) — decision D-7 |
-| GA-36 | **Term selector** (teacher: "Semana 12 • 2º Bimestre" dropdown) | `TopHeader.tsx` | FE-402 — term context filter for teacher dashboards; needs BE-4 insights scoping |
-| GA-37 | **Lesson row illustrations** (per-subject inline SVG sets) | `WeeklyActivityList.tsx` | FE-405 — tokenized SVG set under design-system (subject-illustration slots), authored once; not per-lesson MCP content |
-| GA-38 | **Parent/tutor guidance copy is PT-BR**; the product is bilingual by design (locale files exempt) | all views | i18n pass: all new GA strings through `locales/*`, never hardcoded |
+| GA-36 | **Term selector** (teacher: "Semana 12 • 2º Bimestre" dropdown) | `TopHeader.tsx` | FE-402 — term context filter for teacher dashboards; needs BE-4 insights scoping → BL-133 |
+| GA-37 | **Lesson row illustrations** (per-subject inline SVG sets) | `WeeklyActivityList.tsx` | FE-405 — tokenized SVG set under design-system (subject-illustration slots), authored once; not per-lesson MCP content → BL-135 |
+| GA-38 | **Parent/tutor guidance copy is PT-BR**; the product is bilingual by design (locale files exempt) | all views | i18n pass: all new GA strings through `locales/*`, never hardcoded → BL-135 |
 | GA-39 | **`resetSlices` / visualizer state reset** on lesson exit | `AppContext.tsx` | FE-407 — visualizer state contract must define reset on unmount |
 
 ### 12.5 — New backend items
@@ -405,8 +409,8 @@ The prototype's lesson/quiz richness is authoring-pipeline territory. Single sou
 | ID | Item | Where (this repo) |
 | :--- | :--- | :--- |
 | MCP-1 | Lesson content-block schema extension: block types `tip-callout`, `vocabulary-grid`, `educator-notes`, `visualizer-readout` (GA-10..13b) — extend the lesson schema consumed by `content_generation`/`author_lesson_pipeline`. **Storage note (DB reuse audit 2026-10-05)**: lesson theory already persists in `curriculum.content_documents.readme_markdown` (`entity_type='lesson'`) — blocks ship as markdown-embedded structured content via this pipeline; no new backend table needed for GA-10..13b | `src/` (agents/tools layer per `ARCHITECTURE.md`) |
-| MCP-2 | Quiz schema v-next: optional `fractionVisual` on options, `codeStem` on questions, `tag` meta (GA-20..23) — **contract-first**: changes to `ed-tech-system/scripts/schemas/quiz-schema.mjs` land in the same cross-repo PR set |
-| MCP-3 | Vocabulary block visuals: `mini_visual` descriptor (color swatch, fraction pie, array bar) vocabulary so FE renders deterministically | schema + validation tools |
+| MCP-2 | Quiz schema v-next: optional `fractionVisual` on options, `codeStem` on questions, `tag` meta (GA-20..23) — **contract-first**: changes to `ed-tech-system/scripts/schemas/quiz-schema.mjs` land in the same cross-repo PR set → BL-141 |
+| MCP-3 | Vocabulary block visuals: `mini_visual` descriptor (color swatch, fraction pie, array bar) vocabulary so FE renders deterministically | schema + validation tools → BL-142 |
 
 ### 12.7 — Decisions to add
 
