@@ -118,7 +118,7 @@ What already exists per item, so each migration only adds the delta (verified vi
 | BE-6 | `curriculum.lesson_web_links` (url/title/snippet/source) + `curriculum.lesson_videos` (url/title/views, position 1..3) cover the read model | `verified boolean default false` on `lesson_videos` (single expand migration) |
 | BE-7 | nothing reusable — note: do **not** overload `curriculum.content_documents`; that table is the README/markdown store (`entity_type` course/module/lesson/project + `readme_markdown`), not a file library | `curriculum.documents` + Storage bucket `pedagogical-docs` (both new) |
 
-**Execution scaffolding (2026-10-14):** WS-6 items are scaffolded as backlog strokes in `ed-tech-system/backlog/BACKLOG.md` — BE-3 → **BL-137 (done 2026-10-15)** · BE-4 → **BL-136 (done 2026-10-15)** · BE-5 → **BL-140** · BE-6 → **BL-138 (done 2026-10-15)** · BE-7 → **BL-139**.
+**Execution scaffolding (2026-10-14):** WS-6 items are scaffolded as backlog strokes in `ed-tech-system/backlog/BACKLOG.md` — BE-3 → **BL-137 (done 2026-10-15)** · BE-4 → **BL-136 (done 2026-10-15)** · BE-5 → **BL-140 (done 2026-10-15)** · BE-6 → **BL-138 (done 2026-10-15)** · BE-7 → **BL-139**.
 | GA-22 / D-10 | tag pattern exists: `public.content_tags` (tenant-scoped slug, `display_name`, `is_active`) + `curriculum.lesson_tags` join | Question tags reuse this exact pattern (new `quiz_question_tags` join) instead of a hardcoded CHECK enum column |
 | MCP-1 | lesson theory already persists in `curriculum.content_documents.readme_markdown` (`entity_type='lesson'`) | No new backend table: new block types (GA-10..13b) ship as markdown-embedded structured blocks authored through the MCP pipeline |
 
