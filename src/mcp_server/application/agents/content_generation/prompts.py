@@ -151,6 +151,17 @@ def quiz_user_prompt(
             "correctOptionId MUST be exactly one option.id — never the option text, "
             "never an index, never a UUID. Include a short explanation per question."
         )
+        # Quiz v-next optional fields (GA-20..23, BL-141) — omit unless the
+        # concept genuinely benefits; the FE renders pie visuals, code-stem
+        # panels, meta chips and code rows.
+        lines.append(
+            "Optional per question: codeStem (a short code snippet shown above "
+            "the options, for read-the-code questions). Optional per option: "
+            "fractionVisual {total, filled} (a pie visual for fraction "
+            "comparisons, total >= 2, 0 <= filled <= total), tag (a lowercase "
+            "slug chip, e.g. concept-mutation, max 64 chars), code (renders the "
+            "option as a code row). Omit any field that does not apply."
+        )
         if lesson_slug:
             lines.append(f"Set lessonId to: {lesson_slug}")
         if graph_index:
