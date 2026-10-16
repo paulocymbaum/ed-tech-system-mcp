@@ -4,8 +4,9 @@
 # per-step runner JSON, summary.json, exit 0/1/2. Only this script writes
 # .gates/last-run/*.json — agents read, never write.
 #
-# Usage: scripts/harness/gate.sh fast|mypy|all
+# Usage: scripts/harness/gate.sh fast|core|mypy|all
 #   fast   pytest (unit+integration, cursor_harness deselected)
+#   core   pytest + mypy (PR CI)
 #   mypy   static type check
 #   all    pytest + mypy
 #
@@ -18,11 +19,12 @@ RUN_DIR="${GATES_RUN_DIR:-$ROOT/.gates/last-run}"
 LOG_MAX_BYTES="${GATES_LOG_MAX_BYTES:-16000}"
 SKIP_LIST="${GATES_SKIP:-}"
 
-usage() { sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 profile_steps() {
   case "$1" in
     fast) echo "01-pytest" ;;
+    core) echo "01-pytest 02-mypy" ;;
     mypy) echo "02-mypy" ;;
     all)  echo "01-pytest 02-mypy" ;;
     *) return 1 ;;
@@ -59,13 +61,9 @@ for STEP in $STEPS; do
 
   case "$STEP" in
     01-pytest) CMD=(uv run pytest -q -m "not cursor_harness" --junitxml=pytest-results.xml) ;;
-    # Report-only until the 35-error mypy baseline is ratcheted to 0 (PK-70
-    # floor-at-baseline discipline): `|| true` would hide the verdict from the
-    # runner JSON, so we record the real exit in REPORT_ONLY instead.
-    02-mypy)
-      CMD=(uv run mypy src/mcp_server)
-      REPORT_ONLY=1
-      ;;
+    # BL-103: the 35-error baseline was ratcheted to 0 — mypy is a real
+    # setpoint now; a red mypy fails this runner (no report-only pass-through).
+    02-mypy) CMD=(uv run mypy src/mcp_server) ;;
     *) echo "INTERRUPTED $STEP — no command mapped" >&2; MISSING=$((MISSING+1)); continue ;;
   esac
 
@@ -77,11 +75,6 @@ for STEP in $STEPS; do
   CODE=$?
   E="$(date +%s%3N)"
   MS=$((E - S))
-
-  if [ "${REPORT_ONLY:-0}" = "1" ] && [ "$CODE" -ne 0 ]; then
-    echo "REPORT $STEP (baseline-red, not a setpoint yet — ${MS}ms)"
-    CODE=0
-  fi
 
   tail -c "$LOG_MAX_BYTES" "$OUT" >"$LOG" || true
   rm -f "$OUT"

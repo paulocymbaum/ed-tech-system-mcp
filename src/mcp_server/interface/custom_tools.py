@@ -177,7 +177,7 @@ async def build_lesson_enrichment_query(
     lesson_title: str,
 ) -> LessonEnrichmentQuery:
     """Build a 4-5 term search query for lesson enrichment from course/module/lesson titles."""
-    args = {
+    args: dict[str, object] = {
         "course_title": course_title,
         "module_title": module_title,
         "lesson_title": lesson_title,

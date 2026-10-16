@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -71,7 +71,7 @@ def build_project_review_graph() -> ProjectReviewGraph:
     graph.add_edge("grade_delivery", "validate_grade")
     graph.add_conditional_edges("validate_grade", _route_after_validate)
     graph.add_edge("persist_grade", END)
-    return cast(ProjectReviewGraph, graph.compile())
+    return graph.compile()
 
 
 def get_project_review_graph() -> ProjectReviewGraph:
@@ -129,7 +129,7 @@ async def run_project_review_graph(**kwargs: object) -> tuple[ProjectReviewState
         lesson_slug=str(kwargs["lesson_slug"]),
         project_slug=str(kwargs["project_slug"]),
         user_id=str(kwargs["user_id"]),
-        delivery_limit=int(kwargs.get("delivery_limit") or 3),
+        delivery_limit=int(str(kwargs.get("delivery_limit") or 3)),  # tool args are JSON scalars
         persist=bool(kwargs.get("persist", True)),
     )
     return await invoke_graph_with_trace(

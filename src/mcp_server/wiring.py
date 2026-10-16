@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import SecretStr
 
 from mcp_server.application.integration_runtime import (
+    IntegrationSettings,
     configure_lazy_integration_clients,
     register_search_client_builder,
     register_video_client_builder,
@@ -467,17 +468,19 @@ def _lazy_build_chat_model(
 
 
 def _lazy_build_search_client(
-    settings: Settings,
+    settings: IntegrationSettings,
     cache: ICacheStore | None,
 ) -> ISearchClient:
-    return build_search_client(settings, cache)  # type: ignore[arg-type]
+    # The composition root registers itself with the root Settings instance;
+    # the app-layer alias is intentionally opaque (inner-no-settings contract).
+    return build_search_client(cast("Settings", settings), cache)
 
 
 def _lazy_build_video_client(
-    settings: Settings,
+    settings: IntegrationSettings,
     cache: ICacheStore | None,
 ) -> IVideoSearchClient:
-    return build_video_client(settings, cache)  # type: ignore[arg-type]
+    return build_video_client(cast("Settings", settings), cache)
 
 
 register_chat_model_builder(_lazy_build_chat_model)

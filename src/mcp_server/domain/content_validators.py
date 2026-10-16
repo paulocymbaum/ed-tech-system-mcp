@@ -438,6 +438,7 @@ def validate_mock_test_bundle(value: Any) -> ValidationReport:
             lesson_slugs.add(lesson_slug)
 
         position = section.get("position")
+        valid_position: int | None = None
         if not isinstance(position, int) or position < 1 or position > 3:
             report.findings.append(
                 ValidationFinding("error", f"{path}.position must be 1, 2, or 3")
@@ -448,6 +449,7 @@ def validate_mock_test_bundle(value: Any) -> ValidationReport:
             )
         else:
             positions.add(position)
+            valid_position = position
 
         section_type = section.get("section_type")
         if section_type not in MOCK_SECTION_TYPES:
@@ -457,8 +459,8 @@ def validate_mock_test_bundle(value: Any) -> ValidationReport:
                     f"{path}.section_type must be one of: {', '.join(sorted(MOCK_SECTION_TYPES))}",
                 )
             )
-        else:
-            typed_sections.append((int(position), str(section_type)))
+        elif valid_position is not None:
+            typed_sections.append((valid_position, str(section_type)))
 
     types_seen = [t for _, t in sorted(typed_sections, key=lambda item: item[0])]
     if types_seen != ["instructions", "quiz", "coding"]:

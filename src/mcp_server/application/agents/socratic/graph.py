@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -67,7 +67,7 @@ def build_socratic_tutor_graph() -> SocraticTutorGraph:
     graph.add_edge("ground_context", "generate_reply")
     graph.add_edge("generate_reply", "validate_reply")
     graph.add_conditional_edges("validate_reply", _route_after_validate)
-    return cast(SocraticTutorGraph, graph.compile())
+    return graph.compile()
 
 
 def get_socratic_tutor_graph() -> SocraticTutorGraph:
@@ -141,7 +141,7 @@ async def run_socratic_tutor_graph(**kwargs: object) -> tuple[SocraticTutorState
         lesson_slug=str(kwargs["lesson_slug"]) if kwargs.get("lesson_slug") else None,
         project_slug=str(kwargs["project_slug"]) if kwargs.get("project_slug") else None,
         history=history,
-        hint_level=int(kwargs.get("hint_level") or 1),
+        hint_level=int(str(kwargs.get("hint_level") or 1)),  # tool args are JSON scalars (int|str)
         locale=str(kwargs.get("locale") or "en"),
         want_full_solution=bool(kwargs.get("want_full_solution", False)),
     )

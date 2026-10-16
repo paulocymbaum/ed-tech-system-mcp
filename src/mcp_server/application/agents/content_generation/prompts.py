@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from mcp_server.domain.content_schemas import LessonDraft, PBLDraft, QuizDraft
 from mcp_server.domain.harness_schemas import (
@@ -15,7 +16,7 @@ from mcp_server.domain.input_safety import wrap_user_content_for_prompt
 
 def _graph_context_lines(
     *,
-    graph_hits: list[object] | None,
+    graph_hits: Sequence[object] | None,
     graph_node_id: str | None,
     course_slug: str | None,
     lesson_slug: str | None,
@@ -59,7 +60,7 @@ def lesson_user_prompt(
     grade_level: str,
     validation_errors: list[str] | None,
     graph_scoped: bool = False,
-    graph_hits: list[object] | None = None,
+    graph_hits: Sequence[object] | None = None,
     graph_node_id: str | None = None,
     course_slug: str | None = None,
     lesson_slug: str | None = None,

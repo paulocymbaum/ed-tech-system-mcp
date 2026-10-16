@@ -16,8 +16,12 @@ _search_builder: SearchClientBuilder | None = None
 _video_builder: VideoClientBuilder | None = None
 
 
-class IntegrationSettings(Protocol):
-    """Settings subset required to build integration clients."""
+# Opaque settings handle: the composition root hands builders the real
+# settings object; application code passes it through opaquely (the
+# inner-no-settings import contract forbids importing mcp_server.settings
+# here, and `object` is the honest structural stand-in for "the settings
+# object, typed at the wiring layer").
+IntegrationSettings = object
 
 
 SearchClientBuilder = Callable[[IntegrationSettings, ICacheStore | None], ISearchClient]

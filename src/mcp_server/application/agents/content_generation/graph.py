@@ -9,6 +9,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import RetryPolicy
 
+from mcp_server.domain.authoring import GraphNodeHit
+
 from mcp_server.application.agents.content_generation.nodes import (
     generate_lesson,
     generate_pbl,
@@ -169,7 +171,7 @@ def initial_content_generation_state(
     module_id: str | None = None,
     lesson_slug: str | None = None,
     graph_node_id: str | None = None,
-    graph_hits: list | None = None,
+    graph_hits: list[GraphNodeHit] | None = None,
     graph_index: str | None = None,
 ) -> ContentGenerationState:
     """Build the initial graph state for content generation."""

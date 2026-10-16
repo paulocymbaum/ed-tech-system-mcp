@@ -7,7 +7,8 @@ import hmac
 from typing import Any
 
 from fastmcp.server.dependencies import get_http_headers
-from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from fastmcp.tools import ToolResult
 from mcp.types import CallToolRequestParams
 
 from mcp_server.application.mcp_tool_auth_runtime import (
@@ -35,7 +36,11 @@ def _caller_jwt_from_headers() -> str:
 class PrivilegedToolAuthMiddleware(Middleware):
     """Gate privileged tools when ``MCP_REQUIRE_CALLER_JWT`` is enabled."""
 
-    async def on_call_tool(self, context: MiddlewareContext[CallToolRequestParams], call_next):
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
         runtime = get_mcp_tool_auth_runtime()
         if runtime is None or not runtime.require_caller_jwt or runtime.identity is None:
             return await call_next(context)

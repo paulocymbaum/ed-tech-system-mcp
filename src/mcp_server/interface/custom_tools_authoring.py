@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -259,7 +259,7 @@ async def search_graph_nodes(
     limit: int = 5,
 ) -> SearchGraphNodesResponse:
     """Search curriculum topic graph nodes (EF9 / RPC ``search_graph_nodes``)."""
-    args = {
+    args: dict[str, object] = {
         "tenant_id": tenant_id,
         "query": query,
         "course_slug": course_slug,
@@ -268,7 +268,12 @@ async def search_graph_nodes(
     }
 
     async def _run() -> SearchGraphNodesResponse:
-        hits = await asyncio.to_thread(_require_graph_search().search_graph_nodes, **args)
+        # Tool args are schema-validated upstream; the thread target's keyword
+        # contract is wider than the heterogeneous dict mypy infers here.
+        hits = await asyncio.to_thread(
+            _require_graph_search().search_graph_nodes,
+            **cast("dict[str, Any]", args),
+        )
         return SearchGraphNodesResponse(
             query=query.strip(),
             tenant_id=tenant_id,
@@ -290,7 +295,7 @@ async def generate_mock_test_structure(
     coding_lesson_slug: str | None = None,
 ) -> MockTestStructureResult:
     """Build a validated three-section mock test payload for EF2 ``mock_tests``."""
-    args = {
+    args: dict[str, object] = {
         "study_module_slug": study_module_slug,
         "mock_module_slug": mock_module_slug,
         "duration_minutes": duration_minutes,
@@ -301,7 +306,7 @@ async def generate_mock_test_structure(
     }
 
     async def _run() -> MockTestStructureResult:
-        return build_mock_test_structure(**args)
+        return build_mock_test_structure(**cast("dict[str, Any]", args))
 
     return await _cached_tool_invoke("generate_mock_test_structure", args, _run)
 
@@ -309,7 +314,7 @@ async def generate_mock_test_structure(
 @mcp.tool
 async def validate_mock_test(mock_test: dict[str, Any]) -> ValidateMockTestResponse:
     """Validate an EF2 ``mock_tests[]`` entry (instructions → quiz → coding)."""
-    args = {"mock_test": mock_test}
+    args: dict[str, object] = {"mock_test": mock_test}
 
     async def _run() -> ValidateMockTestResponse:
         report = validate_mock_test_bundle(mock_test)

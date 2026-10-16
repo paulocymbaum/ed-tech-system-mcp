@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -98,6 +98,16 @@ def trace_steps_to_views(steps: list[WorkflowTraceStep]) -> list[WorkflowTraceSt
     ]
 
 
+@runtime_checkable
+class _ModelDumpable(Protocol):
+    """Structural stand-in for pydantic models (the model_dump contract)."""
+
+    def model_dump(self, *, by_alias: bool = False) -> dict[str, Any]: ...
+
+
+_DraftT = TypeVar("_DraftT", LessonDraft, QuizDraft, PBLDraft)
+
+
 def _coerce_content_field(value: Any) -> LessonDraft | QuizDraft | PBLDraft | dict[str, Any] | None:
     if value is None:
         return None
@@ -105,12 +115,19 @@ def _coerce_content_field(value: Any) -> LessonDraft | QuizDraft | PBLDraft | di
         return value
     if isinstance(value, dict):
         return value
-    if hasattr(value, "model_dump"):
-        dump = value.model_dump
+    if isinstance(value, _ModelDumpable):
         try:
-            return dump(by_alias=True)  # type: ignore[misc]
+            return value.model_dump(by_alias=True)
         except TypeError:
-            return dump()
+            return value.model_dump()
+    return None
+
+
+def _coerce_draft(value: Any, draft_type: type[_DraftT]) -> _DraftT | dict[str, Any] | None:
+    """Narrow ``_coerce_content_field`` to one draft type (mismatched draft → None)."""
+    coerced = _coerce_content_field(value)
+    if coerced is None or isinstance(coerced, dict) or isinstance(coerced, draft_type):
+        return coerced
     return None
 
 
@@ -119,7 +136,7 @@ def _dump_model(value: Any, *, by_alias: bool = False) -> dict[str, Any] | None:
         return None
     if isinstance(value, dict):
         return value
-    if hasattr(value, "model_dump"):
+    if isinstance(value, _ModelDumpable):
         if by_alias:
             try:
                 return value.model_dump(by_alias=True)
@@ -156,9 +173,9 @@ def content_generation_state_to_run_response(
         lesson_retry_count=state.get("lesson_retry_count", 0),
         quiz_retry_count=state.get("quiz_retry_count", 0),
         pbl_retry_count=state.get("pbl_retry_count", 0),
-        lesson=_coerce_content_field(state.get("lesson")),
-        quiz=_coerce_content_field(state.get("quiz")),
-        pbl=_coerce_content_field(state.get("pbl")),
+        lesson=_coerce_draft(state.get("lesson"), LessonDraft),
+        quiz=_coerce_draft(state.get("quiz"), QuizDraft),
+        pbl=_coerce_draft(state.get("pbl"), PBLDraft),
         harness_lesson=_dump_model(harness_lesson, by_alias=True),
         harness_quiz=_dump_model(harness_quiz, by_alias=True),
         harness_project=_dump_model(harness_project, by_alias=True),

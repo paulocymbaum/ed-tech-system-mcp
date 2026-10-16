@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 
 from fastmcp.server.dependencies import get_http_headers
-from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from fastmcp.tools import ToolResult
 from mcp.types import CallToolRequestParams
 
 from mcp_server.application.inbound_rate_limit_runtime import get_inbound_rate_limit_runtime
@@ -31,7 +32,11 @@ def _quota_key_from_headers() -> str:
 class InboundToolRateLimitMiddleware(Middleware):
     """Bound tools/call when inbound rate limiting is enabled (HTTP transports)."""
 
-    async def on_call_tool(self, context: MiddlewareContext[CallToolRequestParams], call_next):
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
         runtime = get_inbound_rate_limit_runtime()
         if runtime is None or not runtime.enabled or runtime.limiter is None:
             return await call_next(context)
