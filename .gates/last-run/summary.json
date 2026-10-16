@@ -1,4 +1,4 @@
-{"profile":"fast","status":"complete","durationMs":19328,"failed":0,"missing":0,"steps":[
-{"step":"01-pytest","name":"01-pytest","exit":0,"ms":19315,"log":"/home/paulo-yapper/Documents/praxis-project/ed-tech-system-mcp/.gates/last-run/01-pytest.log"}
+{"profile":"fast","status":"complete","durationMs":28807,"failed":0,"missing":0,"steps":[
+{"step":"01-pytest","name":"01-pytest","exit":0,"ms":28788,"log":"/home/paulo-yapper/Documents/praxis-project/ed-tech-system-mcp/.gates/last-run/01-pytest.log"}
 ]
 }
