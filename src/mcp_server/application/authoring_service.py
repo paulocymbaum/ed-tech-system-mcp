@@ -62,15 +62,15 @@ def harness_quiz_to_rpc_payload(quiz: dict[str, Any] | HarnessQuizDraft) -> dict
                     "text": option.get("text"),
                 }
             )
-            # Quiz v-next (GA-20..23, BL-141): pass through the optional fields
+            # Quiz v-next (GA-20..21, BL-141): pass through the optional fields
             # when present — upsert_quiz_tree persists them expand-only.
+            # NOTE: no option-level code field — code lives only in the project
+            # delivery edited in the code editor (single-source decision).
             fraction_visual = option.get("fractionVisual") or option.get("fraction_visual")
             if isinstance(fraction_visual, dict):
                 options_out[-1]["fractionVisual"] = fraction_visual
             if option.get("tag"):
                 options_out[-1]["tag"] = str(option["tag"])
-            if option.get("code"):
-                options_out[-1]["code"] = str(option["code"])
         slugs = [str(o["slug"]) for o in options_out if o.get("slug")]
         raw_correct = str(
             question.get("correctOptionId") or question.get("correct_option_slug") or ""

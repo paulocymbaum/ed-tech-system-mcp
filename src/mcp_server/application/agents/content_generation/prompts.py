@@ -158,9 +158,10 @@ def quiz_user_prompt(
             "Optional per question: codeStem (a short code snippet shown above "
             "the options, for read-the-code questions). Optional per option: "
             "fractionVisual {total, filled} (a pie visual for fraction "
-            "comparisons, total >= 2, 0 <= filled <= total), tag (a lowercase "
-            "slug chip, e.g. concept-mutation, max 64 chars), code (renders the "
-            "option as a code row). Omit any field that does not apply."
+            "comparisons, total >= 2, 0 <= filled <= total) and tag (a lowercase "
+            "slug chip, e.g. concept-mutation, max 64 chars). Omit any field "
+            "that does not apply. Never add other code fields — the project "
+            "delivery code lives only in the code editor."
         )
         if lesson_slug:
             lines.append(f"Set lessonId to: {lesson_slug}")
