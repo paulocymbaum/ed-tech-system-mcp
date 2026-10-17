@@ -95,6 +95,7 @@ def initial_socratic_tutor_state(
     locale: str = "en",
     want_full_solution: bool = False,
     grounding: SocraticGrounding | None = None,
+    learner_delivery_draft: str | None = None,
     session_id: str | None = None,
 ) -> SocraticTutorState:
     return {
@@ -109,6 +110,7 @@ def initial_socratic_tutor_state(
         "locale": normalize_locale(locale),
         "want_full_solution": want_full_solution,
         "grounding": grounding,
+        "learner_delivery_draft": learner_delivery_draft,
         "reply": None,
         "validation_errors": [],
         "reply_retry_count": 0,

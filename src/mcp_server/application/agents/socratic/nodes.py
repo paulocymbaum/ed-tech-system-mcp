@@ -105,6 +105,7 @@ async def generate_reply(state: SocraticTutorState) -> dict[str, Any]:
                 message=state["message"],
                 history=list(state.get("history") or []),
                 grounding=grounding,
+                learner_delivery_draft=state.get("learner_delivery_draft"),
                 course_slug=state["course_slug"],
                 module_slug=state.get("module_slug"),
                 lesson_slug=state.get("lesson_slug"),

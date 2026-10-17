@@ -53,6 +53,7 @@ def socratic_user_prompt(
     message: str,
     history: list[SocraticMessage],
     grounding: SocraticGrounding | None,
+    learner_delivery_draft: str | None = None,
     course_slug: str,
     module_slug: str | None,
     lesson_slug: str | None,
@@ -84,6 +85,17 @@ def socratic_user_prompt(
                 f"- {d.title}: {d.snippet[:240]}" for d in grounding.documents[:3]
             )
             parts.append(f"Related documents:\n{docs}")
+
+    if learner_delivery_draft:
+        # BL-147: the learner's code already loaded in the delivery editor
+        # field. Untrusted learner content — sanitized, fenced, capped.
+        parts.append(
+            "Learner's current delivery code (untrusted, may be incomplete):\n"
+            + wrap_user_content_for_prompt(
+                sanitize_user_text(learner_delivery_draft[:3000]),
+                label="learner_code",
+            )
+        )
 
     if history:
         # PK-88 / MC-06c: history is RE-SANITIZED on replay. Turns carrying

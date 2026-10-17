@@ -49,6 +49,9 @@ class SocraticTutorRequest(BaseModel):
     locale: str = "en"
     want_full_solution: bool = False
     grounding: dict[str, Any] | None = None
+    # Learner's code already loaded in the delivery editor field (BL-147).
+    # Untrusted content — sanitized + wrapped at prompt build, never trusted.
+    learner_delivery_draft: str | None = Field(default=None, max_length=12000)
 
     @field_validator("message")
     @classmethod
@@ -69,6 +72,7 @@ async def socratic_tutor(
     locale: str = "en",
     want_full_solution: bool = False,
     grounding: dict[str, Any] | None = None,
+    learner_delivery_draft: str | None = None,
     session_id: str | None = None,
 ) -> SocraticReply:
     """Socratic tutoring turn — hints and questions; never grades. No MCP RAG."""
@@ -88,6 +92,7 @@ async def socratic_tutor(
         locale=locale,
         want_full_solution=want_full_solution,
         grounding=grounding,
+        learner_delivery_draft=learner_delivery_draft,
     )
     args = request.model_dump()
 
@@ -113,6 +118,7 @@ async def socratic_tutor(
             locale=normalize_locale(request.locale),
             want_full_solution=request.want_full_solution,
             grounding=parsed_grounding,
+            learner_delivery_draft=request.learner_delivery_draft,
             session_id=session_key,
         )
         result_state = await ainvoke_with_workflow_timeout(graph, state)

@@ -24,6 +24,8 @@ class SocraticTutorState(TypedDict):
     locale: LocaleCode
     want_full_solution: bool
     grounding: NotRequired[SocraticGrounding | None]
+    # Learner's code already loaded in the delivery editor field (BL-147).
+    learner_delivery_draft: NotRequired[str | None]
     reply: NotRequired[str | None]
     validation_errors: NotRequired[list[str]]
     reply_retry_count: NotRequired[int]
